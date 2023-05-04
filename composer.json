@@ -13,5 +13,14 @@
             "email": "landers.robert@gmail.com"
         }
     ],
-    "require": {}
+    "require": {
+        "olvlvl/composer-attribute-collector": "^1.2",
+        "php-di/php-di": "^7.0",
+        "php": ">=8.2"
+    },
+    "config": {
+        "allow-plugins": {
+            "olvlvl/composer-attribute-collector": true
+        }
+    }
 }
