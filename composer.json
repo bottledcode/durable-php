@@ -7,6 +7,11 @@
             "Bottledcode\\DurablePhp\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Bottledcode\\DurablePhp\\Tests\\": "tests/"
+        }
+    },
     "authors": [
         {
             "name": "Robert Landers",
@@ -16,7 +21,12 @@
     "require": {
         "olvlvl/composer-attribute-collector": "^1.2",
         "php-di/php-di": "^7.0",
-        "php": ">=8.2"
+        "php": ">=8.2",
+        "spatie/php-cloneable": "^1.0",
+        "ext-parallel": "*",
+        "ext-redis": "*",
+        "ramsey/uuid": "^4.7",
+        "withinboredom/time": "^2.0"
     },
     "config": {
         "allow-plugins": {
