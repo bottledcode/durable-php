@@ -22,6 +22,12 @@ readonly class ScheduleActivity
         #[Field]
         public array $input,
 
+        #[Field]
+        public PartitionId|null $parentPartitionId = null,
+
+        #[Field]
+        public UuidInterface|null $parentId = null,
+
         #[DateField]
         public \DateTimeInterface|null $scheduledTime = null,
     ) {
