@@ -26,7 +26,8 @@
         "ext-parallel": "*",
         "ext-redis": "*",
         "ramsey/uuid": "^4.7",
-        "withinboredom/time": "^2.0"
+        "withinboredom/time": "^2.0",
+        "crell/serde": "^0.6.0"
     },
     "config": {
         "allow-plugins": {

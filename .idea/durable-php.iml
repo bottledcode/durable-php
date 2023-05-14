@@ -16,6 +16,9 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/collection" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/uuid" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/withinboredom/time" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/crell/attributeutils" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/crell/fp" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/crell/serde" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
