@@ -23,6 +23,9 @@
       <path value="$PROJECT_DIR$/vendor/ramsey/uuid" />
       <path value="$PROJECT_DIR$/vendor/ramsey/collection" />
       <path value="$PROJECT_DIR$/vendor/withinboredom/time" />
+      <path value="$PROJECT_DIR$/vendor/crell/fp" />
+      <path value="$PROJECT_DIR$/vendor/crell/attributeutils" />
+      <path value="$PROJECT_DIR$/vendor/crell/serde" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.2">
