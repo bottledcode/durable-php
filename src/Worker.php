@@ -4,15 +4,13 @@ namespace Bottledcode\DurablePhp;
 
 use parallel\Channel;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
 abstract class Worker
 {
-    public static function errorHandler(): void
+    public static function errorHandler(...$props): void
     {
+        echo 'Error: ' . json_encode($props) . PHP_EOL;
+        die(1);
     }
 
     abstract public function run(Channel $commander);
 }
-
-set_error_handler(Worker::errorHandler(...));
