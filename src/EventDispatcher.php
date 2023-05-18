@@ -8,22 +8,17 @@ use Ramsey\Uuid\Uuid;
 
 class EventDispatcher extends Worker
 {
-    private \RedisCluster|\Redis $redis;
-
-    public function __construct()
+    public function __construct(Config $config, private Channel $workChannel)
     {
-        $this->redis = RedisReader::connect();
-    }
-
-    public function ackEvent(string $eventId): void
-    {
-        $this->redis->xAck('partition_0', 'consumer_group', [$eventId]);
+        parent::__construct($config);
     }
 
     public function run(Channel|null $commander): void
     {
+        $redis = RedisReader::connect($this->config);
         while (true) {
-            $event = $commander->recv();
+            $event = $commander?->recv();
+            $this->heartbeat($redis, 'dispatcher');
             $event = igbinary_unserialize($event);
             if ($event === null) {
                 break;
@@ -43,17 +38,13 @@ class EventDispatcher extends Worker
                             $event->eventId
                         );
 
-                        // todo: maybe send to remotes
-
-                        if (!$event->isReplaying) {
-                            Logger::log('Sending activity to worker');
-                            $commander->send(igbinary_serialize($activityInfo));
-                        }
+                        Logger::log('Sending activity to worker');
+                        $this->workChannel->send(igbinary_serialize($activityInfo));
                     }
-                    $this->ackEvent($event->eventId);
-                    Logger::log('Activity acked');
                     break;
             }
+
+            $this->collectGarbage();
         }
     }
 }

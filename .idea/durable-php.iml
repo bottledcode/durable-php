@@ -19,6 +19,11 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/crell/attributeutils" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/crell/fp" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/crell/serde" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/nesbot/carbon" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-mbstring" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-php80" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/translation" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/translation-contracts" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

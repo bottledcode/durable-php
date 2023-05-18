@@ -12,19 +12,19 @@ class Pipe
     public readonly array $sinks;
     private Future $thread;
 
-    public function __construct(public readonly Channel $source, Channel ...$sinks)
+    public function __construct(string $name, public readonly Channel $source, Channel ...$sinks)
     {
         $this->sinks = $sinks;
-        $this->thread = run(static function (Channel $source, Channel ...$sinks) {
+        $this->thread = run(static function (string $name, Channel $source, Channel ...$sinks) {
             $counter = 0;
             while (true) {
                 $message = $source->recv();
-                Logger::log("Pipe received message: %d", ++$counter);
+                Logger::log("%s received message: %d", $name, ++$counter);
                 foreach ($sinks as $sink) {
                     $sink->send($message);
                 }
             }
-        }, [$source, ...$sinks]);
+        }, [$name, $source, ...$sinks]);
     }
 
     public function __destruct()

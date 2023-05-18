@@ -5,10 +5,8 @@ namespace Bottledcode\DurablePhp\Events;
 use Bottledcode\DurablePhp\TaskMessage;
 use Ramsey\Uuid\UuidInterface;
 
-class ActivityTransfer
+class ActivityTransfer extends Event
 {
-    public bool $isReplaying = false;
-
     public string $eventId;
 
     public function __construct(public \DateTimeImmutable $timestamp, public array $activities)
