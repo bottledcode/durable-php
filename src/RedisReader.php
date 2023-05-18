@@ -2,6 +2,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Events\Event;
 use parallel\Channel;
 
 use function Withinboredom\Time\Minutes;
@@ -38,12 +39,14 @@ class RedisReader extends Worker
         if (!empty($replay)) {
             $replay = $replay['partition_' . $this->config->currentPartition];
             Logger::log('replaying ' . count($replay) . ' events');
-            foreach ($replay as $eventId => [$event]) {
+            foreach ($replay as $eventId => ['event' => $event]) {
                 if ($event === null) {
                     continue;
                 }
+                /**
+                 * @var Event $devent
+                 */
                 $devent = igbinary_unserialize($event);
-                $devent->isReplaying = true;
                 $devent->eventId = $eventId;
                 $sender->send(igbinary_serialize($devent));
                 Logger::log('replaying %s event', get_class($devent));
@@ -68,12 +71,14 @@ class RedisReader extends Worker
 
             $replay = $replay['partition_' . $this->config->currentPartition];
             Logger::log('running ' . count($replay) . ' events');
-            foreach ($replay as $eventId => [$event]) {
+            foreach ($replay as $eventId => ['event' => $event]) {
                 if ($event === null) {
                     continue;
                 }
+                /**
+                 * @var Event $devent
+                 */
                 $devent = igbinary_unserialize($event);
-                $devent->isReplaying = false;
                 $devent->eventId = $eventId;
                 $sender->send(igbinary_serialize($devent));
                 Logger::log('running %s event', get_class($devent));

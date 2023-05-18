@@ -13,20 +13,16 @@ class TaskWorker extends Worker
 
     public function run(Channel|null $commander): void
     {
+        $redis = RedisReader::connect($this->config);
         Logger::log('Task worker %d waiting for work', $this->id);
 
         $work = $commander?->recv();;
         Logger::log('[%d] Received work', $this->id);
-        /**
-         * @var ActivityInfo $work
-         */
         $work = igbinary_unserialize($work);
 
-        Logger::log('[%d] doing pretend work', $this->id);
-        sleep(10);
-        Logger::log('[%d] done with pretend work', $this->id);
+        $events = $work($redis);
+        array_walk($events, fn($event) => $this->dispatchChannel->send(igbinary_serialize($event)));
 
-        $redis = RedisReader::connect($this->config);
         $redis->xAck('partition_0', 'consumer_group', [$work->eventId]);
         Logger::log('[%d] acked event %s', $this->id, $work->eventId);
     }

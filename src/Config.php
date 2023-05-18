@@ -9,7 +9,7 @@ readonly class Config
         public int $totalPartitions = 10,
         public string $redisHost = 'redis',
         public int $redisPort = 6379,
-        public int $totalWorkers = 1,
+        public int $totalWorkers = 10,
     ) {
     }
 

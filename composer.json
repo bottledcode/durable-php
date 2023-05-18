@@ -1,7 +1,10 @@
 {
-  "name": "bottledcode/durable-php",
-  "type": "library",
-  "license": "MIT",
+  "authors": [
+    {
+      "name": "Robert Landers",
+      "email": "landers.robert@gmail.com"
+    }
+  ],
   "autoload": {
     "psr-4": {
       "Bottledcode\\DurablePhp\\": "src/"
@@ -12,28 +15,26 @@
       "Bottledcode\\DurablePhp\\Tests\\": "tests/"
     }
   },
-  "authors": [
-    {
-      "name": "Robert Landers",
-      "email": "landers.robert@gmail.com"
-    }
-  ],
-  "require": {
-    "olvlvl/composer-attribute-collector": "^1.2",
-    "php-di/php-di": "^7.0",
-    "php": ">=8.2",
-    "spatie/php-cloneable": "^1.0",
-    "ext-parallel": "*",
-    "ext-redis": "*",
-    "ramsey/uuid": "^4.7",
-    "withinboredom/time": "^2.0",
-    "crell/serde": "^0.6.0",
-    "ext-igbinary": "*",
-    "nesbot/carbon": "^2.66"
-  },
   "config": {
     "allow-plugins": {
       "olvlvl/composer-attribute-collector": true
     }
-  }
+  },
+  "license": "MIT",
+  "name": "bottledcode/durable-php",
+  "require": {
+    "crell/serde": "^0.6.0",
+    "ext-igbinary": "*",
+    "ext-parallel": "*",
+    "ext-redis": "*",
+    "psr/http-client": "1.0.2",
+    "nesbot/carbon": "^2.66",
+    "olvlvl/composer-attribute-collector": "^1.2",
+    "php": ">=8.2",
+    "php-di/php-di": "^7.0",
+    "ramsey/uuid": "^4.7",
+    "spatie/php-cloneable": "^1.0",
+    "withinboredom/time": "^2.0"
+  },
+  "type": "library"
 }
