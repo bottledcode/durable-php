@@ -2,14 +2,11 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\Events\ActivityTransfer;
 use parallel\Channel;
 use parallel\Events;
 use parallel\Future;
-use Ramsey\Uuid\Uuid;
 
 use function parallel\run;
-use function Withinboredom\Time\Milliseconds;
 
 class Supervisor extends Worker
 {
@@ -55,7 +52,6 @@ class Supervisor extends Worker
     public function run(Channel|null $commander): never
     {
         $events = new Events();
-        $threads = [];
         $redisChannel = new Channel(Channel::Infinite);
         $events->addChannel($redisChannel);
         $redisReader = null;
@@ -93,30 +89,10 @@ class Supervisor extends Worker
 
         Logger::log('supervisor starting');
         $redis = RedisReader::connect($this->config);
-        $redis->xAdd(
-            'partition_0',
-            '*',
-            [
-                igbinary_serialize(
-                    new ActivityTransfer(
-                        new \DateTimeImmutable(),
-                        [
-                            ActivityTransfer::activity(
-                                new TaskMessage(
-                                    new HistoryEvent(Uuid::uuid7(), false, EventType::ExecutionStarted),
-                                    null,
-                                    'test'
-                                ),
-                                null
-                            )
-                        ]
-                    )
-                )
-            ]
-        );
+        //$redis->xAdd('partition_0', '*', []);
 
-        $redisReader = $this->maybeRestart($redisReader ?? null, RedisReader::class, 0, $redisChannel, $events);
-        $dispatcher = $this->maybeRestart(
+        $this->maybeRestart($redisReader ?? null, RedisReader::class, 0, $redisChannel, $events);
+        $this->maybeRestart(
             $dispatcher ?? null,
             EventDispatcher::class,
             0,
@@ -136,8 +112,10 @@ class Supervisor extends Worker
             );
         }
 
+        $events->setBlocking(true);
+
         while (true) {
-            $events->setBlocking(true);
+            $this->heartbeat($redis, 'supervisor');
             Logger::log('polling');
             $result = $events->poll();
 
@@ -175,7 +153,7 @@ class Supervisor extends Worker
                         [$className, $id] = explode(':', $result?->source);
                         switch ($className) {
                             case RedisReader::class:
-                                $redisReader = $this->maybeRestart(
+                                $this->maybeRestart(
                                     $result?->object,
                                     $className,
                                     $id,
@@ -184,7 +162,7 @@ class Supervisor extends Worker
                                 );
                                 break 2;
                             case EventDispatcher::class:
-                                $dispatcher = $this->maybeRestart(
+                                $this->maybeRestart(
                                     $result?->object,
                                     $className,
                                     $id,
@@ -205,13 +183,13 @@ class Supervisor extends Worker
                                 );
                                 // check if there is work in the queue
                                 $work = $workQueue->recv();
-                                if(null !== $work) {
+                                if (null !== $work) {
                                     $queueDepth--;
                                     Logger::log('pulling from backlog: %d items remaining', $queueDepth);
                                     $taskChannels[$id]->send($work);
                                 } else {
                                     $working = array_filter($working, static fn($v) => $v !== $id);
-                                    $nextWorker = (int) $id;
+                                    $nextWorker = (int)$id;
                                 }
                                 break 2;
                             default:
