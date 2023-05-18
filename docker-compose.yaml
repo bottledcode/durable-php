@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+  dev:
+    build: .
+    command: sleep 1000000000
+    volumes:
+      - .:/app
+    working_dir: /app
+    user: "1000:1000"
+    depends_on:
+      - redis

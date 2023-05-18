@@ -28,7 +28,8 @@
     "ramsey/uuid": "^4.7",
     "withinboredom/time": "^2.0",
     "crell/serde": "^0.6.0",
-    "ext-igbinary": "*"
+    "ext-igbinary": "*",
+    "nesbot/carbon": "^2.66"
   },
   "config": {
     "allow-plugins": {

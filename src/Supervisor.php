@@ -6,53 +6,93 @@ use Bottledcode\DurablePhp\Events\ActivityTransfer;
 use parallel\Channel;
 use parallel\Events;
 use parallel\Future;
-
 use Ramsey\Uuid\Uuid;
 
 use function parallel\run;
+use function Withinboredom\Time\Milliseconds;
 
 class Supervisor extends Worker
 {
     private Future $redisReader;
 
-    public function __construct()
-    {
-    }
-
-    public function maybeRestart(Future|null $runtime, string $worker, Channel $commander): Future
-    {
+    public function maybeRestart(
+        Future|null $runtime,
+        string $worker,
+        int $special,
+        Channel $commander,
+        Events $events,
+        ...$args
+    ): Future {
         if ($runtime === null || $runtime->done() || $runtime->cancelled()) {
             if ($runtime?->cancelled() || $runtime?->done()) {
                 Logger::log("Worker {$worker} has died, restarting from result: {$runtime->value()}");
             } else {
-                Logger::log("Starting worker {$worker}");
+                //Logger::log("Starting worker {$worker}");
             }
 
-            $runtime = run(static function (string $workerClass, Channel|null $commander) {
+            $runtime = run(static function (string $workerClass, Channel|null $commander, Config $config, $args): void {
                 //set_error_handler(Worker::errorHandler(...));
-                $worker = new $workerClass();
-                $worker->run($commander);
-                Logger::log("Started worker {$worker}");
-            }, [$worker, $commander]);
+                try {
+                    $worker = new $workerClass($config, ...$args);
+                    //Logger::log("Worker {$workerClass} started");
+                    $worker->run($commander);
+                } catch (\Throwable $e) {
+                    Logger::log(
+                        "Worker %s died with exception: (%s) %s\n%s",
+                        $workerClass,
+                        get_class($e),
+                        $e->getMessage(),
+                        $e->getTraceAsString()
+                    );
+                    throw new \RuntimeException("Worker died", previous: $e);
+                }
+            }, [$worker, $commander, $this->config, $args]);
+            $events->addFuture("{$worker}:{$special}", $runtime);
         }
         return $runtime;
     }
 
     public function run(Channel|null $commander): never
     {
+        $events = new Events();
+        $threads = [];
         $redisChannel = new Channel(Channel::Infinite);
+        $events->addChannel($redisChannel);
         $redisReader = null;
 
         $dispatchChannel = new Channel(Channel::Infinite);
+        //$events->addChannel($dispatchChannel);
         $dispatcher = null;
 
         $redisToDispatch = null;
 
+        /**
+         * @var Channel[] $taskChannels
+         */
         $taskChannels = [];
+        /**
+         * @var Future[] $taskWorkers
+         */
         $taskWorkers = [];
 
+        for ($i = 0; $i < $this->config->totalWorkers; $i++) {
+            $taskChannels[$i] = new Channel(Channel::Infinite);
+            //$events->addChannel($taskChannels[$i]);
+            $taskWorkers[$i] = null;
+        }
+
+        $working = [];
+        $workQueue = new Channel(Channel::Infinite);
+        $queueDepth = 0;
+        $nextWorker = 0;
+
+        $workChannel = new Channel(Channel::Infinite);
+        $events->addChannel($workChannel);
+
+        //$dispatchToTask = new Pipe('dispatchToTask', $dispatchChannel, ...$taskChannels);
+
         Logger::log('supervisor starting');
-        /*$redis = RedisReader::connect();
+        $redis = RedisReader::connect($this->config);
         $redis->xAdd(
             'partition_0',
             '*',
@@ -60,64 +100,132 @@ class Supervisor extends Worker
                 igbinary_serialize(
                     new ActivityTransfer(
                         new \DateTimeImmutable(),
-                        [ActivityTransfer::activity(
-                            new TaskMessage(
-                                new HistoryEvent(Uuid::uuid7(), false, EventType::ExecutionStarted),
-                                null,
-                                'test'
-                            ),
-                            null
-                        )]
+                        [
+                            ActivityTransfer::activity(
+                                new TaskMessage(
+                                    new HistoryEvent(Uuid::uuid7(), false, EventType::ExecutionStarted),
+                                    null,
+                                    'test'
+                                ),
+                                null
+                            )
+                        ]
                     )
                 )
             ]
-        );*/
+        );
+
+        $redisReader = $this->maybeRestart($redisReader ?? null, RedisReader::class, 0, $redisChannel, $events);
+        $dispatcher = $this->maybeRestart(
+            $dispatcher ?? null,
+            EventDispatcher::class,
+            0,
+            $dispatchChannel,
+            $events,
+            workChannel: $workChannel
+        );
+        foreach ($taskChannels as $id => $channel) {
+            $taskWorkers[$id] = $this->maybeRestart(
+                $taskWorkers[$id] ?? null,
+                TaskWorker::class,
+                $id,
+                $channel,
+                $events,
+                id: $id,
+                dispatchChannel: $dispatchChannel
+            );
+        }
 
         while (true) {
-            $redisCommander = $this->maybeRestart($redisCommander ?? null, RedisReader::class, $redisChannel);
-            $dispatcher = $this->maybeRestart($dispatcher, EventDispatcher::class, $dispatchChannel);
-
-            /*$message = $redisChannel->recv();
-            if ($message instanceof Channel) {
-                // we received a new task channel
-                $redisReader = $message;
-                $redisToDispatch?->cancel();
-                Logger::log('received new redis reader');
-                $redisToDispatch = new Pipe($redisReader, $dispatchChannel);
-            }*/
-
-            $events = new Events();
-            //$events->addChannel($dispatchChannel);
-            $events->addChannel($redisChannel);
-            $events->addFuture(RedisReader::class, $redisCommander);
-            $events->addFuture(EventDispatcher::class, $dispatcher);
             $events->setBlocking(true);
             Logger::log('polling');
             $result = $events->poll();
-            //var_dump($result);
+
+            if ($result?->object instanceof Channel) {
+                $events->addChannel($result?->object);
+            }
+
             switch ($result?->type) {
                 case Events\Event\Type::Read:
                     if ($result?->object instanceof Channel && $result?->value instanceof Channel) {
                         Logger::log('received new redis reader');
-                        $redisReader = $result?->value;
                         $redisToDispatch?->cancel();
-                        $redisToDispatch = new Pipe($redisReader, $dispatchChannel);
+                        $redisToDispatch = new Pipe('redisToDispatch', $result?->value, $dispatchChannel);
                         break;
                     }
-                    if ($result->object instanceof Channel) {
-                        //var_dump($result);
+                    if ($result?->object === $workChannel) {
                         Logger::log('received message from dispatch channel');
-                        // spawn an activity worker
-                        /*if ($message instanceof ActivityInfo) {
-                            $taskChannel = new Channel(Channel::Infinite);
-                            $taskChannels[$message->activityId->toString()] = new Pipe($dispatchChannel, $taskChannel);
-                            $taskWorkers[$message->activityId->toString()] = $this->maybeRestart(
-                                $taskWorkers[$message->activityId->toString()] ?? null,
-                                TaskWorker::class,
-                                $taskChannel
-                            );
-                            $taskChannel->send($message);
-                        }*/
+
+                        if ($queueDepth === 0 && !in_array($nextWorker, $working, true)) {
+                            Logger::log('assigned work to %d', $nextWorker);
+                            $working[] = $nextWorker;
+                            $taskChannels[$nextWorker]->send($result?->value);
+                            $nextWorker = ($nextWorker + 1) % $this->config->totalWorkers;
+                            break;
+                        }
+
+                        Logger::log('putting work on backlog: %d', $queueDepth);
+                        $workQueue->send($result?->value);
+                        $queueDepth++;
+                        break;
+                    }
+
+                    if ($result?->object instanceof Future) {
+                        // something died!
+                        [$className, $id] = explode(':', $result?->source);
+                        switch ($className) {
+                            case RedisReader::class:
+                                $redisReader = $this->maybeRestart(
+                                    $result?->object,
+                                    $className,
+                                    $id,
+                                    $redisChannel,
+                                    $events
+                                );
+                                break 2;
+                            case EventDispatcher::class:
+                                $dispatcher = $this->maybeRestart(
+                                    $result?->object,
+                                    $className,
+                                    $id,
+                                    $dispatchChannel,
+                                    $events,
+                                    workChannel: $workChannel
+                                );
+                                break 2;
+                            case TaskWorker::class:
+                                $taskWorkers[$id] = $this->maybeRestart(
+                                    $result?->object,
+                                    $className,
+                                    $id,
+                                    $taskChannels[$id],
+                                    $events,
+                                    id: $id,
+                                    dispatchChannel: $dispatchChannel
+                                );
+                                // check if there is work in the queue
+                                $work = $workQueue->recv();
+                                if(null !== $work) {
+                                    $queueDepth--;
+                                    Logger::log('pulling from backlog: %d items remaining', $queueDepth);
+                                    $taskChannels[$id]->send($work);
+                                } else {
+                                    $working = array_filter($working, static fn($v) => $v !== $id);
+                                    $nextWorker = (int) $id;
+                                }
+                                break 2;
+                            default:
+                                Logger::log('an unknown future was finished');
+                                var_dump($result);
+                                break 2;
+                        }
+                    }
+
+                    Logger::log('received unknown message');
+                    var_dump($result);
+                    static $why = 0;
+                    if ($why++ > 10) {
+                        die();
                     }
                     break;
                 case Events\Event\Type::Write:
@@ -134,11 +242,13 @@ class Supervisor extends Worker
                     break;
                 case Events\Event\Type::Error:
                     Logger::log('received message error');
-                    if($result->value instanceof \Throwable) {
-                        Logger::log("%s\n%s", $result->value->getMessage(), $result->value->getTraceAsString());
+                    if ($result?->value instanceof \Throwable) {
+                        Logger::log("%s\n%s", $result?->value->getMessage(), $result?->value->getTraceAsString());
                     }
                     break;
             }
+
+            $this->collectGarbage();
         }
     }
 }
