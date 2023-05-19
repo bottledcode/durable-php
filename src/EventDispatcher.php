@@ -3,7 +3,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\StartExecution;
+use Bottledcode\DurablePhp\Events\HasInstanceInterface;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Transmutation\Router;
@@ -43,13 +43,9 @@ class EventDispatcher extends Worker
             }
 
             Logger::log("EventDispatcher received event: %s", get_class($event));
-            switch ($event::class) {
-                case StartExecution::class:
-                    /**
-                     * @var StartExecution $event
-                     */
-                    $state = $this->getState($event->instance);
-                    break;
+            $state = null;
+            if ($event instanceof HasInstanceInterface) {
+                $state = $this->getState($event->getInstance());
             }
 
             $events = $this->transmutate($event, $state);

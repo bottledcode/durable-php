@@ -2,6 +2,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\CompleteExecution;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Logger;
@@ -32,6 +33,8 @@ class OrchestrationHistory
 
     public array $awaiters = [];
 
+    public bool $isCompleted = false;
+
     public function __construct()
     {
         $this->historicalTaskResults = new DoubleEndedQueue(Task::class);
@@ -57,9 +60,17 @@ class OrchestrationHistory
     public function applyCompleteExecution(CompleteExecution $event): array {
         Logger::log("Applying CompleteExecution event to OrchestrationHistory");
         foreach ($this->awaiters as $awaiter) {
-            
+            //todo
         }
 
         return [];
+    }
+
+    public function applyAwaitResult(AwaitResult $event): array {
+        if($this->isCompleted) {
+            return [
+
+            ];
+        }
     }
 }

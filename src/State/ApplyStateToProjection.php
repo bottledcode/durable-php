@@ -7,7 +7,7 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\OrchestrationContextRedis;
 
-readonly class ApplyStateToProjection
+readonly class ApplyStateToProjection implements ApplyStateInterface
 {
     private mixed $projection;
     private \Redis|\RedisCluster $redis;
@@ -25,24 +25,26 @@ readonly class ApplyStateToProjection
         $context = new OrchestrationContextRedis($this->history->instance, $this->history);
         $this->loadProjection();
         $fiber = new \Fiber(function ($context, $args) {
-            $result = ($this->projection)($context, ...igbinary_unserialize($args));
-            return $this->createProjectionResult($result);
+            try {
+                $result = ($this->projection)($context, ...igbinary_unserialize($args));
+            } catch (\Throwable $x) {
+                return $this->createProjectionResult(status: OrchestrationStatus::Failed, error: $x);
+            }
+            return $this->createProjectionResult(result: $result);
         });
         $awaiter = $fiber->start($context, $this->history->input);
         if ($awaiter === null) {
             $result = $fiber->getReturn();
 
-            return match ($result['status']) {
-                'completed' => [
-                    new CompleteExecution(
-                        '',
-                        $this->history->instance,
-                        igbinary_serialize($result['result']),
-                        OrchestrationStatus::Completed
-                    )
-                ],
-                default => [],
-            };
+            return [
+                new CompleteExecution(
+                    '',
+                    $this->history->instance,
+                    $result['result'],
+                    $result['status'],
+                    $result['error']
+                )
+            ];
         }
 
         return [];
@@ -67,11 +69,11 @@ readonly class ApplyStateToProjection
         $this->projection = igbinary_unserialize($rawProjection);
     }
 
-    public function createProjectionResult($result): array
-    {
-        return [
-            'status' => 'completed',
-            'result' => $result,
-        ];
+    public function createProjectionResult(
+        mixed $result = null,
+        OrchestrationStatus $status = OrchestrationStatus::Completed,
+        \Throwable|null $error = null
+    ): array {
+        return compact('result', 'status', 'error');
     }
 }
