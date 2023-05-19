@@ -40,7 +40,7 @@ readonly class ApplyStateToProjection implements ApplyStateInterface
                 new CompleteExecution(
                     '',
                     $this->history->instance,
-                    $result['result'],
+                    igbinary_serialize($result['result']),
                     $result['status'],
                     $result['error']
                 )

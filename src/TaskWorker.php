@@ -21,7 +21,10 @@ class TaskWorker extends Worker
         $work = igbinary_unserialize($work);
 
         $events = $work($redis);
-        array_walk($events, fn($event) => $this->dispatchChannel->send(igbinary_serialize($event)));
+
+        foreach($events as $event) {
+            $this->dispatchChannel->send(igbinary_serialize($event));
+        }
 
         $redis->xAck('partition_0', 'consumer_group', [$work->eventId]);
         Logger::log('[%d] acked event %s', $this->id, $work->eventId);
