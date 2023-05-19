@@ -5,7 +5,7 @@ namespace Bottledcode\DurablePhp\Events;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Carbon\Carbon;
 
-class StartExecution extends Event
+class StartExecution extends Event implements HasInstanceInterface
 {
     public function __construct(
         public OrchestrationInstance $instance,
@@ -20,5 +20,10 @@ class StartExecution extends Event
         public string $eventId,
     ) {
         parent::__construct($eventId);
+    }
+
+    public function getInstance(): OrchestrationInstance
+    {
+        return $this->instance;
     }
 }
