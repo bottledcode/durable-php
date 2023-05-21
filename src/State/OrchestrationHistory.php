@@ -35,6 +35,8 @@ class OrchestrationHistory
 
     public bool $isCompleted = false;
 
+    public string $lastAppliedEvent;
+
     public function __construct()
     {
         $this->historicalTaskResults = new DoubleEndedQueue(Task::class);
