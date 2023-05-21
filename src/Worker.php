@@ -2,9 +2,9 @@
 
 namespace Bottledcode\DurablePhp;
 
-use parallel\Channel;
+use Amp\Parallel\Worker\Environment;
 
-abstract class Worker
+abstract class Worker implements \Amp\Parallel\Worker\Task
 {
     private $timesCollectedGarbage = 0;
 
@@ -18,7 +18,7 @@ abstract class Worker
         die(1);
     }
 
-    abstract public function run(Channel $commander);
+    abstract public function run(Environment $environment): void;
 
     protected function heartbeat(\Redis|\RedisCluster $redis, string $name): void
     {

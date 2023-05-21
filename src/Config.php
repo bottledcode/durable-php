@@ -7,9 +7,11 @@ readonly class Config
     public function __construct(
         public int $currentPartition,
         public int $totalPartitions = 10,
-        public string $redisHost = 'redis',
+        public string $redisHost = 'localhost',
         public int $redisPort = 6379,
         public int $totalWorkers = 10,
+        public string $bootstrapPath = __DIR__ . '/../vendor/autoload.php',
+        public string $partitionKeyPrefix = 'partition_',
     ) {
     }
 
@@ -23,6 +25,7 @@ readonly class Config
                 '--redis-host', '-h' => 'redisHost',
                 '--redis-port', '-p' => 'redisPort',
                 '--total-workers', '-w' => 'totalWorkers',
+                '--bootstrap-path', '-b' => 'bootstrapPath',
                 default => throw new \InvalidArgumentException('Unknown argument ' . $args[$i])
             };
             $arr[$key] = $args[++$i] ?? throw new \InvalidArgumentException('Missing value for argument ' . $args[$i - 1]);
