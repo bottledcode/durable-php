@@ -2,30 +2,25 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\Cancellation;
+use Amp\Sync\Channel;
 use Bottledcode\DurablePhp\Events\Event;
-use parallel\Channel;
 
 use function Withinboredom\Time\Minutes;
 use function Withinboredom\Time\Seconds;
 
-class RedisReader extends Worker
+class RedisReaderTask implements \Amp\Parallel\Worker\Task
 {
-    private function cleanHouse(\Redis|\RedisCluster $redis) {
-        $pending = $redis->xPending('partition_' . $this->config->currentPartition, 'consumer_group');
-        if($pending[0] === 0) {
-            // trim the stream
-            $redis->xTrim('partition_' . $this->config->currentPartition, 50);
-        }
+    use GarbageCollecting;
+
+    public function __construct(private Config $config)
+    {
     }
 
-    public function run(Channel $commander)
+    public function run(Channel $channel, Cancellation $cancellation): mixed
     {
         $redis = self::connect($this->config);
 
-        $sender = new Channel(50);
-        $commander->send($sender);
-
-        // create the stream if it doesn't exist
         $redis->xGroup('CREATE', 'partition_' . $this->config->currentPartition, 'consumer_group', '$', true);
 
         // read the stream up to now...
@@ -48,7 +43,7 @@ class RedisReader extends Worker
                  */
                 $devent = igbinary_unserialize($event);
                 $devent->eventId = $eventId;
-                $sender->send(igbinary_serialize($devent));
+                $channel->send($devent);
                 Logger::log('replaying %s event', get_class($devent));
             }
         }
@@ -80,11 +75,11 @@ class RedisReader extends Worker
                  */
                 $devent = igbinary_unserialize($event);
                 $devent->eventId = $eventId;
+                $channel->send($devent);
                 Logger::log('running %s event', get_class($devent));
-                $sender->send(igbinary_serialize($devent));
             }
 
-            if($this->collectGarbage()) {
+            if ($this->collectGarbage()) {
                 $this->cleanHouse($redis);
             }
         }
@@ -111,5 +106,14 @@ class RedisReader extends Worker
             );
         }
         return $redis;
+    }
+
+    private function cleanHouse(\Redis|\RedisCluster $redis)
+    {
+        $pending = $redis->xPending('partition_' . $this->config->currentPartition, 'consumer_group');
+        if ($pending[0] === 0) {
+            // trim the stream
+            $redis->xTrim('partition_' . $this->config->currentPartition, 50);
+        }
     }
 }

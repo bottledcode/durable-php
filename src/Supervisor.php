@@ -2,15 +2,22 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\Parallel\Worker\Pool;
+use Amp\Redis\Redis;
+use Amp\Redis\RemoteExecutor;
 use parallel\Channel;
 use parallel\Events;
 use parallel\Future;
 
 use function parallel\run;
 
-class Supervisor extends Worker
+class Supervisor
 {
     private Future $redisReader;
+
+    public function __construct(private Config $config)
+    {
+    }
 
     public function maybeRestart(
         Future|null $runtime,
@@ -49,8 +56,10 @@ class Supervisor extends Worker
         return $runtime;
     }
 
-    public function run(Channel|null $commander): never
+    public function run(Pool $pool): never
     {
+
+
         $events = new Events();
         $redisChannel = new Channel(Channel::Infinite);
         $events->addChannel($redisChannel);
