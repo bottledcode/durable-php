@@ -6,5 +6,5 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
 interface HasInstanceInterface
 {
-    public function getInstance(): OrchestrationInstance;
+	public function getInstance(): OrchestrationInstance;
 }

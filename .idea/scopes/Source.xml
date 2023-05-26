@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Source" pattern="(file[durable-php]:src//*||file[durable-php]:tests//*||file[durable-php]:docs//*)&amp;&amp;!file[durable-php]:vendor//*" />
+</component>

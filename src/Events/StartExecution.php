@@ -7,23 +7,23 @@ use Carbon\Carbon;
 
 class StartExecution extends Event implements HasInstanceInterface
 {
-    public function __construct(
-        public OrchestrationInstance $instance,
-        public OrchestrationInstance|null $parentInstance,
-        public string $name,
-        public string $version,
-        public string $input,
-        public array $tags,
-        public string $correlation,
-        public Carbon $scheduledAt,
-        public int $generation,
-        public string $eventId,
-    ) {
-        parent::__construct($eventId);
-    }
+	public function __construct(
+		public OrchestrationInstance $instance,
+		public OrchestrationInstance|null $parentInstance,
+		public string $name,
+		public string $version,
+		public string $input,
+		public array $tags,
+		public string $correlation,
+		public Carbon $scheduledAt,
+		public int $generation,
+		public string $eventId,
+	) {
+		parent::__construct($eventId);
+	}
 
-    public function getInstance(): OrchestrationInstance
-    {
-        return $this->instance;
-    }
+	public function getInstance(): OrchestrationInstance
+	{
+		return $this->instance;
+	}
 }

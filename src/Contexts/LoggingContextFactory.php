@@ -13,17 +13,17 @@ use function Amp\ByteStream\pipe;
 
 class LoggingContextFactory implements ContextFactory
 {
-    public function __construct(private readonly ContextFactory $other)
-    {
-    }
+	public function __construct(private readonly ContextFactory $other)
+	{
+	}
 
-    public function start(array|string $script, ?Cancellation $cancellation = null): Context
-    {
-        $process = $this->other->start($script, $cancellation);
+	public function start(array|string $script, ?Cancellation $cancellation = null): Context
+	{
+		$process = $this->other->start($script, $cancellation);
 
-        async(pipe(...), $process->getStdout(), getStdout())->ignore();
-        async(pipe(...), $process->getStderr(), getStderr())->ignore();
+		async(pipe(...), $process->getStdout(), getStdout())->ignore();
+		async(pipe(...), $process->getStderr(), getStderr())->ignore();
 
-        return $process;
-    }
+		return $process;
+	}
 }

@@ -2,6 +2,10 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-interface ApplyStateInterface {
-    public function __invoke(\Redis|\RedisCluster $redis): array;
+use Redis;
+use RedisCluster;
+
+interface ApplyStateInterface
+{
+	public function __invoke(Redis|RedisCluster $redis): array;
 }

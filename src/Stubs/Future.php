@@ -6,6 +6,7 @@ namespace parallel {
 	use parallel\Future\Error\Cancelled;
 	use parallel\Future\Error\Foreign;
 	use parallel\Future\Error\Killed;
+	use Throwable;
 
 	return;
 
@@ -15,7 +16,7 @@ namespace parallel {
 		 * Shall return (and if necessary wait for) return from task
 		 *
 		 * @return mixed
-		 * @throws \Throwable
+		 * @throws Throwable
 		 * @throws Foreign
 		 * @throws Killed
 		 * @throws Cancelled
@@ -65,9 +66,15 @@ namespace parallel\Future\Error {
 
 	use parallel\Future\Error;
 
-	class Killed extends Error {}
+	class Killed extends Error
+	{
+	}
 
-	class Cancelled extends Error {}
+	class Cancelled extends Error
+	{
+	}
 
-	class Foreign extends Error {}
+	class Foreign extends Error
+	{
+	}
 }
