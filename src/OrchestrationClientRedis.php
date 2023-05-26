@@ -7,6 +7,7 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\OrchestrationStatus;
 use Carbon\Carbon;
+use Fiber;
 use LogicException;
 use Ramsey\Uuid\Uuid;
 use Redis;
@@ -90,5 +91,18 @@ final class OrchestrationClientRedis implements OrchestrationClientInterface
 
 	public function waitForCompletion(OrchestrationInstance $instance, ReadableConverterInterface $timeout = null): void
 	{
+		$fiber = new Fiber(function ($channel, $fiber) {
+			$this->redis->subscribe([$channel], function () use ($fiber) {
+				$fiber->resume();
+			});
+			Fiber::suspend('waiting');
+		});
+		$channel = Uuid::uuid7()->toString();
+
+		$this->postEvent(new SubscribeToCompletion($instance, $timeout, $channel));
+		$waiting = $fiber->start($channel);
+		if ($waiting === null) {
+			return;
+		}
 	}
 }

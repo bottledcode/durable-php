@@ -10,11 +10,9 @@ use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\Execution;
 use Amp\Parallel\Worker\WorkerPool;
 use Amp\Sync\ChannelException;
-use Amp\Sync\LocalKeyedSemaphore;
-use Amp\Sync\RateLimitingSemaphore;
-use Amp\Sync\SemaphoreMutex;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\EventQueue;
 use Bottledcode\DurablePhp\Events\HasInstanceInterface;
 use Generator;
 use Redis;
@@ -150,29 +148,38 @@ class Run
 
 	private function doWork(WorkerPool $pool, Event $event): void
 	{
+		static $queue = new EventQueue();
 		/**
-		 * @var array<array-key, Execution> $map
+		 * @var Execution[] $map
 		 */
 		static $map = [];
-		static $queue = new SplQueue();
 
-		$mapKey = $event->eventId;
-		if ($event instanceof HasInstanceInterface) {
-			$mapKey = "{$event->getInstance()->instanceId}:{$event->getInstance()->executionId}";
-		}
-
-		if (isset($map[$mapKey])) {
-			try {
-				$channel = $map[$mapKey]->getChannel();
-				$channel->send($event);
-			} catch (ChannelException) {
-				// now try reading back any events that were lost
-
-				unset($map[$mapKey]);
+		// mark instances as complete
+		foreach ($map as $key => $execution) {
+			if ($execution->getFuture()->isComplete()) {
+				unset($map[$key]);
 			}
 		}
 
-		$map[$mapKey] = $pool->submit(new EventDispatcherTask($this->config, $event));
+		$key = $event->eventId;
+		if ($event instanceof HasInstanceInterface) {
+			$key = $event->getInstance()->instanceId . ':' . $event->getInstance()->executionId;
+		}
+
+		// try to drain the queue
+		while ($queuedEvent = $queue->getNext(array_keys($map))) {
+			$map[$key] = $pool->submit(new EventDispatcherTask($this->config, $queuedEvent));
+		}
+
+		// check the map for this key
+		if (array_key_exists($key, $map) || $queue->hasKey($key)) {
+			// we are currently processing this instance, so we cannot process this now
+			$queue->enqueue($key, $event);
+			return;
+		}
+
+		// we are not processing this instance, so we can process this now
+		$map[$key] = $pool->submit(new EventDispatcherTask($this->config, $event));
 	}
 }
 
