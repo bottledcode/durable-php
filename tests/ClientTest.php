@@ -8,3 +8,4 @@ $client = new \Bottledcode\DurablePhp\OrchestrationClientRedis($redis, $config);
 
 $orchestrationInstance = $client->startNew(\Bottledcode\DurablePhp\HelloSequence::class, ['World']);
 $client->waitForCompletion($orchestrationInstance, \Withinboredom\Time\Hours::from(1));
+var_dump($client->getStatus($orchestrationInstance));

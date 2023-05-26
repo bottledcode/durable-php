@@ -35,7 +35,7 @@ class OrchestrationHistory
 
 	public bool $isCompleted = false;
 
-	public string $lastAppliedEvent;
+	public string $lastAppliedEvent = '0-0';
 
 	public function __construct()
 	{

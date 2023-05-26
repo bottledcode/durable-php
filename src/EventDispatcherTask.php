@@ -4,9 +4,9 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Cancellation;
 use Amp\Sync\Channel;
-use Amp\Sync\StaticKeyMutex;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInstanceInterface;
+use Bottledcode\DurablePhp\State\ApplyStateToProjection;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Transmutation\Router;
@@ -31,9 +31,8 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 		$state = null;
 		if ($this->event instanceof HasInstanceInterface) {
-			$lock = new StaticKeyMutex()
-            $state = $this->getState($this->event->getInstance());
-            if ($state->lastAppliedEvent) {
+			$state = $this->getState($this->event->getInstance());
+			if ($state->lastAppliedEvent) {
 				$currentEventId = explode('-', $this->event->eventId);
 				$lastAppliedEventId = explode('-', $state->lastAppliedEvent);
 				if ($currentEventId[0] < $lastAppliedEventId[0] || ($currentEventId[0] === $lastAppliedEventId[0] && $currentEventId[1] <= $lastAppliedEventId[1])) {
@@ -41,13 +40,19 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 					return null;
 				}
 			}
-        }
+		}
 
 		$events = $this->transmutate($this->event, $state);
 
 		if ($state !== null) {
 			$state->lastAppliedEvent = $this->event->eventId;
 			$this->updateState($state);
+		}
+
+		foreach ($events as $event) {
+			if ($event instanceof ApplyStateToProjection) {
+				$events = $event($this->redis);
+			}
 		}
 
 		$this->fire(...$events);
