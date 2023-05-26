@@ -10,7 +10,7 @@ namespace parallel {
 
 	final class Channel
 	{
-		const Infinite = -1;
+		public const Infinite = -1;
 
 		/**
 		 * Make an anonymous channel
@@ -69,13 +69,17 @@ namespace parallel {
 
 namespace parallel\Channel\Error {
 
-	class Existence extends \Exception
+	use Exception;
+
+	class Existence extends Exception
 	{
 	}
 
-	class Closed extends \Exception
+	class Closed extends Exception
 	{
 	}
 
-	class IllegalValue extends \Exception {}
+	class IllegalValue extends Exception
+	{
+	}
 }

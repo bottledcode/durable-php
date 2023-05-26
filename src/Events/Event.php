@@ -6,18 +6,18 @@ use Carbon\Carbon;
 
 abstract class Event
 {
-    public bool $isPlayed;
+	public bool $isPlayed;
 
-    public Carbon $timestamp;
+	public Carbon $timestamp;
 
-    public function __construct(public string $eventId)
-    {
-        $this->isPlayed = false;
-        $this->timestamp = Carbon::now();
-    }
+	public function __construct(public string $eventId)
+	{
+		$this->isPlayed = false;
+		$this->timestamp = Carbon::now();
+	}
 
-    public function eventType(): string
-    {
-        return static::class;
-    }
+	public function eventType(): string
+	{
+		return static::class;
+	}
 }
