@@ -15,18 +15,9 @@
       "Bottledcode\\DurablePhp\\Tests\\": "tests/"
     }
   },
-  "config": {
-    "allow-plugins": {
-      "olvlvl/composer-attribute-collector": true
-    }
-  },
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
-    "crell/serde": "^0.6.0",
-    "ext-igbinary": "*",
-    "ext-redis": "*",
-    "psr/http-client": "1.0.2",
     "nesbot/carbon": "^2.66",
     "php": ">=8.2",
     "php-di/php-di": "^7.0",
@@ -34,6 +25,10 @@
     "spatie/php-cloneable": "^1.0",
     "withinboredom/time": "^2.0",
     "amphp/parallel": "^v2.0.0"
+  },
+  "suggest": {
+    "ext-redis": "Required for Redis Streams",
+    "ext-igbinary": "Use a better serializer"
   },
   "type": "library"
 }
