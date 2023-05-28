@@ -15,7 +15,6 @@
       <path value="$PROJECT_DIR$/vendor/composer" />
       <path value="$PROJECT_DIR$/vendor/psr/container" />
       <path value="$PROJECT_DIR$/vendor/psr/http-message" />
-      <path value="$PROJECT_DIR$/vendor/psr/http-client" />
       <path value="$PROJECT_DIR$/vendor/amphp/cache" />
       <path value="$PROJECT_DIR$/vendor/amphp/amp" />
       <path value="$PROJECT_DIR$/vendor/amphp/parser" />
@@ -29,9 +28,6 @@
       <path value="$PROJECT_DIR$/vendor/amphp/process" />
       <path value="$PROJECT_DIR$/vendor/amphp/serialization" />
       <path value="$PROJECT_DIR$/vendor/brick/math" />
-      <path value="$PROJECT_DIR$/vendor/crell/fp" />
-      <path value="$PROJECT_DIR$/vendor/crell/serde" />
-      <path value="$PROJECT_DIR$/vendor/crell/attributeutils" />
       <path value="$PROJECT_DIR$/vendor/league/uri" />
       <path value="$PROJECT_DIR$/vendor/league/uri-interfaces" />
       <path value="$PROJECT_DIR$/vendor/nesbot/carbon" />
@@ -58,6 +54,11 @@
   </component>
   <component name="PhpStanOptionsConfiguration">
     <option name="transferred" value="true" />
+  </component>
+  <component name="PhpStepFilterConfiguration">
+    <skipped_files>
+      <skipped_file file="$PROJECT_DIR$/vendor/composer/ClassLoader.php" />
+    </skipped_files>
   </component>
   <component name="PhpUnit">
     <phpunit_settings>

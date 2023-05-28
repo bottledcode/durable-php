@@ -25,6 +25,8 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Cancellation;
 use Amp\Sync\Channel;
+use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInstanceInterface;
@@ -32,14 +34,12 @@ use Bottledcode\DurablePhp\State\ApplyStateToProjection;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Transmutation\Router;
-use Redis;
-use RedisCluster;
 
 class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 {
 	use Router;
 
-	private Redis|RedisCluster $redis;
+	private Source $source;
 
 	public function __construct(private Config $config, private Event $event)
 	{
@@ -47,33 +47,35 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 	public function run(Channel $channel, Cancellation $cancellation): mixed
 	{
-		$this->redis = RedisReaderTask::connect($this->config);
+		$this->source = SourceFactory::fromConfig($this->config);
 
 		Logger::log("EventDispatcher received event: %s", get_class($this->event));
 
 		$state = null;
 		if ($this->event instanceof HasInstanceInterface) {
 			$state = $this->getState($this->event->getInstance());
-			if ($state->lastAppliedEvent) {
-				$currentEventId = explode('-', $this->event->eventId);
-				$lastAppliedEventId = explode('-', $state->lastAppliedEvent);
-				if ($currentEventId[0] < $lastAppliedEventId[0] || ($currentEventId[0] === $lastAppliedEventId[0] && $currentEventId[1] <= $lastAppliedEventId[1])) {
-					$this->ack($this->event);
-					return null;
-				}
+			if ($state->appliedEvents->exists($this->event->eventId)) {
+				// it is a very low probability that we have NOT processed this event before...
+				// but it IS possible
+				Logger::log(
+					"EventDispatcher received event: %s, but it has already been processed",
+					get_class($this->event)
+				);
+				// todo: copy event to a dead-letter queue
+				$this->source->ack($this->event);
 			}
 		}
 
 		$events = $this->transmutate($this->event, $state);
 
 		if ($state !== null) {
-			$state->lastAppliedEvent = $this->event->eventId;
+			$state->appliedEvents->add($this->event->eventId);
 			$this->updateState($state);
 		}
 
 		foreach ($events as $event) {
 			if ($event instanceof ApplyStateToProjection) {
-				$events = $event($this->redis);
+				$events = $event($this->source);
 			}
 		}
 
@@ -84,7 +86,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 	public function getState(OrchestrationInstance $instance): OrchestrationHistory
 	{
-		$rawState = $this->redis->get("state:{$instance->instanceId}:{$instance->executionId}");
+		$rawState = $this->source->get("state:{$instance->instanceId}:{$instance->executionId}");
 		if (empty($rawState)) {
 			$state = new OrchestrationHistory();
 			$state->instance = $instance;
@@ -95,19 +97,9 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		return $state;
 	}
 
-	private function ack(Event $event): void
-	{
-		$this->redis->xack($this->getPartitionKey(), 'consumer_group', [$event->eventId]);
-	}
-
-	private function getPartitionKey(): string
-	{
-		return $this->config->partitionKeyPrefix . $this->config->currentPartition;
-	}
-
 	public function updateState(OrchestrationHistory $state): void
 	{
-		$this->redis->set(
+		$this->source->put(
 			"state:{$state->instance->instanceId}:{$state->instance->executionId}",
 			igbinary_serialize($state)
 		);
@@ -116,7 +108,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 	private function fire(Event ...$events): void
 	{
 		foreach ($events as $event) {
-			$this->redis->xAdd($this->getPartitionKey(), '*', ['event' => igbinary_serialize($event)]);
+			$this->source->storeEvent($event);
 		}
 	}
 }

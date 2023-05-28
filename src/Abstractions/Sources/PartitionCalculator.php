@@ -28,14 +28,14 @@ use Bottledcode\DurablePhp\Events\HasInstanceInterface;
 
 trait PartitionCalculator
 {
-	public function calculateDestinationPartitionFor(Event $event): int
+	public function calculateDestinationPartitionFor(Event $event, bool $local): int
 	{
 		if ($event instanceof HasInstanceInterface) {
-			$instance = $event->getInstance()->instanceId;
-			$partition = intval(substr($instance, -4), 16);
+			$instance = $event->getInstance()->executionId;
+			$partition = intval(substr($instance, -12), 16);
 			return $partition % $this->config->totalPartitions;
 		}
 
-		return $this->config->currentPartition;
+		return $local ? $this->config->currentPartition : random_int(0, $this->config->totalPartitions - 1);
 	}
 }

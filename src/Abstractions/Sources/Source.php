@@ -38,11 +38,11 @@ interface Source
 
 	public function cleanHouse(): void;
 
-	public function storeEvent(Event $event): void;
+	public function storeEvent(Event $event, bool $local): string;
 
-	public function put(string $key, string $data, Seconds|null $ttl = null, string|null $etag = null): void;
+	public function put(string $key, mixed $data, Seconds|null $ttl = null): void;
 
-	public function get(string $key, string|null &$etag = null): string|null;
+	public function get(string $key, string $class): mixed;
 
 	public function ack(Event $event): void;
 }

@@ -33,7 +33,7 @@ readonly class Config
 		public RedisConfig|RethinkDbConfig $storageConfig,
 		public int $totalPartitions = 10,
 		public int $totalWorkers = 10,
-		public string $bootstrapPath = __DIR__ . '/../vendor/autoload.php',
+		public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
 		public string $partitionKeyPrefix = 'partition_',
 	) {
 	}
