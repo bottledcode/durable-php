@@ -1,7 +1,32 @@
 <?php
+/*
+ * Copyright ©2023 Robert Landers
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the “Software”), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT
+ * OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+ * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
+use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
+use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -10,14 +35,17 @@ use Carbon\Carbon;
 use Fiber;
 use LogicException;
 use Ramsey\Uuid\Uuid;
-use Redis;
-use RedisCluster;
 use Withinboredom\Time\ReadableConverterInterface;
 
-final class OrchestrationClientRedis implements OrchestrationClientInterface
+final class OrchestrationClient implements OrchestrationClientInterface
 {
-	public function __construct(private readonly Redis|RedisCluster $redis, private readonly Config $config)
+	use PartitionCalculator;
+
+	private readonly Source $source;
+
+	public function __construct(private readonly Config $config)
 	{
+		$this->source = SourceFactory::fromConfig($config);
 	}
 
 	public function getStatus(OrchestrationInstance $instance): OrchestrationStatus
@@ -53,11 +81,14 @@ final class OrchestrationClientRedis implements OrchestrationClientInterface
 		throw new LogicException('Not implemented');
 	}
 
-	public function startNew(string $name, array $args = []): OrchestrationInstance
+	public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance
 	{
 		$instance = $this->getInstanceFor($name);
+		if ($id) {
+			$instance = new OrchestrationInstance($instance->instanceId, $id);
+		}
 		$event = new StartExecution(
-			$instance, null, $name, '0', igbinary_serialize($args), [], Uuid::uuid7(), Carbon::now(), 0, ''
+			$instance, null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, ''
 		);
 		$this->postEvent($event);
 		return $instance;
@@ -70,18 +101,7 @@ final class OrchestrationClientRedis implements OrchestrationClientInterface
 
 	private function postEvent(Event $event): string
 	{
-		$id = $this->redis->xAdd($this->getPartitionFor($event->instance), '*', [
-			'event' => igbinary_serialize($event)
-		]);
-		$event->eventId = $id;
-		return $id;
-	}
-
-	private function getPartitionFor(OrchestrationInstance $instance): string
-	{
-		return 'partition_' . (crc32($instance->instanceId) + crc32(
-					$instance->executionId
-				)) % $this->config->totalPartitions;
+		return $this->source->storeEvent($event, false);
 	}
 
 	public function terminate(OrchestrationInstance $instance, string $reason): void

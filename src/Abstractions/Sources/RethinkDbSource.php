@@ -25,6 +25,8 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
+use Crell\Serde\Serde;
+use Crell\Serde\SerdeCommon;
 use Exception;
 use Generator;
 use r\Connection;
@@ -34,6 +36,7 @@ use r\Options\TableInsertOptions;
 use Withinboredom\Time\Seconds;
 
 use function r\connectAsync;
+use function r\dbCreate;
 use function r\table;
 use function r\tableCreate;
 use function r\uuid;
@@ -42,12 +45,15 @@ class RethinkDbSource implements Source
 {
 	use PartitionCalculator;
 
+	private readonly Serde $serde;
+
 	private function __construct(
 		private Connection $connection,
 		private Config $config,
 		private string $partitionTable,
 		private string $stateTable
 	) {
+		$this->serde = new SerdeCommon();
 	}
 
 	public static function connect(Config $config): static
@@ -57,12 +63,13 @@ class RethinkDbSource implements Source
 				$config->storageConfig->host,
 				$config->storageConfig->port,
 				$config->storageConfig->database,
-				$config->storageConfig->username,
-				$config->storageConfig->password
+				$config->storageConfig->username ?? 'admin',
+				$config->storageConfig->password ?? ''
 			)
 		);
 
 		try {
+			dbCreate($config->storageConfig->database)->run($conn);
 			tableCreate('partition_' . $config->currentPartition)->run($conn);
 			tableCreate('state')->run($conn);
 		} catch (Exception) {
@@ -76,11 +83,11 @@ class RethinkDbSource implements Source
 	{
 		$events = table($this->partitionTable)->run($this->connection);
 
-		foreach ($events as ['event' => $event, 'id' => $id]) {
+		foreach ($events as ['event' => $event, 'id' => $id, 'type' => $type]) {
 			/**
 			 * @var Event $actualEvent
 			 */
-			$actualEvent = igbinary_unserialize($event);
+			$actualEvent = $this->serde->deserialize($event, 'array', $type);
 			$actualEvent->eventId = $id;
 			yield $actualEvent;
 		}
@@ -106,7 +113,11 @@ class RethinkDbSource implements Source
 			/**
 			 * @var Event $actualEvent
 			 */
-			$actualEvent = igbinary_unserialize($event['new_val']['event']);
+			$actualEvent = $this->serde->deserialize(
+				$event['new_val']['event'],
+				'array',
+				$event['new_val']['type'],
+			);
 			$actualEvent->eventId = $event['new_val']['id'];
 			yield $actualEvent;
 		}
@@ -117,19 +128,25 @@ class RethinkDbSource implements Source
 		// no-op
 	}
 
-	public function storeEvent(Event $event): void
+	public function storeEvent(Event $event, bool $local): string
 	{
-		$partition = 'partition_' . $this->calculateDestinationPartitionFor($event);
-		table($partition)->insert(['event' => igbinary_serialize($event), 'id' => uuid()])->run($this->connection);
+		$partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
+		$results = table($partition)->insert(
+			['event' => $this->serde->serialize($event, 'array'), 'id' => uuid(), 'type' => $event::class],
+			new TableInsertOptions(return_changes: true)
+		)->run($this->connection);
+		return $results['changes'][0]['new_val']['id'];
 	}
 
-	public function put(string $key, string $data, ?Seconds $ttl = null, ?string $etag = null): void
+	public function put(string $key, mixed $data, ?Seconds $ttl = null, ?string $etag = null): void
 	{
 		table($this->stateTable)->insert(
 			[
 				'id' => $key,
-				'data' => $data,
-				'etag' => $etag
+				'data' => $this->serde->serialize($data, 'array'),
+				'etag' => $etag,
+				'ttl' => $ttl?->inSeconds(),
+				'type' => $data::class,
 			],
 			new TableInsertOptions(conflict: 'update')
 		)->run($this->connection);
@@ -140,13 +157,19 @@ class RethinkDbSource implements Source
 		table($this->partitionTable)->get($event->eventId)->delete()->run($this->connection);
 	}
 
-	public function get(string $key, ?string &$etag = null): string|null
+	/**
+	 * @template T
+	 * @param string $key
+	 * @param class-string<T> $class
+	 * @return T|null
+	 * @throws \r\Exceptions\RqlDriverError
+	 */
+	public function get(string $key, string $class): mixed
 	{
 		$result = table($this->stateTable)->get($key)->run($this->connection);
 
 		if ($result) {
-			$etag = $result['etag'];
-			return $result['data'];
+			return $this->serde->deserialize($result['data'], 'array', $result['type']);
 		}
 
 		return null;
