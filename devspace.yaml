@@ -24,6 +24,7 @@ images:
   app:
     image: registry.bottled.codes/swytch/backend
     dockerfile: ./Dockerfile
+    target: base
     buildKit:
       inCluster:
         noLoad: true
