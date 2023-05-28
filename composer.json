@@ -18,13 +18,14 @@
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
+    "amphp/parallel": "^v2.2.1",
+    "bottledcode/php-rql": "dev-master",
     "nesbot/carbon": "^2.66",
     "php": ">=8.2",
-    "php-di/php-di": "^7.0",
-    "ramsey/uuid": "^4.7",
-    "spatie/php-cloneable": "^1.0",
-    "withinboredom/time": "^2.0",
-    "amphp/parallel": "^v2.0.0"
+    "php-di/php-di": "^7.0.2",
+    "ramsey/uuid": "^4.7.4",
+    "spatie/php-cloneable": "^1.0.1",
+    "withinboredom/time": "^2.1"
   },
   "suggest": {
     "ext-redis": "Required for Redis Streams",

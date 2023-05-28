@@ -49,6 +49,8 @@
       <path value="$PROJECT_DIR$/vendor/symfony/polyfill-php80" />
       <path value="$PROJECT_DIR$/vendor/daverandom/libdns" />
       <path value="$PROJECT_DIR$/vendor/withinboredom/time" />
+      <path value="$PROJECT_DIR$/vendor/olvlvl/composer-attribute-collector" />
+      <path value="$PROJECT_DIR$/vendor/bottledcode/php-rql" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.2">

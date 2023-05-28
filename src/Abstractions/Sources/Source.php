@@ -21,41 +21,28 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
-use Amp\Parallel\Worker\Environment;
 use Bottledcode\DurablePhp\Config\Config;
-use Redis;
-use RedisCluster;
+use Bottledcode\DurablePhp\Events\Event;
+use Generator;
+use Withinboredom\Time\Seconds;
 
-abstract class Worker implements \Amp\Parallel\Worker\Task
+interface Source
 {
-	private $timesCollectedGarbage = 0;
+	public static function connect(Config $config): static;
 
-	public function __construct(protected Config $config)
-	{
-	}
+	public function getPastEvents(): Generator;
 
-	public static function errorHandler(...$props): void
-	{
-		echo 'Error: ' . json_encode($props) . PHP_EOL;
-		die(1);
-	}
+	public function receiveEvents(): Generator;
 
-	abstract public function run(Environment $environment): void;
+	public function cleanHouse(): void;
 
-	protected function heartbeat(Redis|RedisCluster $redis, string $name): void
-	{
-		$redis->set(sprintf('partition_%d:%s:heartbeat', $this->config->currentPartition, $name), time());
-	}
+	public function storeEvent(Event $event): void;
 
-	protected function collectGarbage(): bool
-	{
-		if ($this->timesCollectedGarbage++ % 100 === 0) {
-			gc_collect_cycles();
-			return true;
-		}
+	public function put(string $key, string $data, Seconds|null $ttl = null, string|null $etag = null): void;
 
-		return false;
-	}
+	public function get(string $key, string|null &$etag = null): string|null;
+
+	public function ack(Event $event): void;
 }

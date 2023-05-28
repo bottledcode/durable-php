@@ -21,41 +21,21 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
-use Amp\Parallel\Worker\Environment;
-use Bottledcode\DurablePhp\Config\Config;
-use Redis;
-use RedisCluster;
+use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\HasInstanceInterface;
 
-abstract class Worker implements \Amp\Parallel\Worker\Task
+trait PartitionCalculator
 {
-	private $timesCollectedGarbage = 0;
-
-	public function __construct(protected Config $config)
+	public function calculateDestinationPartitionFor(Event $event): int
 	{
-	}
-
-	public static function errorHandler(...$props): void
-	{
-		echo 'Error: ' . json_encode($props) . PHP_EOL;
-		die(1);
-	}
-
-	abstract public function run(Environment $environment): void;
-
-	protected function heartbeat(Redis|RedisCluster $redis, string $name): void
-	{
-		$redis->set(sprintf('partition_%d:%s:heartbeat', $this->config->currentPartition, $name), time());
-	}
-
-	protected function collectGarbage(): bool
-	{
-		if ($this->timesCollectedGarbage++ % 100 === 0) {
-			gc_collect_cycles();
-			return true;
+		if ($event instanceof HasInstanceInterface) {
+			$instance = $event->getInstance()->instanceId;
+			$partition = intval(substr($instance, -4), 16);
+			return $partition % $this->config->totalPartitions;
 		}
 
-		return false;
+		return $this->config->currentPartition;
 	}
 }
