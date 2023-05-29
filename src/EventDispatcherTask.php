@@ -30,7 +30,6 @@ use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInstanceInterface;
-use Bottledcode\DurablePhp\State\ApplyStateToProjection;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Transmutation\Router;
@@ -41,7 +40,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 	private Source $source;
 
-	public function __construct(private Config $config, private Event $event)
+	public function __construct(private Config $config, private Event $event, private MonotonicClock $clock)
 	{
 	}
 
@@ -51,64 +50,58 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 		Logger::log("EventDispatcher received event: %s", get_class($this->event));
 
-		$state = null;
+		// todo: skip event if already processed...
+
 		if ($this->event instanceof HasInstanceInterface) {
-			$state = $this->getState($this->event->getInstance());
-			if ($state->appliedEvents->exists($this->event->eventId)) {
-				// it is a very low probability that we have NOT processed this event before...
-				// but it IS possible
-				Logger::log(
-					"EventDispatcher received event: %s, but it has already been processed",
-					get_class($this->event)
-				);
-				// todo: copy event to a dead-letter queue
-				$this->source->ack($this->event);
+			$instance = $this->event->getInstance();
+			$state = $this->getState($instance);
+		} else {
+			throw new \LogicException('not implemented');
+		}
+
+		foreach ($this->transmutate($this->event, $state) as $eventOrCallable) {
+			if ($eventOrCallable instanceof Event) {
+				$this->fire($eventOrCallable);
+			} elseif ($eventOrCallable instanceof \Closure) {
+				$eventOrCallable($this, $this->source, $this->clock);
 			}
 		}
 
-		$events = $this->transmutate($this->event, $state);
-
-		if ($state !== null) {
-			$state->appliedEvents->add($this->event->eventId);
+		if ($this->event instanceof HasInstanceInterface) {
 			$this->updateState($state);
 		}
 
-		foreach ($events as $event) {
-			if ($event instanceof ApplyStateToProjection) {
-				$events = $event($this->source);
-			}
-		}
-
-		$this->fire(...$events);
+		$this->source->ack($this->event);
 
 		return null;
 	}
 
 	public function getState(OrchestrationInstance $instance): OrchestrationHistory
 	{
-		$rawState = $this->source->get("state:{$instance->instanceId}:{$instance->executionId}");
+		$rawState = $this->source->get(
+			"state:{$instance->instanceId}:{$instance->executionId}",
+			OrchestrationHistory::class
+		);
 		if (empty($rawState)) {
 			$state = new OrchestrationHistory();
 			$state->instance = $instance;
-		} else {
-			$state = igbinary_unserialize($rawState);
 		}
 
-		return $state;
+		return $rawState ?? $state;
+	}
+
+	private function fire(Event ...$events): void
+	{
+		foreach ($events as $event) {
+			$this->source->storeEvent($event, false);
+		}
 	}
 
 	public function updateState(OrchestrationHistory $state): void
 	{
 		$this->source->put(
 			"state:{$state->instance->instanceId}:{$state->instance->executionId}",
-			igbinary_serialize($state)
+			$state
 		);
-	}
-
-	private function fire(Event ...$events): void
-	{
-		foreach ($events as $event) {
-			$this->source->storeEvent($event);
-		}
 	}
 }
