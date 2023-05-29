@@ -23,6 +23,8 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\MonotonicClock;
+
 abstract class Event
 {
 	public bool $isPlayed;
@@ -32,7 +34,7 @@ abstract class Event
 	public function __construct(public string $eventId)
 	{
 		$this->isPlayed = false;
-		$this->timestamp = new \DateTimeImmutable();
+		$this->timestamp = MonotonicClock::current()->now();
 	}
 
 	public function eventType(): string

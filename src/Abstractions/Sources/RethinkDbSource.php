@@ -69,7 +69,11 @@ class RethinkDbSource implements Source
 		);
 
 		try {
-			dbCreate($config->storageConfig->database)->run($conn);
+			try {
+				dbCreate($config->storageConfig->database)->run($conn);
+			} catch (Exception) {
+				// database already exists
+			}
 			tableCreate('partition_' . $config->currentPartition)->run($conn);
 			tableCreate('state')->run($conn);
 		} catch (Exception) {

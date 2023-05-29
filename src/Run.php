@@ -52,6 +52,8 @@ class Run
 
 	public function __invoke(): void
 	{
+		$clock = MonotonicClock::current();
+
 		$queue = new SplQueue();
 		$map = [];
 
@@ -63,7 +65,7 @@ class Run
 					continue;
 				}
 			}
-			$pool->submit(new EventDispatcherTask($this->config, $event));
+			$pool->submit(new EventDispatcherTask($this->config, $event, $clock));
 		}
 		Logger::log('Replay completed');
 		foreach ($this->source->receiveEvents() as $event) {
@@ -72,7 +74,14 @@ class Run
 				continue;
 			}
 
-			$pool->submit(new EventDispatcherTask($this->config, $event));
+			if ($event instanceof HasInstanceInterface) {
+				if (isset($map[$event->getInstance()->instanceId])) {
+					$queue->enqueue($event);
+					continue;
+				}
+			}
+
+			$pool->submit(new EventDispatcherTask($this->config, $event, $clock));
 		}
 	}
 

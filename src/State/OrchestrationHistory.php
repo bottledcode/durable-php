@@ -23,19 +23,18 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Events\AwaitResult;
-use Bottledcode\DurablePhp\Events\CompleteExecution;
+use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\StartExecution;
+use Bottledcode\DurablePhp\Events\StartOrchestration;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Logger;
-use Bottledcode\DurablePhp\Task;
-use Carbon\Carbon;
-use Pleo\BloomFilter\BloomFilter;
-use Ramsey\Collection\DoubleEndedQueue;
-use Ramsey\Collection\DoubleEndedQueueInterface;
+use Bottledcode\DurablePhp\MonotonicClock;
+use Crell\Serde\SerdeCommon;
 
 class OrchestrationHistory
 {
-	public Carbon $now;
+	public \DateTimeImmutable $now;
 
 	public string $name;
 
@@ -47,25 +46,33 @@ class OrchestrationHistory
 
 	public OrchestrationInstance|null $parentInstance;
 
-	public Carbon $createdTime;
+	public \DateTimeImmutable $createdTime;
 
-	public string $input;
+	public array $input;
 
-	public DoubleEndedQueueInterface $historicalTaskResults;
-
-	public array $awaiters = [];
+	public array $historicalTaskResults = [];
 
 	public bool $isCompleted = false;
 
-	public BloomFilter $appliedEvents;
+	public array $appliedEvents = [];
+
+	public \DateTimeImmutable $lastProcessedEventTime;
+
+	public OrchestrationStatus $status = OrchestrationStatus::Pending;
 
 	public function __construct()
 	{
-		$this->historicalTaskResults = new DoubleEndedQueue(Task::class);
-		$this->appliedEvents = BloomFilter::init(10000, 0.001);
 	}
 
-	public function applyStartExecution(StartExecution $event): array
+	/**
+	 * This represents the beginning of the orchestration and is the first event
+	 * that is applied to the history. The next phase is to actually run the
+	 * orchestration now that we've set up the history.
+	 *
+	 * @param StartExecution $event
+	 * @return array
+	 */
+	public function applyStartExecution(StartExecution $event): \Generator
 	{
 		Logger::log("Applying StartExecution event to OrchestrationHistory");
 		$this->now = $event->timestamp;
@@ -74,30 +81,63 @@ class OrchestrationHistory
 		$this->version = $event->version;
 		$this->tags = $event->tags;
 		$this->instance = $event->instance;
-		$this->parentInstance = $event->parentInstance;
+		$this->parentInstance = $event->parentInstance ?? null;
 		$this->input = $event->input;
 
-		return [
-			new ApplyStateToProjection($event, $this, $event->eventId),
-		];
+		yield StartOrchestration::forInstance($this->instance);
+
+		yield from $this->finalize($event);
 	}
 
-	public function applyCompleteExecution(CompleteExecution $event): array
+	private function finalize(Event $event): \Generator
 	{
-		Logger::log("Applying CompleteExecution event to OrchestrationHistory");
-		foreach ($this->awaiters as $awaiter) {
-			//todo
+		$this->lastProcessedEventTime = $event->timestamp;
+
+		yield null;
+	}
+
+	public function applyStartOrchestration(StartOrchestration $event): \Generator
+	{
+		$this->now = MonotonicClock::current()->now();
+		$this->status = OrchestrationStatus::Running;
+
+		// go ahead and finalize this event to the history and update the status
+		// we won't be updating any more state
+		yield from $this->finalize($event);
+
+		yield from $this->construct();
+	}
+
+	private function construct(): \Generator
+	{
+		$class = new \ReflectionClass($this->instance->instanceId);
+		$method = $class->getMethod('__invoke');
+		$parameters = $method->getParameters();
+		$arguments = [];
+		$serde = new SerdeCommon();
+		foreach ($parameters as $parameter) {
+			$arguments[] = $serde->deserialize(
+				$this->input[$parameter->getName()],
+				'array',
+				$parameter->getType()?->getName()
+			);
 		}
 
-		return [];
-	}
+		$class = $class->newInstanceWithoutConstructor();
+		try {
+			$fiber = new \Fiber(static fn() => $class(...$arguments));
+			$result = $fiber->start();
 
-	public function applyAwaitResult(AwaitResult $event): array
-	{
-		if ($this->isCompleted) {
-			return [
-
-			];
+			yield TaskCompleted::forId(
+				"orchestration:{$this->instance->instanceId}:{$this->instance->executionId}",
+				$result
+			);
+		} catch (\Throwable $e) {
+			yield TaskFailed::forTask(
+				"orchestration:{$this->instance->instanceId}:{$this->instance->executionId}",
+				$e->getMessage(),
+				previous: $e
+			);
 		}
 	}
 }
