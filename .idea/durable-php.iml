@@ -15,6 +15,9 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/collection" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/uuid" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/withinboredom/time" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/crell/attributeutils" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/crell/fp" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/crell/serde" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/nesbot/carbon" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-mbstring" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-php80" />
@@ -39,6 +42,7 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/league/uri-interfaces" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/revolt/event-loop" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/bottledcode/php-rql" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/pleonasm/bloom-filter" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
