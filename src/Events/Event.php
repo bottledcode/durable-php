@@ -24,7 +24,9 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\MonotonicClock;
+use Crell\Serde\Attributes\ClassNameTypeMap;
 
+#[ClassNameTypeMap(key: 'eventType')]
 abstract class Event
 {
 	public bool $isPlayed;

@@ -21,20 +21,26 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\StateId;
+use Bottledcode\DurablePhp\Events\Event;
+use Ramsey\Uuid\UuidInterface;
 
-class StartOrchestration extends Event
+class ActivityHistory implements StateInterface
 {
-	public function __construct(string $eventId)
+	public array $awaiters = [];
+
+	public UuidInterface $activityId;
+
+	public OrchestrationStatus $status = OrchestrationStatus::Pending;
+
+	public function __construct(StateId $id)
 	{
-		parent::__construct($eventId);
+		$this->activityId = $id->toActivityId();
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public function hasAppliedEvent(Event $event): bool
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+		return false;
 	}
 }

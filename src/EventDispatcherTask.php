@@ -26,14 +26,14 @@ namespace Bottledcode\DurablePhp;
 use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\Sync\Channel;
-use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInstanceInterface;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\State\StateId;
+use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
 
 class EventDispatcherTask implements \Amp\Parallel\Worker\Task
@@ -48,32 +48,35 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 	public function run(Channel $channel, Cancellation $cancellation): mixed
 	{
+		$originalEvent = $this->event;
 		$this->source = SourceFactory::fromConfig($this->config);
 
 		Logger::log("EventDispatcher received event: %s", get_class($this->event));
 
-		if ($this->event instanceof HasInstanceInterface) {
-			$instance = $this->event->getInstance();
-			$state = $this->getState($instance);
+		/**
+		 * @var StateInterface[] $states
+		 */
+		$states = [];
+		while ($this->event instanceof HasInnerEventInterface) {
+			$states[] = $this->getState($this->event->getTarget());
 
-			if ($state->lastProcessedEventTime > $this->event->timestamp) {
-				Logger::log('EventDispatcherTask received event that was already processed');
+			$this->event = $this->event->getInnerEvent();
+		}
+
+		foreach ($states as $state) {
+			if ($state->hasAppliedEvent($this->event)) {
 				$this->source->ack($this->event);
 				return $this->event;
 			}
-		} else {
-			throw new \LogicException('not implemented');
-		}
 
-		foreach ($this->transmutate($this->event, $state) as $eventOrCallable) {
-			if ($eventOrCallable instanceof Event) {
-				$this->fire($eventOrCallable);
-			} elseif ($eventOrCallable instanceof \Closure) {
-				$eventOrCallable($this, $this->source, $this->clock);
+			foreach ($this->transmutate($this->event, $state) as $eventOrCallable) {
+				if ($eventOrCallable instanceof Event) {
+					$this->fire($eventOrCallable);
+				} elseif ($eventOrCallable instanceof \Closure) {
+					$eventOrCallable($this, $this->source, $this->clock);
+				}
 			}
-		}
 
-		if ($this->event instanceof HasInstanceInterface) {
 			$this->updateState($state);
 		}
 
@@ -89,29 +92,18 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 			Logger::log('EventDispatcherTask failed: %s', $e::class);
 		}
 
-		return $this->event;
+		return $originalEvent;
 	}
 
-	public function getState(OrchestrationInstance $instance): OrchestrationHistory
+	public function getState(StateId $instance): OrchestrationHistory
 	{
-		$rawState = $this->source->get(
-			"state:{$instance->instanceId}:{$instance->executionId}",
-			OrchestrationHistory::class
-		);
+		$rawState = $this->source->get($instance, $instance->getStateType());
 		if (empty($rawState)) {
-			$state = new OrchestrationHistory();
-			$state->instance = $instance;
+			$type = $instance->getStateType();
+			$rawState = new $type($instance);
 		}
 
-		return $rawState ?? $state;
-	}
-
-	public function updateState(OrchestrationHistory $state): void
-	{
-		$this->source->put(
-			"state:{$state->instance->instanceId}:{$state->instance->executionId}",
-			$state
-		);
+		return $rawState;
 	}
 
 	private function fire(Event ...$events): void
@@ -119,5 +111,10 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		foreach ($events as $event) {
 			$this->source->storeEvent($event, false);
 		}
+	}
+
+	public function updateState(StateInterface $state): void
+	{
+		$this->source->put(StateId::fromState($state), $state);
 	}
 }

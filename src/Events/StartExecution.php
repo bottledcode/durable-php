@@ -25,10 +25,9 @@ namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
-class StartExecution extends Event implements HasInstanceInterface
+class StartExecution extends Event
 {
 	public function __construct(
-		public OrchestrationInstance $instance,
 		public OrchestrationInstance|null $parentInstance,
 		public string $name,
 		public string $version,
@@ -40,10 +39,5 @@ class StartExecution extends Event implements HasInstanceInterface
 		public string $eventId,
 	) {
 		parent::__construct($eventId);
-	}
-
-	public function getInstance(): OrchestrationInstance
-	{
-		return $this->instance;
 	}
 }

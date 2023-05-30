@@ -23,18 +23,31 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\StateId;
 
-class StartOrchestration extends Event
+class WithOrchestration extends Event implements HasInnerEventInterface
 {
-	public function __construct(string $eventId)
-	{
+	public function __construct(
+		string $eventId,
+		public StateId $target,
+		private readonly Event $innerEvent
+	) {
 		parent::__construct($eventId);
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public static function forInstance(StateId $instance, Event $innerEvent): Event
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+		return new WithOrchestration('', $instance, $innerEvent);
+	}
+
+	public function getInnerEvent(): Event
+	{
+		$this->innerEvent->eventId = $this->eventId;
+		return $this->innerEvent;
+	}
+
+	public function getTarget(): StateId
+	{
+		return $this->target;
 	}
 }

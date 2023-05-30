@@ -23,18 +23,10 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\StateId;
-
-class StartOrchestration extends Event
+class RaiseEvent extends Event
 {
-	public function __construct(string $eventId)
+	public function __construct(string $eventId, public string $eventName, public array $eventData)
 	{
 		parent::__construct($eventId);
-	}
-
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
 	}
 }

@@ -21,11 +21,13 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+use function Withinboredom\Time\Hours;
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 $config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
 $client = new \Bottledcode\DurablePhp\OrchestrationClient($config);
 
 $orchestrationInstance = $client->startNew(\Bottledcode\DurablePhp\HelloSequence::class, ['World'], 'test');
-$client->waitForCompletion($orchestrationInstance, \Withinboredom\Time\Hours::from(1));
+$client->waitForCompletion($orchestrationInstance, new \Amp\TimeoutCancellation(hours(2)->inSeconds()));
 var_dump($client->getStatus($orchestrationInstance));

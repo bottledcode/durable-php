@@ -24,16 +24,15 @@
 namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInstanceInterface;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 
 trait PartitionCalculator
 {
 	public function calculateDestinationPartitionFor(Event $event, bool $local): int
 	{
-		if ($event instanceof HasInstanceInterface) {
-			$instance = $event->getInstance()->executionId;
-			$partition = intval(substr($instance, -12), 16);
-			return $partition % $this->config->totalPartitions;
+		if ($event instanceof HasInnerEventInterface) {
+			$id = $event->getTarget()->id;
+			return crc32($id) % $this->config->totalPartitions;
 		}
 
 		return $local ? $this->config->currentPartition : random_int(0, $this->config->totalPartitions - 1);
