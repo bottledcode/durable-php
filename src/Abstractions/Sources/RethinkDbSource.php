@@ -85,6 +85,7 @@ class RethinkDbSource implements Source
 
 	public function getPastEvents(): Generator
 	{
+		return;
 		$events = table($this->partitionTable)->run($this->connection);
 
 		foreach ($events as ['event' => $event, 'id' => $id, 'type' => $type]) {

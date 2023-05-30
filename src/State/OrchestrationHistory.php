@@ -24,13 +24,14 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\MonotonicClock;
-use Crell\Serde\SerdeCommon;
+use Bottledcode\DurablePhp\OrchestrationContext;
 
 class OrchestrationHistory
 {
@@ -62,6 +63,7 @@ class OrchestrationHistory
 
 	public function __construct()
 	{
+		$this->lastProcessedEventTime = new \DateTimeImmutable('2023-05-30');
 	}
 
 	/**
@@ -111,22 +113,18 @@ class OrchestrationHistory
 	private function construct(): \Generator
 	{
 		$class = new \ReflectionClass($this->instance->instanceId);
-		$method = $class->getMethod('__invoke');
-		$parameters = $method->getParameters();
-		$arguments = [];
-		$serde = new SerdeCommon();
-		foreach ($parameters as $parameter) {
-			$arguments[] = $serde->deserialize(
-				$this->input[$parameter->getName()],
-				'array',
-				$parameter->getType()?->getName()
-			);
-		}
 
 		$class = $class->newInstanceWithoutConstructor();
 		try {
-			$fiber = new \Fiber(static fn() => $class(...$arguments));
+			$fiber = new \Fiber(fn() => $class(new OrchestrationContext($this->instance, $this)));
 			$result = $fiber->start();
+
+			if ($result !== null) {
+				switch ($result['type']) {
+					case 'callActivity':
+						return yield ScheduleTask::fromOrchestrationContext($result);
+				}
+			}
 
 			yield TaskCompleted::forId(
 				"orchestration:{$this->instance->instanceId}:{$this->instance->executionId}",
@@ -136,7 +134,7 @@ class OrchestrationHistory
 			yield TaskFailed::forTask(
 				"orchestration:{$this->instance->instanceId}:{$this->instance->executionId}",
 				$e->getMessage(),
-				previous: $e
+				previous: $e::class
 			);
 		}
 	}

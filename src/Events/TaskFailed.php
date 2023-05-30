@@ -23,8 +23,6 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Throwable;
-
 class TaskFailed extends Event
 {
 	public function __construct(
@@ -32,12 +30,12 @@ class TaskFailed extends Event
 		public string $taskScheduledId,
 		public string|null $reason,
 		public string|null $details = null,
-		public Throwable|null $previous = null,
+		public string|null $previous = null,
 	) {
 		parent::__construct($eventId);
 	}
 
-	public static function forTask(string $id, string $reason, string $details = null, Throwable $previous = null): self
+	public static function forTask(string $id, string $reason, string $details = null, string $previous = null): self
 	{
 		return new self('', $id, $reason, $details, $previous);
 	}
