@@ -29,14 +29,13 @@ use Amp\Parallel\Context\DefaultContextFactory;
 use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\Execution;
-use Amp\Parallel\Worker\WorkerPool;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\EventQueue;
-use Bottledcode\DurablePhp\Events\HasInstanceInterface;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 
 use function Amp\async;
 use function Amp\Future\awaitFirst;
@@ -155,47 +154,11 @@ class Run
 
 	private function getEventKey(Event $event): string
 	{
-		if ($event instanceof HasInstanceInterface) {
-			return (string)$event->getInstance();
+		if ($event instanceof HasInnerEventInterface) {
+			return $event->getTarget();
 		}
 
 		return $event->eventId;
-	}
-
-	private function doWork(WorkerPool $pool, Event $event): void
-	{
-		static $queue = new EventQueue();
-		/**
-		 * @var Execution[] $map
-		 */
-		static $map = [];
-
-		// mark instances as complete
-		foreach ($map as $key => $execution) {
-			if ($execution->getFuture()->isComplete()) {
-				unset($map[$key]);
-			}
-		}
-
-		$key = $event->eventId;
-		if ($event instanceof HasInstanceInterface) {
-			$key = $event->getInstance()->instanceId . ':' . $event->getInstance()->executionId;
-		}
-
-		// try to drain the queue
-		while ($queuedEvent = $queue->getNext(array_keys($map))) {
-			$map[$key] = $pool->submit(new EventDispatcherTask($this->config, $queuedEvent));
-		}
-
-		// check the map for this key
-		if (array_key_exists($key, $map) || $queue->hasKey($key)) {
-			// we are currently processing this instance, so we cannot process this now
-			$queue->enqueue($key, $event);
-			return;
-		}
-
-		// we are not processing this instance, so we can process this now
-		$map[$key] = $pool->submit(new EventDispatcherTask($this->config, $event));
 	}
 }
 

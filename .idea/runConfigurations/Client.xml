@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Client" type="PhpLocalRunConfigurationType" factoryName="PHP Console" path="$PROJECT_DIR$/tests/ClientTest.php" scriptParameters="--db rethinkdb --total-partitions 1 --current-partition -1">
-    <CommandLine parameters="-d xdebug.client_host=192.168.50.207" workingDirectory="$PROJECT_DIR$">
+    <CommandLine parameters="-d xdebug.client_host=192.168.50.205" workingDirectory="$PROJECT_DIR$">
       <PhpTestInterpreterSettings>
         <option name="interpreterName" value="Ubuntu-22.04" />
       </PhpTestInterpreterSettings>

@@ -97,7 +97,7 @@ class EventQueue
 		if (in_array($key, $this->usedKeys, true)) {
 			return;
 		}
-		$this->usedKeys[$key]++;
+		@$this->usedKeys[$key]++;
 		$this->keys->enqueue($key);
 	}
 

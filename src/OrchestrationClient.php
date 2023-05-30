@@ -23,19 +23,25 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\Cancellation;
+use Amp\NullCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\ExecutionTerminated;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\OrchestrationStatus;
+use Bottledcode\DurablePhp\State\StateId;
 use Carbon\Carbon;
-use Fiber;
 use LogicException;
 use Ramsey\Uuid\Uuid;
-use Withinboredom\Time\ReadableConverterInterface;
+
+use function Amp\async;
 
 final class OrchestrationClient implements OrchestrationClientInterface
 {
@@ -73,7 +79,14 @@ final class OrchestrationClient implements OrchestrationClientInterface
 
 	public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
 	{
-		throw new LogicException('Not implemented');
+		$this->postEvent(
+			WithOrchestration::forInstance(StateId::fromInstance($instance), new RaiseEvent('', $eventName, $eventData))
+		);
+	}
+
+	private function postEvent(Event $event): string
+	{
+		return $this->source->storeEvent($event, false);
 	}
 
 	public function rewind(OrchestrationInstance $instance): void
@@ -87,8 +100,9 @@ final class OrchestrationClient implements OrchestrationClientInterface
 		if ($id) {
 			$instance = new OrchestrationInstance($instance->instanceId, $id);
 		}
-		$event = new StartExecution(
-			$instance, null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, ''
+		$event = WithOrchestration::forInstance(
+			StateId::fromInstance($instance),
+			new StartExecution(null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, '')
 		);
 		$this->postEvent($event);
 		return $instance;
@@ -99,30 +113,23 @@ final class OrchestrationClient implements OrchestrationClientInterface
 		return new OrchestrationInstance($name, Uuid::uuid7()->toString());
 	}
 
-	private function postEvent(Event $event): string
-	{
-		return $this->source->storeEvent($event, false);
-	}
-
 	public function terminate(OrchestrationInstance $instance, string $reason): void
 	{
-		throw new LogicException('Not implemented');
+		$this->postEvent(
+			WithOrchestration::forInstance(StateId::fromInstance($instance), new ExecutionTerminated('', $reason))
+		);
 	}
 
-	public function waitForCompletion(OrchestrationInstance $instance, ReadableConverterInterface $timeout = null): void
+	public function waitForCompletion(OrchestrationInstance $instance, Cancellation $timeout = null): void
 	{
-		$fiber = new Fiber(function ($channel, $fiber) {
-			$this->redis->subscribe([$channel], function () use ($fiber) {
-				$fiber->resume();
-			});
-			Fiber::suspend('waiting');
-		});
-		$channel = Uuid::uuid7()->toString();
-
-		$this->postEvent(new SubscribeToCompletion($instance, $timeout, $channel));
-		$waiting = $fiber->start($channel);
-		if ($waiting === null) {
-			return;
-		}
+		async(function () use ($instance) {
+			$this->source->watch(
+				StateId::fromInstance($instance),
+				OrchestrationStatus::Completed,
+				OrchestrationStatus::Canceled,
+				OrchestrationStatus::Failed,
+				OrchestrationStatus::Terminated,
+			);
+		})->await($timeout ?? new NullCancellation());
 	}
 }

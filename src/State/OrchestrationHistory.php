@@ -33,7 +33,7 @@ use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 
-class OrchestrationHistory
+class OrchestrationHistory implements StateInterface
 {
 	public \DateTimeImmutable $now;
 
@@ -53,17 +53,16 @@ class OrchestrationHistory
 
 	public array $historicalTaskResults = [];
 
-	public bool $isCompleted = false;
-
-	public array $appliedEvents = [];
-
 	public \DateTimeImmutable $lastProcessedEventTime;
 
 	public OrchestrationStatus $status = OrchestrationStatus::Pending;
 
-	public function __construct()
+	public array $history = [];
+
+	public function __construct(StateId $id)
 	{
 		$this->lastProcessedEventTime = new \DateTimeImmutable('2023-05-30');
+		$this->instance = $id->toOrchestrationInstance();
 	}
 
 	/**
@@ -81,8 +80,7 @@ class OrchestrationHistory
 		$this->createdTime = $event->timestamp;
 		$this->name = $event->name;
 		$this->version = $event->version;
-		$this->tags = $event->tags;
-		$this->instance = $event->instance;
+		$this->tags = $event->tags;;
 		$this->parentInstance = $event->parentInstance ?? null;
 		$this->input = $event->input;
 
@@ -94,6 +92,7 @@ class OrchestrationHistory
 	private function finalize(Event $event): \Generator
 	{
 		$this->lastProcessedEventTime = $event->timestamp;
+		$this->history[$event->eventId] = $event;
 
 		yield null;
 	}
@@ -137,5 +136,10 @@ class OrchestrationHistory
 				previous: $e::class
 			);
 		}
+	}
+
+	public function hasAppliedEvent(Event $event): bool
+	{
+		return array_key_exists($event->eventId, $this->history);
 	}
 }

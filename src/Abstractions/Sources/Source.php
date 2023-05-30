@@ -25,6 +25,8 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\State\OrchestrationStatus;
+use Bottledcode\DurablePhp\State\StateId;
 use Generator;
 use Withinboredom\Time\Seconds;
 
@@ -45,4 +47,6 @@ interface Source
 	public function get(string $key, string $class): mixed;
 
 	public function ack(Event $event): void;
+
+	public function watch(StateId $stateId, OrchestrationStatus ...$expected): OrchestrationStatus|null;
 }

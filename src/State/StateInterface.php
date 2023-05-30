@@ -21,20 +21,13 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\StateId;
+use Bottledcode\DurablePhp\Events\Event;
 
-class StartOrchestration extends Event
+interface StateInterface
 {
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
-	}
+	public function __construct(StateId $id);
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
+	public function hasAppliedEvent(Event $event): bool;
 }
