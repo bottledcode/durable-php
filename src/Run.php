@@ -23,6 +23,8 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\CancelledException;
+use Amp\DeferredCancellation;
 use Amp\Parallel\Context\DefaultContextFactory;
 use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
@@ -35,8 +37,9 @@ use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\EventQueue;
 use Bottledcode\DurablePhp\Events\HasInstanceInterface;
-use SplQueue;
 
+use function Amp\async;
+use function Amp\Future\awaitFirst;
 use function Amp\Parallel\Worker\workerPool;
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -54,34 +57,89 @@ class Run
 	{
 		$clock = MonotonicClock::current();
 
-		$queue = new SplQueue();
+		$queue = new EventQueue();
+		/**
+		 * @var Execution[] $map
+		 */
 		$map = [];
 
 		$pool = $this->createPool($this->config);
 		foreach ($this->source->getPastEvents() as $event) {
-			if ($event instanceof HasInstanceInterface) {
-				if (isset($map[$event->getInstance()->instanceId])) {
-					$queue->enqueue($event);
-					continue;
-				}
-			}
-			$pool->submit(new EventDispatcherTask($this->config, $event, $clock));
+			$key = $this->getEventKey($event);
+			$map[$key] = null;
+			$queue->enqueue($key, $event);
 		}
 		Logger::log('Replay completed');
-		foreach ($this->source->receiveEvents() as $event) {
-			if ($event === null) {
-				$this->source->cleanHouse();
-				continue;
-			}
 
-			if ($event instanceof HasInstanceInterface) {
-				if (isset($map[$event->getInstance()->instanceId])) {
-					$queue->enqueue($event);
-					continue;
+		$cancellation = new DeferredCancellation();
+
+		reset:
+		$eventSource = async(function () use ($queue, &$cancellation) {
+			foreach ($this->source->receiveEvents() as $event) {
+				$queue->enqueue($this->getEventKey($event), $event);
+				if ($queue->getSize() === 1 && !$cancellation->isCancelled()) {
+					// if this is the first event, we need to wake up the main loop
+					// so that it can process the event
+					// this is because the main loop is waiting for an event to be
+					// added to the queue
+					$cancellation->cancel();
 				}
 			}
 
-			$pool->submit(new EventDispatcherTask($this->config, $event, $clock));
+			throw new \LogicException('The event source should never end');
+		});
+
+		startOver:
+		// if there is a queue, we need to process it first
+		if ($queue->getSize() > 0) {
+			// attempt to get the next event from the queue
+			$event = $queue->getNext(array_keys(array_filter($map)));
+			if ($event === null) {
+				// there currently are not any events that we can get from the queue
+				// so we need to wait for an event or a worker to finish
+				goto waitForEvents;
+			}
+			// we have an event, so we need to dispatch it
+			$map[$this->getEventKey($event)] = $pool->submit(new EventDispatcherTask($this->config, $event, $clock));
+
+			// process the queue
+			goto startOver;
+		}
+
+		waitForEvents:
+		$futures = array_map(static fn(Execution $e) => $e->getFuture(), $map);
+		try {
+			try {
+				$event = awaitFirst([$eventSource, ...$futures], $cancellation->getCancellation());
+			} catch (CancelledException) {
+				$cancellation = new DeferredCancellation();
+				goto startOver;
+			}
+
+
+			// handle the case where events were sent but there are still events
+			// in the channel
+			$execution = $map[$this->getEventKey($event)];
+			/*$prefix = [];
+			while (!$execution->getChannel()->isClosed()) {
+				try {
+					$prefix[] = $execution->getChannel()->receive(new TimeoutCancellation(1));
+				} catch (TimeoutException) {
+					Logger::log('Warning: waited for event to prefix!');
+				}
+			}
+			$queue->prefix($this->getEventKey($event), ...$prefix);*/
+			// now we can remove the execution from the map
+			unset($map[$this->getEventKey($event)]);
+
+			// process the queue
+			goto startOver;
+		} catch (\Throwable $e) {
+			Logger::log(
+				"An error occurred while waiting for an event to complete: %s\n%s",
+				$e->getMessage(),
+				$e->getTraceAsString()
+			);
 		}
 	}
 
@@ -93,6 +151,15 @@ class Run
 		$pool = new ContextWorkerPool($config->totalWorkers, $factory);
 		workerPool($pool);
 		return $pool;
+	}
+
+	private function getEventKey(Event $event): string
+	{
+		if ($event instanceof HasInstanceInterface) {
+			return (string)$event->getInstance();
+		}
+
+		return $event->eventId;
 	}
 
 	private function doWork(WorkerPool $pool, Event $event): void

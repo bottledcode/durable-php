@@ -1,4 +1,25 @@
 <?php
+/*
+ * Copyright ©2023 Robert Landers
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the “Software”), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT
+ * OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+ * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 namespace Bottledcode\DurablePhp\Events;
 
@@ -61,6 +82,25 @@ class EventQueue
 		return $nextEvent;
 	}
 
+	public function enqueue(string $key, Event $event): void
+	{
+		$this->addKey($key);
+		if (!isset($this->queues[$key])) {
+			$this->queues[$key] = new SplQueue();
+		}
+		$this->queues[$key]->enqueue($event);
+		$this->size++;
+	}
+
+	private function addKey(string $key): void
+	{
+		if (in_array($key, $this->usedKeys, true)) {
+			return;
+		}
+		$this->usedKeys[$key]++;
+		$this->keys->enqueue($key);
+	}
+
 	private function removeKey(string $key): void
 	{
 		if (!in_array($key, $this->usedKeys, true)) {
@@ -73,20 +113,16 @@ class EventQueue
 		}
 	}
 
-	private function addKey(string $key): void
-	{
-		if (in_array($key, $this->usedKeys, true)) {
-			return;
-		}
-		++$this->usedKeys[$key];
-		$this->keys->enqueue($key);
-	}
-
-	public function enqueue(string $key, Event $event): void
+	public function prefix(string $key, Event ...$event): void
 	{
 		$this->addKey($key);
-		$this->queues[$key] = new SplQueue();
-		$this->queues[$key]->enqueue($event);
-		$this->size++;
+		if (!isset($this->queues[$key])) {
+			$this->queues[$key] = new SplQueue();
+		}
+		$event = array_reverse($event);
+		foreach ($event as $e) {
+			$this->queues[$key]->unshift($e);
+		}
+		$this->size += count($event);
 	}
 }

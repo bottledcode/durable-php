@@ -28,30 +28,22 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use DateTimeInterface;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
-use Ramsey\Collection\DoubleEndedQueueInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
 class OrchestrationContext implements OrchestrationContextInterface
 {
-	/**
-	 * @var DoubleEndedQueueInterface<Task>
-	 */
-	private DoubleEndedQueueInterface $taskHistory;
+	private int $currentReplayIteration = 0;
 
 	public function __construct(private OrchestrationInstance $id, private OrchestrationHistory $history)
 	{
-		$this->taskHistory = clone $this->history->historicalTaskResults;
 	}
 
-	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): Task
+	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): mixed
 	{
-		$task = $this->taskHistory->pollFirst();
-		if ($task !== null) {
-			return $task;
-		}
-
-		throw new LogicException('Not implemented');
+		return \Fiber::suspend(
+			['type' => 'callActivity', 'name' => $name, 'args' => $args, 'retryOptions' => $retryOptions]
+		);
 	}
 
 	public function callHttp(RequestInterface $request, ?RetryOptions $retryOptions = null): Task
@@ -125,7 +117,7 @@ class OrchestrationContext implements OrchestrationContextInterface
 
 	public function isReplaying(): bool
 	{
-		return $this->taskHistory->count() > 0;
+		return array_key_exists($this->currentReplayIteration, $this->history->historicalTaskResults);
 	}
 
 	public function getParentId(): OrchestrationInstance

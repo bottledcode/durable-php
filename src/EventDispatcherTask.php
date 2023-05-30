@@ -24,7 +24,9 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\Cancellation;
+use Amp\CancelledException;
 use Amp\Sync\Channel;
+use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
@@ -50,11 +52,15 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 		Logger::log("EventDispatcher received event: %s", get_class($this->event));
 
-		// todo: skip event if already processed...
-
 		if ($this->event instanceof HasInstanceInterface) {
 			$instance = $this->event->getInstance();
 			$state = $this->getState($instance);
+
+			if ($state->lastProcessedEventTime > $this->event->timestamp) {
+				Logger::log('EventDispatcherTask received event that was already processed');
+				$this->source->ack($this->event);
+				return $this->event;
+			}
 		} else {
 			throw new \LogicException('not implemented');
 		}
@@ -72,8 +78,18 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		}
 
 		$this->source->ack($this->event);
+		Logger::log('EventDispatcherTask finished');
 
-		return null;
+		try {
+			//$timeout = new TimeoutCancellation(1);
+			//$this->event = $channel->receive($timeout);
+		} catch (CancelledException) {
+			Logger::log('EventDispatcherTask timed out');
+		} catch (\Throwable $e) {
+			Logger::log('EventDispatcherTask failed: %s', $e::class);
+		}
+
+		return $this->event;
 	}
 
 	public function getState(OrchestrationInstance $instance): OrchestrationHistory
@@ -90,18 +106,18 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		return $rawState ?? $state;
 	}
 
-	private function fire(Event ...$events): void
-	{
-		foreach ($events as $event) {
-			$this->source->storeEvent($event, false);
-		}
-	}
-
 	public function updateState(OrchestrationHistory $state): void
 	{
 		$this->source->put(
 			"state:{$state->instance->instanceId}:{$state->instance->executionId}",
 			$state
 		);
+	}
+
+	private function fire(Event ...$events): void
+	{
+		foreach ($events as $event) {
+			$this->source->storeEvent($event, false);
+		}
 	}
 }
