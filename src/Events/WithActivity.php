@@ -24,9 +24,9 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\StateId;
-use Ramsey\Uuid\Uuid;
+use Ramsey\Uuid\UuidInterface;
 
-class WithActivity extends Event implements HasInnerEventInterface
+class WithActivity extends Event implements HasInnerEventInterface, StateTargetInterface
 {
 
 	public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
@@ -34,9 +34,9 @@ class WithActivity extends Event implements HasInnerEventInterface
 		parent::__construct($eventId);
 	}
 
-	public static function forEvent(Event $innerEvent): Event
+	public static function forEvent(UuidInterface $activityId, Event $innerEvent): Event
 	{
-		return new WithActivity('', StateId::fromActivityId(Uuid::uuid7()), $innerEvent);
+		return new WithActivity('', StateId::fromActivityId($activityId), $innerEvent);
 	}
 
 	public function getInnerEvent(): Event

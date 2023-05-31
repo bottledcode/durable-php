@@ -23,15 +23,18 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
+use Ramsey\Uuid\Uuid;
 
 class OrchestrationHistory implements StateInterface
 {
@@ -121,7 +124,14 @@ class OrchestrationHistory implements StateInterface
 			if ($result !== null) {
 				switch ($result['type']) {
 					case 'callActivity':
-						return yield ScheduleTask::fromOrchestrationContext($result);
+						$activityId = Uuid::uuid7();
+						return yield AwaitResult::forEvent(
+							StateId::fromState($this),
+							WithActivity::forEvent(
+								$activityId,
+								ScheduleTask::fromOrchestrationContext($result)
+							)
+						);
 				}
 			}
 

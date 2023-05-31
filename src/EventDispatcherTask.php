@@ -29,8 +29,12 @@ use Amp\Sync\Channel;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
+use Bottledcode\DurablePhp\Events\CompleteExecution;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
+use Bottledcode\DurablePhp\Events\ReplyToInterface;
+use Bottledcode\DurablePhp\Events\StateTargetInterface;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\StateId;
 use Bottledcode\DurablePhp\State\StateInterface;
@@ -57,8 +61,17 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		 * @var StateInterface[] $states
 		 */
 		$states = [];
+		/**
+		 * @var StateId[] $replyTo
+		 */
+		$replyTo = [];
 		while ($this->event instanceof HasInnerEventInterface) {
-			$states[] = $this->getState($this->event->getTarget());
+			if ($this->event instanceof StateTargetInterface) {
+				$states[] = $this->getState($this->event->getTarget());
+			}
+			if ($this->event instanceof ReplyToInterface) {
+				$replyTo[] = $this->event->getReplyTo();
+			}
 
 			$this->event = $this->event->getInnerEvent();
 		}
@@ -81,6 +94,11 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		}
 
 		$this->source->ack($this->event);
+		foreach($replyTo as $replyId) {
+			if($replyId->isOrchestrationId()) {
+				$this->fire(WithOrchestration::forInstance($replyId, new ));
+			}
+		}
 		Logger::log('EventDispatcherTask finished');
 
 		try {

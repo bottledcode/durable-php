@@ -23,11 +23,7 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\StateId;
-
 interface HasInnerEventInterface
 {
 	public function getInnerEvent(): Event;
-
-	public function getTarget(): StateId;
 }
