@@ -36,6 +36,7 @@ use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\EventQueue;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
+use Bottledcode\DurablePhp\Events\StateTargetInterface;
 
 use function Amp\async;
 use function Amp\Future\awaitFirst;
@@ -154,8 +155,11 @@ class Run
 
 	private function getEventKey(Event $event): string
 	{
-		if ($event instanceof HasInnerEventInterface) {
-			return $event->getTarget();
+		while ($event instanceof HasInnerEventInterface) {
+			if ($event instanceof StateTargetInterface) {
+				return $event->getTarget();
+			}
+			$event = $event->getInnerEvent();
 		}
 
 		return $event->eventId;

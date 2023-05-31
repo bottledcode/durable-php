@@ -67,6 +67,16 @@ readonly class StateId implements \Stringable
 		};
 	}
 
+	public function isOrchestrationId(): bool
+	{
+		return str_starts_with($this->id, 'orchestration:');
+	}
+
+	public function isActivityId(): bool
+	{
+		return str_starts_with($this->id, 'activity:');
+	}
+
 	/**
 	 * @return class-string
 	 */
@@ -77,6 +87,19 @@ readonly class StateId implements \Stringable
 			['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
 			['activity', $parts[1]] => ActivityHistory::class,
 		};
+	}
+
+	public function getPartitionKey(int $totalPartitions): int|null
+	{
+		return match ($this->isPartitioned()) {
+			true => crc32($this->id) % $totalPartitions,
+			false => null,
+		};
+	}
+
+	public function isPartitioned(): bool
+	{
+		return str_starts_with($this->id, 'orchestration:');
 	}
 
 	public function __toString()

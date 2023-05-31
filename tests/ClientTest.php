@@ -28,6 +28,6 @@ require_once __DIR__ . '/../vendor/autoload.php';
 $config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
 $client = new \Bottledcode\DurablePhp\OrchestrationClient($config);
 
-$orchestrationInstance = $client->startNew(\Bottledcode\DurablePhp\HelloSequence::class, ['World'], 'test');
+$orchestrationInstance = $client->startNew(\Bottledcode\DurablePhp\HelloSequence::class, ['name' => 'World'], 'test');
 $client->waitForCompletion($orchestrationInstance, new \Amp\TimeoutCancellation(hours(2)->inSeconds()));
 var_dump($client->getStatus($orchestrationInstance));

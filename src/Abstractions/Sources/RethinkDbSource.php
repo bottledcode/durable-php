@@ -34,6 +34,7 @@ use Generator;
 use r\Connection;
 use r\ConnectionOptions;
 use r\Options\ChangesOptions;
+use r\Options\RunOptions;
 use r\Options\TableInsertOptions;
 use Withinboredom\Time\Seconds;
 
@@ -161,7 +162,10 @@ class RethinkDbSource implements Source
 
 	public function ack(Event $event): void
 	{
-		table($this->partitionTable)->get($event->eventId)->delete()->run($this->connection);
+		table($this->partitionTable)->get($event->eventId)->delete()->run(
+			$this->connection,
+			new RunOptions(noreply: true)
+		);
 	}
 
 	/**

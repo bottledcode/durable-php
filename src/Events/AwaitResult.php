@@ -25,10 +25,25 @@ namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\StateId;
 
-class AwaitResult extends Event
+class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterface
 {
-	public function __construct(string $eventId, public StateId $origin)
+	public function __construct(string $eventId, public StateId $origin, public Event $innerEvent)
 	{
 		parent::__construct($eventId);
+	}
+
+	public static function forEvent(StateId $replyTo, Event $innerEvent): Event
+	{
+		return new AwaitResult('', $replyTo, $innerEvent);
+	}
+
+	public function getInnerEvent(): Event
+	{
+		return $this->innerEvent;
+	}
+
+	public function getReplyTo(): StateId
+	{
+		return $this->origin;
 	}
 }

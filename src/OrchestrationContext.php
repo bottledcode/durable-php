@@ -72,7 +72,7 @@ class OrchestrationContext implements OrchestrationContextInterface
 
 	public function getInput(): array
 	{
-		throw new LogicException('Not implemented');
+		return $this->history->input;
 	}
 
 	public function newGuid(): UuidInterface
