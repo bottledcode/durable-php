@@ -23,8 +23,8 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\StateId;
 
 class StartOrchestration extends Event
 {

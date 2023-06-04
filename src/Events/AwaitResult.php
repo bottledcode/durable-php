@@ -23,7 +23,7 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\StateId;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterface
 {
@@ -39,6 +39,7 @@ class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterf
 
 	public function getInnerEvent(): Event
 	{
+		$this->innerEvent->eventId = $this->eventId;
 		return $this->innerEvent;
 	}
 

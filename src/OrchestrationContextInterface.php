@@ -23,53 +23,127 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Amp\Future;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use DateTimeInterface;
 use Ramsey\Uuid\UuidInterface;
 
 interface OrchestrationContextInterface
 {
 	/**
+	 * Call an activity function and return a future that the context can await on.
+	 *
 	 * @template T
-	 * @param string $name
-	 * @param array $args
-	 * @param RetryOptions|null $retryOptions
-	 * @return T
+	 * @param string $name The name of the function to remotely invoke
+	 * @param array $args The arguments to pass to the function
+	 * @param RetryOptions|null $retryOptions How to retry on failure
+	 * @return DurableFuture<T>
 	 */
-	public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): Future;
+	public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): DurableFuture;
 
 	public function callSubOrchestrator(
 		string $name,
 		array $args = [],
 		string|null $instanceId = null,
 		RetryOptions|null $retryOptions = null
-	): Future;
+	): DurableFuture;
 
 	public function continueAsNew(array $args = []): void;
 
-	public function createTimer(DateTimeInterface $fireAt): Future;
+	/**
+	 * Creates a durable timer that resolves at the specified time.
+	 *
+	 * @param \DateTimeImmutable $fireAt The time to resolve the future.
+	 * @return DurableFuture<true>
+	 */
+	public function createTimer(\DateTimeImmutable $fireAt): DurableFuture;
 
+	/**
+	 * The input to the orchestrator function.
+	 *
+	 * @return array<array-key, mixed>
+	 */
 	public function getInput(): array;
 
+	/**
+	 * Constructs a db-friendly GUID.
+	 *
+	 * @return UuidInterface
+	 */
 	public function newGuid(): UuidInterface;
 
+	/**
+	 * Set the custom status of the orchestration.
+	 *
+	 * @param string $customStatus The new status.
+	 * @return void
+	 */
 	public function setCustomStatus(string $customStatus): void;
 
-	public function waitForExternalEvent(string $name): Future;
+	/**
+	 * Waits for an external event to be raised. May resolve immediately if the event has already been raised.
+	 *
+	 * @template T
+	 * @param string $name
+	 * @return DurableFuture<T>
+	 */
+	public function waitForExternalEvent(string $name): DurableFuture;
 
+	/**
+	 * Gets the current time in a deterministic way. (always the time the execution started)
+	 *
+	 * @return \DateTimeImmutable
+	 */
 	public function getCurrentTime(): \DateTimeImmutable;
 
-	public function getCustomStatus(): string;
+	/**
+	 * Retrieve the current custom status or null if none has been set.
+	 *
+	 * @return string|null
+	 */
+	public function getCustomStatus(): string|null;
 
+	/**
+	 * Retrieve the current orchestration instance id.
+	 *
+	 * @return OrchestrationInstance
+	 */
 	public function getCurrentId(): OrchestrationInstance;
 
+	/**
+	 * Whether we're replaying an orchestration on this particular line of code.
+	 *
+	 * Warning: do not use this for i/o or other side effects.
+	 *
+	 * @return bool
+	 */
 	public function isReplaying(): bool;
 
+	/**
+	 * Retrieve a parent orchestration if there is one.
+	 *
+	 * @return OrchestrationInstance|null
+	 */
 	public function getParentId(): OrchestrationInstance|null;
 
+	/**
+	 * Whether the orchestration will restart as a new orchestration.
+	 *
+	 * @return bool
+	 */
 	public function willContinueAsNew(): bool;
 
+	/**
+	 * A helper method for creating a DateInterval.
+	 *
+	 * @param int|null $years
+	 * @param int|null $months
+	 * @param int|null $weeks
+	 * @param int|null $days
+	 * @param int|null $hours
+	 * @param int|null $minutes
+	 * @param int|null $seconds
+	 * @param int|null $microseconds
+	 * @return \DateInterval
+	 */
 	public function createInterval(
 		int $years = null,
 		int $months = null,
@@ -81,9 +155,27 @@ interface OrchestrationContextInterface
 		int $microseconds = null
 	): \DateInterval;
 
-	public function waitAny(Future ...$tasks): Future;
+	/**
+	 * Returns the first successful future to complete.
+	 *
+	 * @param DurableFuture ...$tasks
+	 * @return DurableFuture
+	 */
+	public function waitAny(DurableFuture ...$tasks): DurableFuture;
 
-	public function waitAll(Future ...$tasks): Future;
+	/**
+	 * Returns once all futures have completed.
+	 *
+	 * @param DurableFuture ...$tasks
+	 * @return DurableFuture<true>
+	 */
+	public function waitAll(DurableFuture ...$tasks): DurableFuture;
 
-	public function waitOne(Future $task): mixed;
+	/**
+	 * Returns the result (or throws on failure) once a single future has completed.
+	 *
+	 * @param DurableFuture $task
+	 * @return mixed
+	 */
+	public function waitOne(DurableFuture $task): mixed;
 }

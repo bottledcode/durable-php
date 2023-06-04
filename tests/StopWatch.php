@@ -21,14 +21,36 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-
-/**
- * This interface indicates that the event triggers a completed task event on complete.
- */
-interface ReplyToInterface
+class StopWatch
 {
-	public function getReplyTo(): StateId;
+	private int $startTime = 0;
+	private float $mag = 0;
+
+	public function __construct(public int $time = 0)
+	{
+	}
+
+	public function start(): void
+	{
+		$this->startTime = hrtime(true);
+		$this->mag = microtime(true);
+	}
+
+	public function stop(): void
+	{
+		$this->time = hrtime(true) - $this->startTime;
+		$this->mag = microtime(true) - $this->mag;
+	}
+
+	public function getSeconds(): float
+	{
+		return $this->time / 1_000_000_000;
+	}
+
+	public function getTestSecs(): float
+	{
+		return $this->mag;
+	}
 }

@@ -21,14 +21,12 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\Common;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-
-/**
- * This interface indicates that the event triggers a completed task event on complete.
- */
-interface ReplyToInterface
+class SayHello
 {
-	public function getReplyTo(): StateId;
+	public function __invoke(string $name): string
+	{
+		return "Hello, $name!";
+	}
 }
