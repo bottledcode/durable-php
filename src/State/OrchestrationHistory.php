@@ -23,20 +23,21 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\ExecutionTerminated;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
-use Bottledcode\DurablePhp\Events\WithActivity;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\Logger;
-use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
-use Ramsey\Uuid\Uuid;
 
-class OrchestrationHistory implements StateInterface
+class OrchestrationHistory extends AbstractHistory
 {
 	public \DateTimeImmutable $now;
 
@@ -52,9 +53,9 @@ class OrchestrationHistory implements StateInterface
 
 	public \DateTimeImmutable $createdTime;
 
-	public array $input;
+	public array $input = [];
 
-	public array $historicalTaskResults = [];
+	public HistoricalStateTracker $historicalTaskResults;
 
 	public \DateTimeImmutable $lastProcessedEventTime;
 
@@ -66,6 +67,7 @@ class OrchestrationHistory implements StateInterface
 	{
 		$this->lastProcessedEventTime = new \DateTimeImmutable('2023-05-30');
 		$this->instance = $id->toOrchestrationInstance();
+		$this->historicalTaskResults = new HistoricalStateTracker();
 	}
 
 	/**
@@ -76,8 +78,12 @@ class OrchestrationHistory implements StateInterface
 	 * @param StartExecution $event
 	 * @return array
 	 */
-	public function applyStartExecution(StartExecution $event): \Generator
+	public function applyStartExecution(StartExecution $event, Event $original): \Generator
 	{
+		if ($this->isFinished()) {
+			return;
+		}
+
 		Logger::log("Applying StartExecution event to OrchestrationHistory");
 		$this->now = $event->timestamp;
 		$this->createdTime = $event->timestamp;
@@ -86,10 +92,20 @@ class OrchestrationHistory implements StateInterface
 		$this->tags = $event->tags;;
 		$this->parentInstance = $event->parentInstance ?? null;
 		$this->input = $event->input;
+		$this->history = [];
+		$this->historicalTaskResults = new HistoricalStateTracker();
 
 		yield StartOrchestration::forInstance($this->instance);
 
 		yield from $this->finalize($event);
+	}
+
+	private function isFinished(): bool
+	{
+		return match ($this->status) {
+			OrchestrationStatus::Terminated, OrchestrationStatus::Canceled, OrchestrationStatus::Failed, OrchestrationStatus::Completed => true,
+			default => false,
+		};
 	}
 
 	private function finalize(Event $event): \Generator
@@ -100,9 +116,12 @@ class OrchestrationHistory implements StateInterface
 		yield null;
 	}
 
-	public function applyStartOrchestration(StartOrchestration $event): \Generator
+	public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
 	{
-		$this->now = MonotonicClock::current()->now();
+		if ($this->isFinished()) {
+			return;
+		}
+
 		$this->status = OrchestrationStatus::Running;
 
 		// go ahead and finalize this event to the history and update the status
@@ -118,34 +137,93 @@ class OrchestrationHistory implements StateInterface
 
 		$class = $class->newInstanceWithoutConstructor();
 		try {
-			$fiber = new \Fiber(fn() => $class(new OrchestrationContext($this->instance, $this)));
-			$result = $fiber->start();
-
-			if ($result !== null) {
-				switch ($result['type']) {
-					case 'callActivity':
-						$activityId = Uuid::uuid7();
-						return yield AwaitResult::forEvent(
-							StateId::fromState($this),
-							WithActivity::forEvent(
-								$activityId,
-								ScheduleTask::fromOrchestrationContext($result)
-							)
-						);
-				}
+			$taskScheduler = null;
+			yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
+				$taskScheduler = $task;
+			};
+			$context = new OrchestrationContext($this->instance, $this, $taskScheduler);
+			try {
+				$result = $class($context);
+			} catch (Unwind) {
+				// we don't need to do anything here, we just need to catch it
+				// so that we don't throw an exception
+				return;
 			}
 
-			yield TaskCompleted::forId(
-				"orchestration:{$this->instance->instanceId}:{$this->instance->executionId}",
-				$result
-			);
+			$completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
 		} catch (\Throwable $e) {
-			yield TaskFailed::forTask(
-				"orchestration:{$this->instance->instanceId}:{$this->instance->executionId}",
+			$completion = TaskFailed::forTask(
+				StateId::fromInstance($this->instance),
 				$e->getMessage(),
-				previous: $e::class
+				$e->getTraceAsString(),
+				$e::class
 			);
 		}
+
+		$completion = WithOrchestration::forInstance(StateId::fromInstance($this->instance), $completion);
+
+		if ($this->parentInstance ?? false) {
+			$completion = AwaitResult::forEvent(StateId::fromInstance($this->parentInstance), $completion);
+		}
+
+		yield $completion;
+	}
+
+	public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+	{
+		if ($this->isFinished()) {
+			return;
+		}
+
+		$this->status = OrchestrationStatus::Completed;
+
+		yield null;
+	}
+
+	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+	{
+		if ($this->isFinished()) {
+			return;
+		}
+
+		$this->status = OrchestrationStatus::Failed;
+		$this->tags['failure_reason'] = $event->reason;
+		$this->tags['failure_details'] = $event->details;
+		$this->tags['failure_type'] = $event->previous;
+
+		yield null;
+	}
+
+	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
+	{
+		$this->history[$event->eventId] = $event;
+
+		yield from $this->finalize($event);
+
+		$this->historicalTaskResults->receivedEvent($event);
+
+		if ($this->isRunning()) {
+			yield from $this->construct();
+		}
+	}
+
+	private function isRunning(): bool
+	{
+		return match ($this->status) {
+			OrchestrationStatus::Running => true,
+			default => false,
+		};
+	}
+
+	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
+	{
+		if ($this->isFinished()) {
+			return;
+		}
+
+		$this->status = OrchestrationStatus::Terminated;
+
+		yield from $this->finalize($event);
 	}
 
 	public function hasAppliedEvent(Event $event): bool

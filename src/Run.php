@@ -72,8 +72,8 @@ class Run
 		Logger::log('Replay completed');
 
 		$cancellation = new DeferredCancellation();
+		$queue->setCancellation($cancellation);
 
-		reset:
 		$eventSource = async(function () use ($queue, &$cancellation) {
 			foreach ($this->source->receiveEvents() as $event) {
 				$queue->enqueue($this->getEventKey($event), $event);
@@ -113,6 +113,7 @@ class Run
 				$event = awaitFirst([$eventSource, ...$futures], $cancellation->getCancellation());
 			} catch (CancelledException) {
 				$cancellation = new DeferredCancellation();
+				$queue->setCancellation($cancellation);
 				goto startOver;
 			}
 

@@ -27,7 +27,7 @@ use Bottledcode\DurablePhp\MonotonicClock;
 use Crell\Serde\Attributes\ClassNameTypeMap;
 
 #[ClassNameTypeMap(key: 'eventType')]
-abstract class Event
+abstract class Event implements \Stringable
 {
 	public bool $isPlayed;
 

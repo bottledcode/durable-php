@@ -46,4 +46,9 @@ class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterf
 	{
 		return $this->origin;
 	}
+
+	public function __toString()
+	{
+		return sprintf('AwaitResult(%s, %s)', $this->innerEvent, $this->origin);
+	}
 }

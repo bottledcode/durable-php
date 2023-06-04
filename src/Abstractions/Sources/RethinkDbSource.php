@@ -78,6 +78,7 @@ class RethinkDbSource implements Source
 				// database already exists
 			}
 			tableCreate('partition_' . $config->currentPartition)->run($conn);
+			table('partition_' . $config->currentPartition)->indexCreate('timestamp')->run($conn);
 			tableCreate('state')->run($conn);
 		} catch (Exception) {
 			// table already exists
@@ -194,7 +195,10 @@ class RethinkDbSource implements Source
 			$this->connection
 		);
 		foreach ($cursor as $results) {
-			$rawStatus = $results['new_val']['data']['status'];
+			$rawStatus = $results['new_val']['data']['status'] ?? null;
+			if ($rawStatus === null) {
+				continue;
+			}
 			$status = $this->serde->deserialize($rawStatus, 'array', OrchestrationStatus::class);
 			if (in_array($status, $expected, true)) {
 				return $status;

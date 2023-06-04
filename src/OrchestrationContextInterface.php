@@ -23,9 +23,9 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\Future;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use DateTimeInterface;
-use Psr\Http\Message\RequestInterface;
 use Ramsey\Uuid\UuidInterface;
 
 interface OrchestrationContextInterface
@@ -37,20 +37,18 @@ interface OrchestrationContextInterface
 	 * @param RetryOptions|null $retryOptions
 	 * @return T
 	 */
-	public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): mixed;
-
-	public function callHttp(RequestInterface $request, RetryOptions|null $retryOptions = null): Task;
+	public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): Future;
 
 	public function callSubOrchestrator(
 		string $name,
 		array $args = [],
 		string|null $instanceId = null,
 		RetryOptions|null $retryOptions = null
-	): Task;
+	): Future;
 
 	public function continueAsNew(array $args = []): void;
 
-	public function createTimer(DateTimeInterface $fireAt): Task;
+	public function createTimer(DateTimeInterface $fireAt): Future;
 
 	public function getInput(): array;
 
@@ -58,13 +56,9 @@ interface OrchestrationContextInterface
 
 	public function setCustomStatus(string $customStatus): void;
 
-	public function waitAll(Task ...$tasks): Task;
+	public function waitForExternalEvent(string $name): Future;
 
-	public function waitAny(Task ...$tasks): Task;
-
-	public function waitForExternalEvent(string $name): Task;
-
-	public function getCurrentTime(): DateTimeInterface;
+	public function getCurrentTime(): \DateTimeImmutable;
 
 	public function getCustomStatus(): string;
 
@@ -72,7 +66,24 @@ interface OrchestrationContextInterface
 
 	public function isReplaying(): bool;
 
-	public function getParentId(): OrchestrationInstance;
+	public function getParentId(): OrchestrationInstance|null;
 
 	public function willContinueAsNew(): bool;
+
+	public function createInterval(
+		int $years = null,
+		int $months = null,
+		int $weeks = null,
+		int $days = null,
+		int $hours = null,
+		int $minutes = null,
+		int $seconds = null,
+		int $microseconds = null
+	): \DateInterval;
+
+	public function waitAny(Future ...$tasks): Future;
+
+	public function waitAll(Future ...$tasks): Future;
+
+	public function waitOne(Future $task): mixed;
 }

@@ -50,4 +50,9 @@ class WithOrchestration extends Event implements HasInnerEventInterface, StateTa
 	{
 		return $this->target;
 	}
+
+	public function __toString()
+	{
+		return sprintf("WithOrchestration(%s)", $this->innerEvent);
+	}
 }

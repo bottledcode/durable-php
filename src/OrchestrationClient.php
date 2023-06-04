@@ -56,7 +56,12 @@ final class OrchestrationClient implements OrchestrationClientInterface
 
 	public function getStatus(OrchestrationInstance $instance): OrchestrationStatus
 	{
-		throw new LogicException('Not implemented');
+		$id = StateId::fromInstance($instance);
+		$state = $this->source->get($id, $id->getStateType());
+		if ($state === null) {
+			return OrchestrationStatus::Pending;
+		}
+		return $state->status;
 	}
 
 	public function getStatusAll(): array
@@ -100,6 +105,7 @@ final class OrchestrationClient implements OrchestrationClientInterface
 		if ($id) {
 			$instance = new OrchestrationInstance($instance->instanceId, $id);
 		}
+
 		$event = WithOrchestration::forInstance(
 			StateId::fromInstance($instance),
 			new StartExecution(null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, '')

@@ -23,26 +23,60 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\EventResult;
+use Bottledcode\DurablePhp\Events\ExecutionTerminated;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\StartExecution;
+use Bottledcode\DurablePhp\Events\StartOrchestration;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
 
-class ActivityHistory extends AbstractHistory
+abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
-	public string $activityId;
-
-	public OrchestrationStatus $status = OrchestrationStatus::Pending;
-
-	public function __construct(StateId $id)
+	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
 	{
-		$this->activityId = $id->toActivityId();
+		yield null;
 	}
 
-	public function hasAppliedEvent(Event $event): bool
+	public function applyEventResult(EventResult $event, Event $original): \Generator
 	{
-		return false;
+		yield null;
+	}
+
+	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
+	{
+		yield null;
+	}
+
+	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
+	{
+		yield null;
 	}
 
 	public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
+	{
+		yield null;
+	}
+
+	public function applyStartExecution(StartExecution $event, Event $original): \Generator
+	{
+		yield null;
+	}
+
+	public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
+	{
+		yield null;
+	}
+
+	public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+	{
+		yield null;
+	}
+
+	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
 	{
 		yield null;
 	}

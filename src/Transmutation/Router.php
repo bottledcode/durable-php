@@ -23,19 +23,15 @@
 
 namespace Bottledcode\DurablePhp\Transmutation;
 
-use Bottledcode\DurablePhp\Logger;
+use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\State\ApplyStateInterface;
 
 trait Router
 {
-	public function transmutate(object $object, object $to): \Generator
+	public function transmutate(Event $event, ApplyStateInterface $to, Event $original): \Generator
 	{
-		$objectClass = basename(str_replace('\\', '/', get_class($object)));
-		$toClass = get_class($to);
+		$objectClass = basename(str_replace('\\', '/', get_class($event)));
 
-		Logger::log('Calling %s::apply%s', $toClass, $objectClass);
-
-		if (method_exists($toClass, 'apply' . $objectClass)) {
-			yield from $to->{'apply' . $objectClass}($object);
-		}
+		yield from $to->{'apply' . $objectClass}($event, $original);
 	}
 }

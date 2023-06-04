@@ -29,7 +29,7 @@ class ScheduleTask extends Event
 		public string $eventId,
 		public string $name,
 		public string|null $version = null,
-		public string|null $input = null,
+		public array|null $input = null,
 	) {
 		parent::__construct($eventId);
 	}
@@ -37,5 +37,10 @@ class ScheduleTask extends Event
 	public static function fromOrchestrationContext(array $data): self
 	{
 		return new self('', $data['name'], input: $data['input']);
+	}
+
+	public function __toString()
+	{
+		return "ScheduleTask: {$this->name}";
 	}
 }

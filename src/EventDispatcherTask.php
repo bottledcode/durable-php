@@ -29,13 +29,10 @@ use Amp\Sync\Channel;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
-use Bottledcode\DurablePhp\Events\CompleteExecution;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\ReplyToInterface;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
-use Bottledcode\DurablePhp\Events\WithOrchestration;
-use Bottledcode\DurablePhp\State\OrchestrationHistory;
+use Bottledcode\DurablePhp\State\ApplyStateInterface;
 use Bottledcode\DurablePhp\State\StateId;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
@@ -55,22 +52,15 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		$originalEvent = $this->event;
 		$this->source = SourceFactory::fromConfig($this->config);
 
-		Logger::log("EventDispatcher received event: %s", get_class($this->event));
+		Logger::log("EventDispatcher received event: %s", $this->event);
 
 		/**
-		 * @var StateInterface[] $states
+		 * @var StateInterface&ApplyStateInterface[] $states
 		 */
 		$states = [];
-		/**
-		 * @var StateId[] $replyTo
-		 */
-		$replyTo = [];
 		while ($this->event instanceof HasInnerEventInterface) {
 			if ($this->event instanceof StateTargetInterface) {
 				$states[] = $this->getState($this->event->getTarget());
-			}
-			if ($this->event instanceof ReplyToInterface) {
-				$replyTo[] = $this->event->getReplyTo();
 			}
 
 			$this->event = $this->event->getInnerEvent();
@@ -79,10 +69,10 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		foreach ($states as $state) {
 			if ($state->hasAppliedEvent($this->event)) {
 				$this->source->ack($this->event);
-				return $this->event;
+				return $originalEvent;
 			}
 
-			foreach ($this->transmutate($this->event, $state) as $eventOrCallable) {
+			foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
 				if ($eventOrCallable instanceof Event) {
 					$this->fire($eventOrCallable);
 				} elseif ($eventOrCallable instanceof \Closure) {
@@ -94,11 +84,6 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		}
 
 		$this->source->ack($this->event);
-		foreach($replyTo as $replyId) {
-			if($replyId->isOrchestrationId()) {
-				$this->fire(WithOrchestration::forInstance($replyId, new ));
-			}
-		}
 		Logger::log('EventDispatcherTask finished');
 
 		try {
@@ -113,7 +98,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		return $originalEvent;
 	}
 
-	public function getState(StateId $instance): OrchestrationHistory
+	public function getState(StateId $instance): ApplyStateInterface&StateInterface
 	{
 		$rawState = $this->source->get($instance, $instance->getStateType());
 		if (empty($rawState)) {
@@ -124,11 +109,14 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		return $rawState;
 	}
 
-	private function fire(Event ...$events): void
+	public function fire(Event ...$events): array
 	{
+		$ids = [];
 		foreach ($events as $event) {
-			$this->source->storeEvent($event, false);
+			$ids[] = $this->source->storeEvent($event, false);
 		}
+
+		return $ids;
 	}
 
 	public function updateState(StateInterface $state): void
