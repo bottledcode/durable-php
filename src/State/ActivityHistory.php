@@ -24,7 +24,12 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
+use Bottledcode\DurablePhp\Events\ReplyToInterface;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
 
 class ActivityHistory extends AbstractHistory
 {
@@ -44,6 +49,44 @@ class ActivityHistory extends AbstractHistory
 
 	public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
 	{
-		yield null;
+		$task = $event->name;
+		$replyTo = $this->getReplyTo($original);
+		try {
+			$result = $task(...($event->input ?? []));
+			foreach ($replyTo as $id) {
+				yield WithOrchestration::forInstance(
+					$id,
+					TaskCompleted::forId(StateId::fromActivityId($this->activityId), $result)
+				);
+			}
+		} catch (\Throwable $e) {
+			foreach ($replyTo as $id) {
+				yield WithOrchestration::forInstance(
+					$id,
+					TaskFailed::forTask(
+						StateId::fromActivityId($this->activityId),
+						$e->getMessage(),
+						$e->getTraceAsString(),
+						$e::class
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * @param Event $event
+	 * @return array<StateId>
+	 */
+	private function getReplyTo(Event $event): array
+	{
+		$ids = [];
+		while ($event instanceof HasInnerEventInterface) {
+			if ($event instanceof ReplyToInterface) {
+				$ids[] = $event->getReplyTo();
+			}
+			$event = $event->getInnerEvent();
+		}
+		return $ids;
 	}
 }

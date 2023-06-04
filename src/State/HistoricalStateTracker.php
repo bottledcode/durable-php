@@ -158,7 +158,9 @@ class HistoricalStateTracker
 			);
 			$meta = $this->getSlots()[$future];
 			$this->results[$meta['identity']][] = ['key' => $currentKey];
-			$this->results[$meta['eventId']][] = ['identity' => $meta['identity']];
+			if (array_key_exists('eventId', $meta)) {
+				$this->results[$meta['eventId']][] = ['identity' => $meta['identity']];
+			}
 		}
 	}
 
