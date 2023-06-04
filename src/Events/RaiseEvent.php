@@ -29,4 +29,9 @@ class RaiseEvent extends Event
 	{
 		parent::__construct($eventId);
 	}
+
+	public function __toString()
+	{
+		return "RaiseEvent: {$this->eventName}";
+	}
 }

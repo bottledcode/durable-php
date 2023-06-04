@@ -23,8 +23,6 @@
 
 namespace Bottledcode\DurablePhp;
 
-use DateTimeImmutable;
-
 class HelloSequence
 {
 	public function __invoke(OrchestrationContextInterface $context): void
@@ -32,7 +30,7 @@ class HelloSequence
 		$name = $context->getInput()['name'];
 		$context->setCustomStatus("Saying hello to {$name}!");
 		$hello = $context->callActivity('strlen', [$name]);
-		$wait = $context->createTimer(new DateTimeImmutable('+5 seconds'));
+		$wait = $context->createTimer($context->getCurrentTime()->add($context->createInterval(seconds: 5)));
 		$winner = $context->waitAny($hello, $wait);
 
 		if ($winner === $hello) {
@@ -43,7 +41,7 @@ class HelloSequence
 
 		$context->getCurrentTime();
 
-		$context->waitForExternalEvent('event');
+		$context->waitAll($context->waitForExternalEvent('event'));
 		$context->setCustomStatus('all done');
 	}
 }

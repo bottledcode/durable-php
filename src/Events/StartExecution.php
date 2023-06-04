@@ -40,4 +40,9 @@ class StartExecution extends Event
 	) {
 		parent::__construct($eventId);
 	}
+
+	public function __toString()
+	{
+		return "StartExecution: {$this->name}";
+	}
 }

@@ -37,4 +37,9 @@ class StartOrchestration extends Event
 	{
 		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
 	}
+
+	public function __toString()
+	{
+		return "StartOrchestration";
+	}
 }

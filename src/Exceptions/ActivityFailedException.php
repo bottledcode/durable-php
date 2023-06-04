@@ -21,37 +21,14 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Exceptions;
 
-use Bottledcode\DurablePhp\State\StateId;
-use Ramsey\Uuid\UuidInterface;
+use Throwable;
 
-class WithActivity extends Event implements HasInnerEventInterface, StateTargetInterface
+class ActivityFailedException extends \RuntimeException
 {
-
-	public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
+	public function __construct(string $message = "", public string $details = '', ?Throwable $previous = null)
 	{
-		parent::__construct($eventId);
-	}
-
-	public static function forEvent(UuidInterface $activityId, Event $innerEvent): Event
-	{
-		return new WithActivity('', StateId::fromActivityId($activityId), $innerEvent);
-	}
-
-	public function getInnerEvent(): Event
-	{
-		$this->innerEvent->eventId = $this->eventId;
-		return $this->innerEvent;
-	}
-
-	public function getTarget(): StateId
-	{
-		return $this->target;
-	}
-
-	public function __toString()
-	{
-		return sprintf("WithActivity(%s)", $this->innerEvent);
+		parent::__construct($message, 0, $previous);
 	}
 }

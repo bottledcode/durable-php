@@ -23,6 +23,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
 readonly class StateId implements \Stringable
@@ -44,17 +45,17 @@ readonly class StateId implements \Stringable
 		return new self("orchestration:{$instance}");
 	}
 
-	public static function fromActivityId(UuidInterface $activityId): self
+	public static function fromActivityId(UuidInterface|string $activityId): self
 	{
 		return new self("activity:{$activityId}");
 	}
 
-	public function toActivityId(): UuidInterface
+	public function toActivityId(): string
 	{
 		$parts = explode(':', $this->id, 3);
 		return match ($parts) {
 			['orchestration', $parts[1]] => throw new \Exception("Cannot convert orchestration state to activity id"),
-			['activity', $parts[1]] => $parts[2],
+			['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
 		};
 	}
 
@@ -84,8 +85,8 @@ readonly class StateId implements \Stringable
 	{
 		$parts = explode(':', $this->id, 3);
 		return match ($parts) {
-			['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
 			['activity', $parts[1]] => ActivityHistory::class,
+			['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
 		};
 	}
 

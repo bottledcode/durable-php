@@ -23,7 +23,10 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Amp\DeferredCancellation;
+use Revolt\EventLoop;
 use SplQueue;
+use Withinboredom\Time\Seconds;
 
 class EventQueue
 {
@@ -35,9 +38,16 @@ class EventQueue
 	private array $usedKeys = [];
 	private int $size = 0;
 
+	private DeferredCancellation|null $cancellation = null;
+
 	public function __construct()
 	{
 		$this->keys = new SplQueue();
+	}
+
+	public function setCancellation(DeferredCancellation $cancellation)
+	{
+		$this->cancellation = $cancellation;
 	}
 
 	public function hasKey(string $key): bool
@@ -84,12 +94,39 @@ class EventQueue
 
 	public function enqueue(string $key, Event $event): void
 	{
+		$delay = $this->getDelay($event);
+		if ($delay->inSeconds() > 0) {
+			EventLoop::delay($delay->inSeconds(), function () use ($key, $event) {
+				$this->enqueue($key, $event);
+				if ($this->cancellation !== null) {
+					$this->cancellation?->cancel();
+				}
+			});
+			return;
+		}
+
 		$this->addKey($key);
 		if (!isset($this->queues[$key])) {
 			$this->queues[$key] = new SplQueue();
 		}
 		$this->queues[$key]->enqueue($event);
 		$this->size++;
+	}
+
+	private function getDelay(Event $event): Seconds
+	{
+		while ($event instanceof HasInnerEventInterface) {
+			if ($event instanceof WithDelay) {
+				$at = $event->fireAt->getTimestamp();
+				$now = (new \DateTimeImmutable())->getTimestamp();
+				$seconds = $at - $now;
+				return new Seconds(max(0, $seconds));
+			}
+
+			$event = $event->getInnerEvent();
+		}
+
+		return new Seconds(0);
 	}
 
 	private function addKey(string $key): void

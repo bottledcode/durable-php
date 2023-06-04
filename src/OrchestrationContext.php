@@ -23,32 +23,55 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\DeferredFuture;
+use Amp\Future;
+use Bottledcode\DurablePhp\Events\AwaitResult;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\WithActivity;
+use Bottledcode\DurablePhp\Events\WithDelay;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\State\StateId;
 use DateTimeInterface;
 use LogicException;
-use Psr\Http\Message\RequestInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
-class OrchestrationContext implements OrchestrationContextInterface
+final class OrchestrationContext implements OrchestrationContextInterface
 {
 	private int $currentReplayIteration = 0;
 
-	public function __construct(private OrchestrationInstance $id, private OrchestrationHistory $history)
-	{
+	public function __construct(
+		private OrchestrationInstance $id,
+		private OrchestrationHistory $history,
+		private EventDispatcherTask $taskController
+	) {
 	}
 
-	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): mixed
+	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): Future
 	{
-		return \Fiber::suspend(
-			['type' => 'callActivity', 'name' => $name, 'args' => $args, 'retryOptions' => $retryOptions]
-		);
-	}
+		if (!$this->history->historicalTaskResults->hasSentIdentity($identity = sha1($name . print_r($args, true)))) {
+			// this event has yet to be sent.
+			[$eventId] = $this->taskController->fire(
+				AwaitResult::forEvent(
+					StateId::fromInstance($this->id),
+					WithActivity::forEvent(Uuid::uuid7(), new ScheduleTask('', $name, 0, $args))
+				)
+			);
+			$deferred = new DeferredFuture();
+			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
+			return $deferred->getFuture();
+		}
 
-	public function callHttp(RequestInterface $request, ?RetryOptions $retryOptions = null): Task
-	{
-		throw new LogicException('Not implemented');
+		// this event has already been sent, so we need to replay it
+		$deferred = new DeferredFuture();
+
+		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
+
+		return $deferred->getFuture();
 	}
 
 	public function callSubOrchestrator(
@@ -56,7 +79,7 @@ class OrchestrationContext implements OrchestrationContextInterface
 		array $args = [],
 		?string $instanceId = null,
 		?RetryOptions $retryOptions = null
-	): Task {
+	): Future {
 		throw new LogicException('Not implemented');
 	}
 
@@ -65,9 +88,32 @@ class OrchestrationContext implements OrchestrationContextInterface
 		throw new LogicException('Not implemented');
 	}
 
-	public function createTimer(DateTimeInterface $fireAt): Task
+	public function createTimer(DateTimeInterface $fireAt): Future
 	{
-		throw new LogicException('Not implemented');
+		if (!$this->history->historicalTaskResults->hasSentIdentity($identity = sha1($fireAt->format('c')))) {
+			// this event has yet to be sent.
+			[$eventId] = $this->taskController->fire(
+				new WithOrchestration(
+					'', StateId::fromInstance($this->id), new WithDelay('', $fireAt, new RaiseEvent('', $identity, []))
+				)
+			);
+			$deferred = new DeferredFuture();
+			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
+			return $deferred->getFuture();
+		}
+
+		// this event has already been sent, so we need to replay it
+		$deferred = new DeferredFuture();
+		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
+		return $deferred->getFuture();
+	}
+
+	public function waitForExternalEvent(string $name): Future
+	{
+		$identity = sha1($name);
+		$deferred = new DeferredFuture();
+		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
+		return $deferred->getFuture();
 	}
 
 	public function getInput(): array
@@ -85,22 +131,41 @@ class OrchestrationContext implements OrchestrationContextInterface
 		$this->history->tags['customStatus'] = $customStatus;
 	}
 
-	public function waitAll(Task ...$tasks): Task
+	public function waitAll(Future ...$tasks): Future
 	{
-		throw new LogicException('Not implemented');
+		$completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
+		if (count($completed) === count($tasks)) {
+			return Future::complete(true);
+		}
+
+		// there is no task that is already complete, so we need to unwind the stack
+		throw new Unwind();
 	}
 
-	public function waitAny(Task ...$tasks): Task
+	public function waitOne(Future $task): mixed
 	{
-		throw new LogicException('Not implemented');
+		$completed = $this->history->historicalTaskResults->awaitingFutures($task);
+		if (count($completed) === 1) {
+			return $completed[0]->await();
+		}
+		throw new Unwind();
 	}
 
-	public function waitForExternalEvent(string $name): Task
+	public function waitAny(Future ...$tasks): Future
 	{
-		throw new LogicException('Not implemented');
+		// track the awaited tasks
+		$completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
+		foreach ($completed as $task) {
+			if ($task->isComplete()) {
+				return $task;
+			}
+		}
+
+		// there is no task that is already complete, so we need to unwind the stack
+		throw new Unwind();
 	}
 
-	public function getCurrentTime(): DateTimeInterface
+	public function getCurrentTime(): \DateTimeImmutable
 	{
 		return $this->history->now;
 	}
@@ -117,16 +182,59 @@ class OrchestrationContext implements OrchestrationContextInterface
 
 	public function isReplaying(): bool
 	{
-		return array_key_exists($this->currentReplayIteration, $this->history->historicalTaskResults);
+		return $this->history->historicalTaskResults->isReading();
 	}
 
-	public function getParentId(): OrchestrationInstance
+	public function getParentId(): OrchestrationInstance|null
 	{
-		return $this->history->parentInstance;
+		return $this->history->parentInstance ?? null;
 	}
 
 	public function willContinueAsNew(): bool
 	{
 		throw new LogicException('Not implemented');
+	}
+
+	public function createInterval(
+		int $years = null,
+		int $months = null,
+		int $weeks = null,
+		int $days = null,
+		int $hours = null,
+		int $minutes = null,
+		int $seconds = null,
+		int $microseconds = null
+	): \DateInterval {
+		if (empty(
+		array_filter(
+			compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
+		)
+		)) {
+			throw new LogicException('At least one interval part must be specified');
+		}
+
+		$spec = 'P';
+		$spec .= $years ? $years . 'Y' : '';
+		$spec .= $months ? $months . 'M' : '';
+
+		$specDays = 0;
+		$specDays += $weeks ? $weeks * 7 : 0;
+		$specDays += $days ?? 0;
+
+		$spec .= $specDays ? $specDays . 'D' : '';
+		if ($hours || $minutes || $seconds) {
+			$spec .= 'T';
+			$spec .= $hours ? $hours . 'H' : '';
+			$spec .= $minutes ? $minutes . 'M' : '';
+			$spec .= $seconds ? $seconds . 'S' : '';
+		}
+
+		if ($spec === 'P') {
+			$spec .= '0Y';
+		}
+
+		$interval = new \DateInterval($spec);
+		$interval->f = ($microseconds ?? 0) / 1000000;
+		return $interval;
 	}
 }

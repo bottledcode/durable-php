@@ -21,16 +21,8 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Exceptions;
 
-class EventResult extends Event implements HasInnerEventInterface {
-	public function __construct(string $eventId, public )
-	{
-		parent::__construct($eventId);
-	}
-
-	public function getInnerEvent(): Event
-	{
-		// TODO: Implement getInnerEvent() method.
-	}
+class Unwind extends \Exception
+{
 }
