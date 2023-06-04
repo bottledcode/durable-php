@@ -223,7 +223,7 @@ class HistoricalStateTracker
 						$completedInOrder[] = $handler?->getFuture();
 						break;
 					case $result instanceof RaiseEvent:
-						$handler?->complete($result->eventId);
+						$handler?->complete($result->eventData);
 						$completedInOrder[] = $handler?->getFuture();
 						break;
 					default:
