@@ -21,14 +21,23 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\Logger;
+use Bottledcode\DurablePhp\Tests\StopWatch;
 
-/**
- * This interface indicates that the event triggers a completed task event on complete.
- */
-interface ReplyToInterface
-{
-	public function getReplyTo(): StateId;
-}
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+$config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
+$client = new \Bottledcode\DurablePhp\OrchestrationClient($config);
+
+$watch = new StopWatch();
+$watch->start();
+$instance = $client->startNew(FanOutFanIn::class, ['count' => getenv('ACTIVITY_COUNT') ?: 10]);
+$client->waitForCompletion($instance);
+$watch->stop();
+
+var_dump($client->getStatus($instance));
+var_dump($instance);
+
+Logger::log("Completed in %s seconds", number_format($watch->getSeconds(), 2));

@@ -23,7 +23,7 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\StateId;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use Ramsey\Uuid\UuidInterface;
 
 class WithActivity extends Event implements HasInnerEventInterface, StateTargetInterface

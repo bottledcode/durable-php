@@ -21,14 +21,26 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\Logger;
+use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
-/**
- * This interface indicates that the event triggers a completed task event on complete.
- */
-interface ReplyToInterface
+class FanOutFanIn
 {
-	public function getReplyTo(): StateId;
+	public function __invoke(OrchestrationContextInterface $context)
+	{
+		$count = $context->getInput()['count'];
+		$tasks = [];
+		for ($i = 0; $i < $count; $i++) {
+			$tasks[] = $context->callActivity(SayHello::class, [str_pad((string)$i, 4, '0', STR_PAD_LEFT)]);
+		}
+		$context->waitAll(...$tasks);
+		foreach ($tasks as $i => $task) {
+			$context->setCustomStatus($i);
+			$task->getResult();
+		}
+		Logger::log($i);
+	}
 }

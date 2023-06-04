@@ -33,7 +33,7 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Bottledcode\DurablePhp\State\ApplyStateInterface;
-use Bottledcode\DurablePhp\State\StateId;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
 
@@ -83,8 +83,8 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 			$this->updateState($state);
 		}
 
-		$this->source->ack($this->event);
-		Logger::log('EventDispatcherTask finished');
+		$this->source->ack($originalEvent);
+		Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 
 		try {
 			//$timeout = new TimeoutCancellation(1);

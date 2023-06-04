@@ -30,12 +30,14 @@ use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class ActivityHistory extends AbstractHistory
 {
 	public string $activityId;
 
 	public OrchestrationStatus $status = OrchestrationStatus::Pending;
+	public mixed $result = null;
 
 	public function __construct(StateId $id)
 	{
@@ -52,7 +54,12 @@ class ActivityHistory extends AbstractHistory
 		$task = $event->name;
 		$replyTo = $this->getReplyTo($original);
 		try {
+			if (class_exists($task)) {
+				$task = new $task();
+			}
 			$result = $task(...($event->input ?? []));
+			$this->result = $result;
+			$this->status = OrchestrationStatus::Completed;
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
 					$id,
@@ -60,6 +67,8 @@ class ActivityHistory extends AbstractHistory
 				);
 			}
 		} catch (\Throwable $e) {
+			$this->status = OrchestrationStatus::Failed;
+			$this->result = $e->getMessage();
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
 					$id,

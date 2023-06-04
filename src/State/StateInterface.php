@@ -24,6 +24,7 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 
 interface StateInterface
 {

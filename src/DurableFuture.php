@@ -21,14 +21,36 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
+use Amp\Future;
 
 /**
- * This interface indicates that the event triggers a completed task event on complete.
+ * @template T
  */
-interface ReplyToInterface
+class DurableFuture
 {
-	public function getReplyTo(): StateId;
+	/**
+	 * @param Future<T> $future
+	 */
+	public function __construct(public readonly Future $future)
+	{
+	}
+
+	/**
+	 * @return T
+	 */
+	public function getResult(): mixed
+	{
+		if ($this->future->isComplete()) {
+			return $this->future->await();
+		}
+
+		throw new \LogicException('Future is not complete');
+	}
+
+	public function hasResult(): bool
+	{
+		return $this->future->isComplete();
+	}
 }

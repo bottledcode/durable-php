@@ -32,18 +32,15 @@ use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\StateId;
-use DateTimeInterface;
 use LogicException;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
-final class OrchestrationContext implements OrchestrationContextInterface
+final readonly class OrchestrationContext implements OrchestrationContextInterface
 {
-	private int $currentReplayIteration = 0;
-
 	public function __construct(
 		private OrchestrationInstance $id,
 		private OrchestrationHistory $history,
@@ -51,7 +48,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 	) {
 	}
 
-	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): Future
+	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
 	{
 		if (!$this->history->historicalTaskResults->hasSentIdentity($identity = sha1($name . print_r($args, true)))) {
 			// this event has yet to be sent.
@@ -63,7 +60,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 			);
 			$deferred = new DeferredFuture();
 			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
-			return $deferred->getFuture();
+			return new DurableFuture($deferred->getFuture());
 		}
 
 		// this event has already been sent, so we need to replay it
@@ -71,7 +68,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
 		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
 
-		return $deferred->getFuture();
+		return new DurableFuture($deferred->getFuture());
 	}
 
 	public function callSubOrchestrator(
@@ -79,7 +76,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 		array $args = [],
 		?string $instanceId = null,
 		?RetryOptions $retryOptions = null
-	): Future {
+	): DurableFuture {
 		throw new LogicException('Not implemented');
 	}
 
@@ -88,7 +85,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 		throw new LogicException('Not implemented');
 	}
 
-	public function createTimer(DateTimeInterface $fireAt): Future
+	public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
 	{
 		if (!$this->history->historicalTaskResults->hasSentIdentity($identity = sha1($fireAt->format('c')))) {
 			// this event has yet to be sent.
@@ -99,21 +96,21 @@ final class OrchestrationContext implements OrchestrationContextInterface
 			);
 			$deferred = new DeferredFuture();
 			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
-			return $deferred->getFuture();
+			return new DurableFuture($deferred->getFuture());
 		}
 
 		// this event has already been sent, so we need to replay it
 		$deferred = new DeferredFuture();
 		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-		return $deferred->getFuture();
+		return new DurableFuture($deferred->getFuture());
 	}
 
-	public function waitForExternalEvent(string $name): Future
+	public function waitForExternalEvent(string $name): DurableFuture
 	{
 		$identity = sha1($name);
 		$deferred = new DeferredFuture();
 		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-		return $deferred->getFuture();
+		return new DurableFuture($deferred->getFuture());
 	}
 
 	public function getInput(): array
@@ -131,33 +128,39 @@ final class OrchestrationContext implements OrchestrationContextInterface
 		$this->history->tags['customStatus'] = $customStatus;
 	}
 
-	public function waitAll(Future ...$tasks): Future
+	public function waitAll(DurableFuture ...$tasks): DurableFuture
 	{
-		$completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
+		$completed = $this->history->historicalTaskResults->awaitingFutures(
+			...
+			array_map(static fn(DurableFuture $f) => $f->future, $tasks)
+		);
 		if (count($completed) === count($tasks)) {
-			return Future::complete(true);
+			return new DurableFuture(Future::complete(true));
 		}
 
 		// there is no task that is already complete, so we need to unwind the stack
 		throw new Unwind();
 	}
 
-	public function waitOne(Future $task): mixed
+	public function waitOne(DurableFuture $task): mixed
 	{
-		$completed = $this->history->historicalTaskResults->awaitingFutures($task);
+		$completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
 		if (count($completed) === 1) {
 			return $completed[0]->await();
 		}
 		throw new Unwind();
 	}
 
-	public function waitAny(Future ...$tasks): Future
+	public function waitAny(DurableFuture ...$tasks): DurableFuture
 	{
 		// track the awaited tasks
-		$completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
+		$completed = $this->history->historicalTaskResults->awaitingFutures(
+			...
+			array_map(static fn(DurableFuture $f) => $f->future, $tasks)
+		);
 		foreach ($completed as $task) {
 			if ($task->isComplete()) {
-				return $task;
+				return new DurableFuture($task);
 			}
 		}
 

@@ -36,6 +36,7 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\OrchestrationContext;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class OrchestrationHistory extends AbstractHistory
 {
@@ -112,6 +113,7 @@ class OrchestrationHistory extends AbstractHistory
 	{
 		$this->lastProcessedEventTime = $event->timestamp;
 		$this->history[$event->eventId] = $event;
+		$this->history = array_slice($this->history, -100);
 
 		yield null;
 	}
@@ -127,7 +129,6 @@ class OrchestrationHistory extends AbstractHistory
 		// go ahead and finalize this event to the history and update the status
 		// we won't be updating any more state
 		yield from $this->finalize($event);
-
 		yield from $this->construct();
 	}
 
@@ -150,8 +151,14 @@ class OrchestrationHistory extends AbstractHistory
 				return;
 			}
 
+			$this->status = OrchestrationStatus::Completed;
+			$this->tags['result'] = $result;
 			$completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
 		} catch (\Throwable $e) {
+			$this->status = OrchestrationStatus::Failed;
+			$this->tags['error'] = $e->getMessage();
+			$this->tags['stacktrace'] = $e->getTraceAsString();
+			$this->tags['exception'] = $e::class;
 			$completion = TaskFailed::forTask(
 				StateId::fromInstance($this->instance),
 				$e->getMessage(),
@@ -164,6 +171,8 @@ class OrchestrationHistory extends AbstractHistory
 
 		if ($this->parentInstance ?? false) {
 			$completion = AwaitResult::forEvent(StateId::fromInstance($this->parentInstance), $completion);
+		} else {
+			$completion = null;
 		}
 
 		yield $completion;
@@ -175,9 +184,13 @@ class OrchestrationHistory extends AbstractHistory
 			return;
 		}
 
-		$this->status = OrchestrationStatus::Completed;
+		$this->history[$event->eventId] = $event;
 
-		yield null;
+		yield from $this->finalize($event);
+
+		$this->historicalTaskResults->receivedEvent($event);
+
+		yield from $this->construct();
 	}
 
 	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
@@ -186,12 +199,13 @@ class OrchestrationHistory extends AbstractHistory
 			return;
 		}
 
-		$this->status = OrchestrationStatus::Failed;
-		$this->tags['failure_reason'] = $event->reason;
-		$this->tags['failure_details'] = $event->details;
-		$this->tags['failure_type'] = $event->previous;
+		$this->history[$event->eventId] = $event;
 
-		yield null;
+		yield from $this->finalize($event);
+
+		$this->historicalTaskResults->receivedEvent($event);
+
+		yield from $this->construct();
 	}
 
 	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator

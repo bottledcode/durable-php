@@ -21,8 +21,12 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State;
+namespace Bottledcode\DurablePhp\State\Ids;
 
+use Bottledcode\DurablePhp\State\ActivityHistory;
+use Bottledcode\DurablePhp\State\OrchestrationHistory;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\State\StateInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
