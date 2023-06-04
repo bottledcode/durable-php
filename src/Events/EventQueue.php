@@ -24,6 +24,7 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Amp\DeferredCancellation;
+use Bottledcode\DurablePhp\Logger;
 use Revolt\EventLoop;
 use SplQueue;
 use Withinboredom\Time\Seconds;
@@ -102,6 +103,7 @@ class EventQueue
 					$this->cancellation?->cancel();
 				}
 			});
+			Logger::log("Enqueued event %s in %d seconds", $event, $delay->inSeconds());
 			return;
 		}
 
@@ -110,6 +112,7 @@ class EventQueue
 			$this->queues[$key] = new SplQueue();
 		}
 		$this->queues[$key]->enqueue($event);
+		Logger::log("Enqueued event %s [depth: %d]", $event, $this->queues[$key]->count());
 		$this->size++;
 	}
 
