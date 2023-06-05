@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\Sync\Channel;
+use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
@@ -34,6 +35,7 @@ use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Bottledcode\DurablePhp\State\ApplyStateInterface;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
 
@@ -43,14 +45,18 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 	private Source $source;
 
-	public function __construct(private Config $config, private Event $event, private MonotonicClock $clock)
-	{
+	public function __construct(
+		private readonly Config $config,
+		private Event $event,
+		private readonly MonotonicClock $clock
+	) {
 	}
 
 	public function run(Channel $channel, Cancellation $cancellation): mixed
 	{
-		$originalEvent = $this->event;
+		$returnEvent = $this->event;
 		$this->source = SourceFactory::fromConfig($this->config);
+		$originalEvent = $this->event;
 
 		Logger::log("EventDispatcher received event: %s", $this->event);
 
@@ -65,6 +71,8 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 			$this->event = $this->event->getInnerEvent();
 		}
+
+		gotNewEvent:
 
 		foreach ($states as $state) {
 			if ($state->hasAppliedEvent($this->event)) {
@@ -87,15 +95,24 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 
 		try {
-			//$timeout = new TimeoutCancellation(1);
-			//$this->event = $channel->receive($timeout);
+			if ($this->hasExtendedState($states)) {
+				$timeout = new TimeoutCancellation($this->config->workerTimeoutSeconds);
+				$this->event = $channel->receive($timeout);
+				unset($timeout);
+				$originalEvent = $this->event;
+				while ($this->event instanceof HasInnerEventInterface) {
+					$this->event = $this->event->getInnerEvent();
+				}
+				Logger::log('EventDispatcherTask received[channel]: %s', $originalEvent);
+				goto gotNewEvent;
+			}
 		} catch (CancelledException) {
-			Logger::log('EventDispatcherTask timed out');
+			Logger::log('EventDispatcherTask is cancelled');
 		} catch (\Throwable $e) {
 			Logger::log('EventDispatcherTask failed: %s', $e::class);
 		}
 
-		return $originalEvent;
+		return $returnEvent;
 	}
 
 	public function getState(StateId $instance): ApplyStateInterface&StateInterface
@@ -122,5 +139,11 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 	public function updateState(StateInterface $state): void
 	{
 		$this->source->put(StateId::fromState($state), $state);
+		$state->resetState();
+	}
+
+	private function hasExtendedState(array $states): bool
+	{
+		return ($states[0] ?? null) instanceof OrchestrationHistory;
 	}
 }

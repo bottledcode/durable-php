@@ -63,6 +63,11 @@ class Run
 		 */
 		$map = [];
 
+		/**
+		 * @var int[] $lastSent
+		 */
+		$lastSent = [];
+
 		$pool = $this->createPool($this->config);
 		foreach ($this->source->getPastEvents() as $event) {
 			$key = $this->getEventKey($event);
@@ -89,18 +94,36 @@ class Run
 			throw new \LogicException('The event source should never end');
 		});
 
+		$timeout = $this->config->workerTimeoutSeconds - $this->config->workerGracePeriodSeconds;
+
 		startOver:
 		// if there is a queue, we need to process it first
 		if ($queue->getSize() > 0) {
 			// attempt to get the next event from the queue
-			$event = $queue->getNext(array_keys(array_filter($map)));
+			$event = $queue->getNext(
+				array_keys(
+					array_filter(
+						$lastSent, static fn($v) => time() - $v > $timeout
+					)
+				)
+			);
 			if ($event === null) {
 				// there currently are not any events that we can get from the queue
 				// so we need to wait for an event or a worker to finish
 				goto waitForEvents;
 			}
-			// we have an event, so we need to dispatch it
-			$map[$this->getEventKey($event)] = $pool->submit(new EventDispatcherTask($this->config, $event, $clock));
+
+			$execution = $map[$this->getEventKey($event)] ?? null;
+
+			if ($execution === null) {
+				// we have an event, so we need to dispatch it
+				$map[$this->getEventKey($event)] = $pool->submit(
+					new EventDispatcherTask($this->config, $event, $clock)
+				);
+			} else {
+				$execution->getChannel()->send($event);
+			}
+			$lastSent[$this->getEventKey($event)] = time();
 
 			// process the queue
 			goto startOver;

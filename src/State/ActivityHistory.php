@@ -63,7 +63,7 @@ class ActivityHistory extends AbstractHistory
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
 					$id,
-					TaskCompleted::forId(StateId::fromActivityId($this->activityId), $result)
+					TaskCompleted::forId($original->eventId, $result)
 				);
 			}
 		} catch (\Throwable $e) {
@@ -73,7 +73,7 @@ class ActivityHistory extends AbstractHistory
 				yield WithOrchestration::forInstance(
 					$id,
 					TaskFailed::forTask(
-						StateId::fromActivityId($this->activityId),
+						$original->eventId,
 						$e->getMessage(),
 						$e->getTraceAsString(),
 						$e::class
@@ -97,5 +97,9 @@ class ActivityHistory extends AbstractHistory
 			$event = $event->getInnerEvent();
 		}
 		return $ids;
+	}
+
+	public function resetState(): void
+	{
 	}
 }
