@@ -42,6 +42,7 @@ class HistoricalStateTracker
 		private int|null $readKey = null,
 		private array $waiters = [],
 		private array $results = [],
+		private array $currentTime = [],
 	) {
 	}
 
@@ -247,6 +248,16 @@ class HistoricalStateTracker
 		}
 
 		return $completedInOrder;
+	}
+
+	public function setCurrentTime(\DateTimeImmutable $time): \DateTimeImmutable
+	{
+		return $this->currentTime[count($this->waiters)] ??= $time;
+	}
+
+	public function getCurrentTime(): \DateTimeImmutable
+	{
+		return $this->currentTime[$this->getReadKey()] ?? throw new LogicException('Invalid state');
 	}
 
 	public function isReading(): bool

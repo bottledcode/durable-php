@@ -35,8 +35,13 @@ class TaskCompleted extends Event
 		return new self('', $scheduledId, $result);
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
-		return "TaskCompleted: {$this->scheduledId}";
+		return sprintf(
+			'TaskCompleted(%s, %s, %s)',
+			$this->eventId,
+			$this->scheduledId,
+			json_encode($this->result),
+		);
 	}
 }

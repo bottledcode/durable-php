@@ -21,30 +21,52 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\Status;
-
-interface OrchestrationClientInterface
+enum RuntimeStatus
 {
-	public function getStatus(OrchestrationInstance $instance): Status;
+	/**
+	 * The orchestration is running (it may be actively running or waiting for input).
+	 */
+	case Running;
 
-	public function listInstances(/* todo */): \Generator;
+	/**
+	 * The orchestration ran to completion.
+	 */
+	case Completed;
 
-	public function purge(OrchestrationInstance $instance): void;
+	/**
+	 * The orchestration completed with ContinueAsNew as is in the process of restarting.
+	 */
+	case ContinuedAsNew;
 
-	public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void;
+	/**
+	 * The orchestration failed with an error.
+	 */
+	case Failed;
 
-	public function restart(OrchestrationInstance $instance): void;
+	/**
+	 * The orchestration was canceled.
+	 */
+	case Canceled;
 
-	public function resume(OrchestrationInstance $instance, string $reason): void;
+	/**
+	 * The orchestration was terminated via an API call.
+	 */
+	case Terminated;
 
-	public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance;
+	/**
+	 * The orchestration was scheduled but has not yet started.
+	 */
+	case Pending;
 
-	public function suspend(OrchestrationInstance $instance, string $reason): void;
+	/**
+	 * The orchestration was suspended
+	 */
+	case Suspended;
 
-	public function terminate(OrchestrationInstance $instance, string $reason): void;
-
-	public function waitForCompletion(OrchestrationInstance $instance): void;
+	/**
+	 * The status of the orchestration could not be determined.
+	 */
+	case Unknown;
 }

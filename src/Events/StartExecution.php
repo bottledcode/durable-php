@@ -41,8 +41,8 @@ class StartExecution extends Event
 		parent::__construct($eventId);
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
-		return "StartExecution: {$this->name}";
+		return sprintf('startExecution(%s)', $this->name);
 	}
 }

@@ -21,25 +21,23 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Crell\fp\Evolvable;
 
-class StartOrchestration extends Event
+readonly class Status
 {
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
-	}
+	use Evolvable;
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
-
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+	public function __construct(
+		public \DateTimeImmutable $createdAt,
+		public string $customStatus,
+		public array $input,
+		public StateId $id,
+		public \DateTimeImmutable $lastUpdated,
+		public mixed $output,
+		public RuntimeStatus $runtimeStatus,
+	) {
 	}
 }

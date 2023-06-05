@@ -26,7 +26,8 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationStatus;
+use Bottledcode\DurablePhp\State\RuntimeStatus;
+use Bottledcode\DurablePhp\State\Status;
 use Crell\Serde\Serde;
 use Crell\Serde\SerdeCommon;
 use Exception;
@@ -188,7 +189,7 @@ class RethinkDbSource implements Source
 		return null;
 	}
 
-	public function watch(StateId $stateId, OrchestrationStatus ...$expected): OrchestrationStatus|null
+	public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null
 	{
 		$cursor = table($this->stateTable)->get((string)$stateId)->changes(
 			new ChangesOptions(include_initial: true)
@@ -200,8 +201,8 @@ class RethinkDbSource implements Source
 			if ($rawStatus === null) {
 				continue;
 			}
-			$status = $this->serde->deserialize($rawStatus, 'array', OrchestrationStatus::class);
-			if (in_array($status, $expected, true)) {
+			$status = $this->serde->deserialize($rawStatus, 'array', Status::class);
+			if (in_array($status->runtimeStatus, $expected, true)) {
 				return $status;
 			}
 		}

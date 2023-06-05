@@ -21,25 +21,24 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
+use Bottledcode\DurablePhp\Tests\PerformanceTests\Bank\BankTransaction;
+use Bottledcode\DurablePhp\Tests\StopWatch;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+require_once __DIR__ . '/../../../vendor/autoload.php';
 
-class StartOrchestration extends Event
-{
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
-	}
+$config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
+$client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
+$watch = new StopWatch();
+$watch->start();
+$instance = $client->startNew(BankTransaction::class, [1]);
+//$instance2 = $client->startNew(BankTransaction::class, [1]);
+$client->waitForCompletion($instance);
+//$client->waitForCompletion($instance2);
+$watch->stop();
 
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
-	}
-}
+var_dump($client->getStatus($instance));
+//var_dump($client->getStatus($instance2));
+
+Logger::log("Completed in %s seconds", number_format($watch->getSeconds(), 2));

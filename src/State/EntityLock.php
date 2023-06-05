@@ -21,25 +21,37 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-
-class StartOrchestration extends Event
+class EntityLock
 {
-	public function __construct(string $eventId)
+	public function __construct(private readonly \Closure $unlocker, private bool $locked = true)
 	{
-		parent::__construct($eventId);
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public function __destruct()
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+		if ($this->locked) {
+			($this->unlocker)();
+			$this->locked = false;
+		}
 	}
 
-	public function __toString(): string
+	public function unlock(): void
 	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+		if ($this->locked) {
+			($this->unlocker)();
+			$this->locked = false;
+		}
+	}
+
+	public function isLocked(): bool
+	{
+		return $this->locked;
+	}
+
+	public function __debugInfo(): ?array
+	{
+		return ['locked' => $this->locked];
 	}
 }

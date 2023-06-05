@@ -50,8 +50,8 @@ class WithActivity extends Event implements HasInnerEventInterface, StateTargetI
 		return $this->target;
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
-		return sprintf("WithActivity(%s)", $this->innerEvent);
+		return sprintf("WithActivity(%s, %s)", $this->target, $this->innerEvent);
 	}
 }

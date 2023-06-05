@@ -23,6 +23,7 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\OrchestrationClient;
@@ -31,7 +32,7 @@ use Bottledcode\DurablePhp\Tests\StopWatch;
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $config = Config::fromArgs($argv);
-$client = new OrchestrationClient($config);
+$client = new OrchestrationClient($config, SourceFactory::fromConfig($config));
 
 $watch = new StopWatch();
 $sequence = [];

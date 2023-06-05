@@ -44,8 +44,8 @@ class TaskFailed extends Event
 		return new self('', $scheduledId, $reason, $details, $previous);
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
-		return "TaskFailed: {$this->scheduledId}";
+		return sprintf('TaskFailed(%s, %s, %s)', $this->scheduledId, $this->reason, $this->details);
 	}
 }

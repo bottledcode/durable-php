@@ -44,7 +44,7 @@ readonly class StateId implements \Stringable
 		return match ($state::class) {
 			OrchestrationHistory::class => self::fromInstance($state->instance),
 			ActivityHistory::class => self::fromActivityId($state->activityId),
-			EntityHistory::class => self::fromEntityId($state->id),
+			EntityHistory::class => self::fromEntityId($state->entityId),
 		};
 	}
 

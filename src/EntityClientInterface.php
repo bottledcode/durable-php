@@ -21,25 +21,39 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\State\EntityId;
 
-class StartOrchestration extends Event
+interface EntityClientInterface
 {
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
-	}
+	/**
+	 * Removes empty entities and releases orphaned locks
+	 *
+	 * @return void
+	 */
+	public function cleanEntityStorage(): void;
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
+	/**
+	 * Get a list of entities
+	 *
+	 * @return \Generator<EntityId>
+	 */
+	public function listEntities(/* todo */): \Generator;
 
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
-	}
+	/**
+	 * Signal an entity either now, or at some point in the future
+	 *
+	 * @param EntityId $entityId
+	 * @param string $operationName
+	 * @param array $input
+	 * @param \DateTimeImmutable|null $scheduledTime
+	 * @return void
+	 */
+	public function signalEntity(
+		EntityId $entityId,
+		string $operationName,
+		array $input = [],
+		\DateTimeImmutable $scheduledTime = null
+	): void;
 }

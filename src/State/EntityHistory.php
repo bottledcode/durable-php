@@ -23,39 +23,35 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\EntityContext;
+use Bottledcode\DurablePhp\EntityContextInterface;
+use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use DateTimeImmutable;
 use Generator;
 use ReflectionClass;
 
 class EntityHistory extends AbstractHistory
 {
-	public DateTimeImmutable $now;
+	public EntityId $entityId;
 
 	public string $name;
-	public array $tags = [];
-	public DateTimeImmutable $createdTime;
-
-	public HistoricalStateTracker $historicalTaskResults;
-
-	public OrchestrationStatus $status = OrchestrationStatus::Pending;
-
 	public array $history = [];
-
+	public string|null $lock;
 	private bool $debugHistory = false;
-
 	private mixed $state = null;
-
-	private string|null $lock;
-
 	private array $lockQueue = [];
 
 	public function __construct(public StateId $id)
 	{
+		$this->entityId = $id->toEntityId();
 	}
 
 	public function hasAppliedEvent(Event $event): bool
@@ -65,7 +61,11 @@ class EntityHistory extends AbstractHistory
 
 	public function resetState(): void
 	{
-		$this->historicalTaskResults?->resetState();
+	}
+
+	public function delete(): void
+	{
+		$this->state = null;
 	}
 
 	public function ackedEvent(Event $event): void
@@ -73,38 +73,66 @@ class EntityHistory extends AbstractHistory
 		unset($this->history[$event->eventId]);
 	}
 
+	public function setState(mixed $state): void
+	{
+		$this->state = $state;
+	}
+
+
 	public function applyRaiseEvent(RaiseEvent $event, Event $original): Generator
 	{
+		if ($this->queueIfLocked($original)) {
+			return;
+		}
+
 		$this->init();
 
 		switch ($event->eventName) {
 			case '__signal':
 				$input = $event->eventData['input'];
 				$operation = $event->eventData['operation'];
-				try {
-					$this->state->$operation(...$input);
-				} catch (Unwind) {
-					// nothing to do here except wait for an event
-				}
+				yield from $this->execute($original, $operation, $input);
 				break;
 			case '__lock':
-				$this->lock = $event->eventData['lock'];
+				$this->lock = $event->eventData['name'];
 				break;
 			case '__unlock':
-				if ($this->lock === $event->eventData['lock']) {
+				if ($this->lock === $event->eventData['name']) {
 					$this->lock = null;
 				}
+				foreach ($this->lockQueue as $nextEvent) {
+					yield $nextEvent;
+				}
+				$this->lockQueue = [];
 				break;
 			default:
-				$this->historicalTaskResults->receivedEvent($event);
-				try {
-					$this->state->$event->eventName(...$event->eventData);
-				} catch (Unwind) {
-					// nothing to do here except wait for an event
-				}
+				break;
 		}
 
 		yield from $this->finalize($event);
+	}
+
+	private function queueIfLocked(Event $original): bool
+	{
+		if ($this->isLocked($original)) {
+			$this->lockQueue[] = $original;
+			return true;
+		}
+		return false;
+	}
+
+	private function isLocked(Event $original): bool
+	{
+		if (($this->lock ?? null) === null) {
+			return false;
+		}
+		while ($original instanceof HasInnerEventInterface) {
+			if (($original instanceof AwaitResult) && $original->origin->id === $this->lock) {
+				return false;
+			}
+			$original = $original->getInnerEvent();
+		}
+		return true;
 	}
 
 	public function init(): void
@@ -113,19 +141,104 @@ class EntityHistory extends AbstractHistory
 			return;
 		}
 
-		$this->now = MonotonicClock::current()->now();
 		$this->name = $this->id->toEntityId()->name;
-		$this->createdTime = $this->now;
-		$this->historicalTaskResults = new HistoricalStateTracker();
-		$this->status = OrchestrationStatus::Running;
+		$now = MonotonicClock::current()->now();
+		$this->status = new Status($now, '', [], $this->id, $now, null, RuntimeStatus::Running);
 
-		$this->state = (new ReflectionClass($this->name))->newInstanceWithoutConstructor();
+		if (class_exists($this->name)) {
+			$reflection = new ReflectionClass($this->name);
+			$this->state = $reflection->newInstanceWithoutConstructor();
+		}
+	}
+
+	private function execute(Event $original, string $operation, array $input): Generator
+	{
+		$replyTo = [];
+		while ($original instanceof HasInnerEventInterface) {
+			if ($original instanceof AwaitResult) {
+				$replyTo[] = $original->origin;
+			}
+			$original = $original->getInnerEvent();
+		}
+
+		$taskDispatcher = null;
+		yield static function ($task) use (&$taskDispatcher) {
+			$taskDispatcher = $task;
+		};
+
+		$context = new EntityContext(
+			$this->id->toEntityId(),
+			$operation,
+			$input,
+			$this->state,
+			$this,
+			$taskDispatcher,
+			$replyTo,
+			$original->eventId
+		);
+
+		if (is_object($this->state)) {
+			$reflector = new ReflectionClass($this->state);
+			$properties = $reflector->getProperties();
+			foreach ($properties as $property) {
+				$type = $property->getType();
+				if ($type instanceof \ReflectionNamedType && $type->getName() === EntityContextInterface::class) {
+					$property->setValue($this->state, $context);
+				}
+			}
+			try {
+				$result = $this->state->$operation(...$input);
+			} catch (Unwind) {
+				return;
+			}
+		} elseif (is_callable($this->name)) {
+			try {
+				$result = ($this->name)($context);
+			} catch (Unwind) {
+				return;
+			}
+		}
+
+		if ($replyTo) {
+			foreach ($replyTo as $reply) {
+				yield WithOrchestration::forInstance($reply, TaskCompleted::forId($original->eventId, $result ?? null));
+			}
+		}
 	}
 
 	private function finalize(Event $event): Generator
 	{
 		$this->history[$event->eventId] = $this->debugHistory ? $event : true;
+		$this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 
 		yield null;
+	}
+
+	public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+	{
+		if ($this->queueIfLocked($original)) {
+			return;
+		}
+		$this->init();
+
+		yield from $this->finalize($event);
+	}
+
+	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+	{
+		if ($this->queueIfLocked($original)) {
+			return;
+		}
+		$this->init();
+
+		yield from $this->finalize($event);
+	}
+
+	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
+	{
+		if ($this->queueIfLocked($original)) {
+			return;
+		}
+		yield from $this->finalize($event);
 	}
 }

@@ -21,25 +21,15 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-
-class StartOrchestration extends Event
+interface AccountInterface
 {
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
-	}
+	public function add(int $amount): void;
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
+	public function reset(): void;
 
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
-	}
+	public function get(): int;
+
+	public function delete(): void;
 }

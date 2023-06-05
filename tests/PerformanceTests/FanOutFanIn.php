@@ -41,6 +41,6 @@ class FanOutFanIn
 			$context->setCustomStatus($i);
 			$task->getResult();
 		}
-		Logger::log($i);
+		Logger::log($i + 1);
 	}
 }

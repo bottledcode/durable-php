@@ -30,8 +30,23 @@ class RaiseEvent extends Event
 		parent::__construct($eventId);
 	}
 
-	public function __toString()
+	public static function forOperation(string $operation, array $input): static
 	{
-		return "RaiseEvent: {$this->eventName}";
+		return new static('', '__signal', ['input' => $input, 'operation' => $operation]);
+	}
+
+	public static function forLock(string $name): static
+	{
+		return new static('', '__lock', ['name' => $name]);
+	}
+
+	public static function forUnlock(string $name): static
+	{
+		return new static('', '__unlock', ['name' => $name]);
+	}
+
+	public function __toString(): string
+	{
+		return sprintf('RaiseEvent(%s, %s, %s)', $this->eventId, $this->eventName, json_encode($this->eventData));
 	}
 }

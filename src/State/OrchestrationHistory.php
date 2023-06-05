@@ -33,8 +33,10 @@ use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\Logger;
+use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
@@ -53,26 +55,16 @@ class OrchestrationHistory extends AbstractHistory
 
 	public OrchestrationInstance|null $parentInstance;
 
-	public \DateTimeImmutable $createdTime;
-
-	public array $input = [];
-
 	public HistoricalStateTracker $historicalTaskResults;
 
-	public \DateTimeImmutable $lastProcessedEventTime;
-
-	public OrchestrationStatus $status = OrchestrationStatus::Pending;
-
 	public array $history = [];
-
+	public array $locks = [];
 	private bool $debugHistory = false;
-
 	#[Field(exclude: true)]
 	private mixed $constructed = null;
 
-	public function __construct(StateId $id)
+	public function __construct(private StateId $id)
 	{
-		$this->lastProcessedEventTime = new \DateTimeImmutable('2023-05-30');
 		$this->instance = $id->toOrchestrationInstance();
 		$this->historicalTaskResults = new HistoricalStateTracker();
 	}
@@ -93,14 +85,13 @@ class OrchestrationHistory extends AbstractHistory
 
 		Logger::log("Applying StartExecution event to OrchestrationHistory");
 		$this->now = $event->timestamp;
-		$this->createdTime = $event->timestamp;
 		$this->name = $event->name;
 		$this->version = $event->version;
 		$this->tags = $event->tags;;
 		$this->parentInstance = $event->parentInstance ?? null;
-		$this->input = $event->input;
 		$this->history = [];
 		$this->historicalTaskResults = new HistoricalStateTracker();
+		$this->status = new Status($this->now, '', $event->input, $this->id, $this->now, null, RuntimeStatus::Pending);
 
 		yield StartOrchestration::forInstance($this->instance);
 
@@ -109,8 +100,8 @@ class OrchestrationHistory extends AbstractHistory
 
 	private function finalize(Event $event): \Generator
 	{
-		$this->lastProcessedEventTime = $event->timestamp;
 		$this->addEventToHistory($event);
+		$this->status->with(lastUpdated: MonotonicClock::current()->now());
 
 		yield null;
 	}
@@ -130,7 +121,7 @@ class OrchestrationHistory extends AbstractHistory
 			return;
 		}
 
-		$this->status = OrchestrationStatus::Running;
+		$this->status = $this->status->with(runtimeStatus: RuntimeStatus::Running);
 
 		// go ahead and finalize this event to the history and update the status
 		// we won't be updating any more state
@@ -157,14 +148,13 @@ class OrchestrationHistory extends AbstractHistory
 				return;
 			}
 
-			$this->status = OrchestrationStatus::Completed;
-			$this->tags['result'] = $result;
+			$this->status = $this->status->with(runtimeStatus: RuntimeStatus::Completed, output: $result);
 			$completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
 		} catch (\Throwable $e) {
-			$this->status = OrchestrationStatus::Failed;
-			$this->tags['error'] = $e->getMessage();
-			$this->tags['stacktrace'] = $e->getTraceAsString();
-			$this->tags['exception'] = $e::class;
+			$this->status = $this->status->with(
+				runtimeStatus: RuntimeStatus::Failed,
+				output: ExternalException::fromException($e)
+			);
 			$completion = TaskFailed::forTask(
 				StateId::fromInstance($this->instance),
 				$e->getMessage(),
@@ -227,7 +217,7 @@ class OrchestrationHistory extends AbstractHistory
 			return;
 		}
 
-		$this->status = OrchestrationStatus::Terminated;
+		$this->status = $this->status->with(runtimeStatus: RuntimeStatus::Terminated);
 
 		yield from $this->finalize($event);
 	}

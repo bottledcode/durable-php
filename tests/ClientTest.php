@@ -21,12 +21,14 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
+
 use function Withinboredom\Time\Hours;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 $config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
-$client = new \Bottledcode\DurablePhp\OrchestrationClient($config);
+$client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
 
 $orchestrationInstance = $client->startNew(
 	\Bottledcode\DurablePhp\HelloSequence::class,

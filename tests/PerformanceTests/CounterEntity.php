@@ -21,25 +21,30 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\EntityContextInterface;
 
-class StartOrchestration extends Event
+class CounterEntity
 {
-	public function __construct(string $eventId)
+	public int $currentValue = 0;
+	public \DateTimeImmutable|null $lastUpdated = null;
+	private EntityContextInterface $context;
+
+	public function add(int $amount): void
 	{
-		parent::__construct($eventId);
+		$this->lastUpdated = new \DateTimeImmutable();
+		$this->currentValue += $amount;
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public function reset(): void
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+		$this->lastUpdated = new \DateTimeImmutable();
+		$this->currentValue = 0;
 	}
 
-	public function __toString(): string
+	public function get(): array
 	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+		return ['currentValue' => $this->currentValue, 'lastUpdated' => $this->lastUpdated];
 	}
 }
