@@ -23,8 +23,6 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-
 class TaskFailed extends Event
 {
 	public function __construct(
@@ -37,9 +35,13 @@ class TaskFailed extends Event
 		parent::__construct($eventId);
 	}
 
-	public static function forTask(StateId $id, string $reason, string $details = null, string $previous = null): self
-	{
-		return new self('', $id, $reason, $details, $previous);
+	public static function forTask(
+		string $scheduledId,
+		string $reason,
+		string $details = null,
+		string $previous = null
+	): self {
+		return new self('', $scheduledId, $reason, $details, $previous);
 	}
 
 	public function __toString()

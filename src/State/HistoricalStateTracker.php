@@ -31,6 +31,7 @@ use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\SerdeCommon;
+use LogicException;
 
 class HistoricalStateTracker
 {
@@ -74,6 +75,12 @@ class HistoricalStateTracker
 	public function trackIdentity(string $identity, DeferredFuture $future): void
 	{
 		$this->getSlots()[$future->getFuture()] = ['identity' => $identity, 'handler' => $future];
+	}
+
+	public function resetState(): void
+	{
+		$this->readKey = null;
+		$this->eventSlots = null;
 	}
 
 	/**
@@ -187,7 +194,7 @@ class HistoricalStateTracker
 			$results = $this->results[$identity] ?? null;
 			$allowedKeys = array_column($results ?? [], 'key');
 			if (!empty($allowedKeys) && !in_array($currentKey, $allowedKeys, true)) {
-				throw new \LogicException('Detected order change in historical state.');
+				throw new LogicException('Detected order change in historical state.');
 			}
 			// check if we received results before now
 			$previousResults = array_column($results ?? [], 'result');
@@ -207,6 +214,11 @@ class HistoricalStateTracker
 		$results = array_reverse(array_column($waiter, 'result', 'identity'));
 
 		foreach ($results as $identity => $result) {
+			if (is_array($result)) {
+				$serde = new SerdeCommon();
+				$result = $serde->deserialize($result, 'array', Event::class);
+			}
+
 			/**
 			 * @var DeferredFuture $handler
 			 */
@@ -229,7 +241,7 @@ class HistoricalStateTracker
 						$completedInOrder[] = $handler?->getFuture();
 						break;
 					default:
-						throw new \LogicException('Invalid result type');
+						throw new LogicException('Invalid result type: ' . get_class($result));
 				}
 			}
 		}

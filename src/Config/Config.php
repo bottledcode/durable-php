@@ -35,7 +35,8 @@ readonly class Config
 		public int $totalWorkers = 10,
 		public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
 		public string $partitionKeyPrefix = 'partition_',
-		public int $workerTimeoutSeconds = 30,
+		public int $workerTimeoutSeconds = 600,
+		public int $workerGracePeriodSeconds = 60,
 	) {
 	}
 

@@ -31,4 +31,6 @@ interface StateInterface
 	public function __construct(StateId $id);
 
 	public function hasAppliedEvent(Event $event): bool;
+
+	public function resetState(): void;
 }

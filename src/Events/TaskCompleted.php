@@ -23,8 +23,6 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-
 class TaskCompleted extends Event
 {
 	public function __construct(string $eventId, public string $scheduledId, public mixed $result = null)
@@ -32,9 +30,9 @@ class TaskCompleted extends Event
 		parent::__construct($eventId);
 	}
 
-	public static function forId(StateId $id, mixed $result = null): self
+	public static function forId(string $scheduledId, mixed $result = null): self
 	{
-		return new self('', $id, $result);
+		return new self('', $scheduledId, $result);
 	}
 
 	public function __toString()

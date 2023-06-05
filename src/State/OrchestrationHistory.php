@@ -37,6 +37,7 @@ use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Crell\Serde\Attributes\Field;
 
 class OrchestrationHistory extends AbstractHistory
 {
@@ -64,11 +65,25 @@ class OrchestrationHistory extends AbstractHistory
 
 	public array $history = [];
 
+	private bool $debugHistory = false;
+
+	#[Field(exclude: true)]
+	private mixed $constructed = null;
+
 	public function __construct(StateId $id)
 	{
 		$this->lastProcessedEventTime = new \DateTimeImmutable('2023-05-30');
 		$this->instance = $id->toOrchestrationInstance();
 		$this->historicalTaskResults = new HistoricalStateTracker();
+	}
+
+	private function addEventToHistory(Event $event): void
+	{
+		if ($this->debugHistory) {
+			$this->history[$event->eventId] = $event;
+		} else {
+			$this->history[$event->eventId] = true;
+		}
 	}
 
 	/**
@@ -112,8 +127,7 @@ class OrchestrationHistory extends AbstractHistory
 	private function finalize(Event $event): \Generator
 	{
 		$this->lastProcessedEventTime = $event->timestamp;
-		$this->history[$event->eventId] = $event;
-		$this->history = array_slice($this->history, -100);
+		$this->addEventToHistory($event);
 
 		yield null;
 	}
@@ -136,7 +150,7 @@ class OrchestrationHistory extends AbstractHistory
 	{
 		$class = new \ReflectionClass($this->instance->instanceId);
 
-		$class = $class->newInstanceWithoutConstructor();
+		$this->constructed ??= $class->newInstanceWithoutConstructor();
 		try {
 			$taskScheduler = null;
 			yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
@@ -144,7 +158,7 @@ class OrchestrationHistory extends AbstractHistory
 			};
 			$context = new OrchestrationContext($this->instance, $this, $taskScheduler);
 			try {
-				$result = $class($context);
+				$result = ($this->constructed)($context);
 			} catch (Unwind) {
 				// we don't need to do anything here, we just need to catch it
 				// so that we don't throw an exception
@@ -184,8 +198,6 @@ class OrchestrationHistory extends AbstractHistory
 			return;
 		}
 
-		$this->history[$event->eventId] = $event;
-
 		yield from $this->finalize($event);
 
 		$this->historicalTaskResults->receivedEvent($event);
@@ -199,8 +211,6 @@ class OrchestrationHistory extends AbstractHistory
 			return;
 		}
 
-		$this->history[$event->eventId] = $event;
-
 		yield from $this->finalize($event);
 
 		$this->historicalTaskResults->receivedEvent($event);
@@ -210,8 +220,6 @@ class OrchestrationHistory extends AbstractHistory
 
 	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
 	{
-		$this->history[$event->eventId] = $event;
-
 		yield from $this->finalize($event);
 
 		$this->historicalTaskResults->receivedEvent($event);
@@ -243,5 +251,10 @@ class OrchestrationHistory extends AbstractHistory
 	public function hasAppliedEvent(Event $event): bool
 	{
 		return array_key_exists($event->eventId, $this->history);
+	}
+
+	public function resetState(): void
+	{
+		$this->historicalTaskResults->resetState();
 	}
 }

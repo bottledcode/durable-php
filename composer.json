@@ -27,7 +27,8 @@
     "spatie/php-cloneable": "^1.0.1",
     "withinboredom/time": "^2.1",
     "pleonasm/bloom-filter": "^1.0",
-    "crell/serde": "^0.6.0"
+    "crell/serde": "^0.6.0",
+    "amphp/log": "v2.0.0-beta.2"
   },
   "suggest": {
     "ext-redis": "Required for Redis Streams",
