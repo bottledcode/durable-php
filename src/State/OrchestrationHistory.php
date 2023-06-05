@@ -107,14 +107,6 @@ class OrchestrationHistory extends AbstractHistory
 		yield from $this->finalize($event);
 	}
 
-	private function isFinished(): bool
-	{
-		return match ($this->status) {
-			OrchestrationStatus::Terminated, OrchestrationStatus::Canceled, OrchestrationStatus::Failed, OrchestrationStatus::Completed => true,
-			default => false,
-		};
-	}
-
 	private function finalize(Event $event): \Generator
 	{
 		$this->lastProcessedEventTime = $event->timestamp;
@@ -227,14 +219,6 @@ class OrchestrationHistory extends AbstractHistory
 		if ($this->isRunning()) {
 			yield from $this->construct();
 		}
-	}
-
-	private function isRunning(): bool
-	{
-		return match ($this->status) {
-			OrchestrationStatus::Running => true,
-			default => false,
-		};
 	}
 
 	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator

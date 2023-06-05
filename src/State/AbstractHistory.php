@@ -36,6 +36,24 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
+	protected OrchestrationStatus $status = OrchestrationStatus::Pending;
+
+	protected function isFinished(): bool
+	{
+		return match ($this->status) {
+			OrchestrationStatus::Terminated, OrchestrationStatus::Canceled, OrchestrationStatus::Failed, OrchestrationStatus::Completed => true,
+			default => false,
+		};
+	}
+
+	protected function isRunning(): bool
+	{
+		return match ($this->status) {
+			OrchestrationStatus::Running => true,
+			default => false,
+		};
+	}
+
 	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
 	{
 		yield null;
