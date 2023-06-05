@@ -24,9 +24,12 @@
 namespace Bottledcode\DurablePhp\State\Ids;
 
 use Bottledcode\DurablePhp\State\ActivityHistory;
+use Bottledcode\DurablePhp\State\EntityHistory;
+use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\StateInterface;
+use Exception;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
@@ -41,6 +44,7 @@ readonly class StateId implements \Stringable
 		return match ($state::class) {
 			OrchestrationHistory::class => self::fromInstance($state->instance),
 			ActivityHistory::class => self::fromActivityId($state->activityId),
+			EntityHistory::class => self::fromEntityId($state->id),
 		};
 	}
 
@@ -54,12 +58,18 @@ readonly class StateId implements \Stringable
 		return new self("activity:{$activityId}");
 	}
 
+	public static function fromEntityId(EntityId $entityId): self
+	{
+		return new self("entity:{$entityId}");
+	}
+
 	public function toActivityId(): string
 	{
 		$parts = explode(':', $this->id, 3);
 		return match ($parts) {
-			['orchestration', $parts[1]] => throw new \Exception("Cannot convert orchestration state to activity id"),
+			['orchestration', $parts[1]] => throw new Exception("Cannot convert orchestration state to activity id"),
 			['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
+			['entity', $parts[1], $parts[2]] => throw new Exception("Cannot convert entity state to activity id"),
 		};
 	}
 
@@ -67,14 +77,24 @@ readonly class StateId implements \Stringable
 	{
 		$parts = explode(':', $this->id, 3);
 		return match ($parts) {
+			['activity', $parts[1]] => throw new Exception("Cannot convert activity state to orchestration instance"),
 			['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
-			['activity', $parts[1]] => throw new \Exception("Cannot convert activity state to orchestration instance"),
+			['entity', $parts[1], $parts[2]] => throw new Exception(
+				"Cannot convert entity state to orchestration instance"
+			),
 		};
 	}
 
-	public function isOrchestrationId(): bool
+	public function toEntityId(): EntityId
 	{
-		return str_starts_with($this->id, 'orchestration:');
+		$parts = explode(':', $this->id, 3);
+		return match ($parts) {
+			['activity', $parts[1]] => throw new Exception("Cannot convert activity state to entity id"),
+			['orchestration', $parts[1], $parts[2]] => throw new Exception(
+				"Cannot convert orchestration state to entity id"
+			),
+			['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
+		};
 	}
 
 	public function isActivityId(): bool
@@ -91,6 +111,7 @@ readonly class StateId implements \Stringable
 		return match ($parts) {
 			['activity', $parts[1]] => ActivityHistory::class,
 			['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
+			['entity', $parts[1], $parts[2]] => EntityHistory::class,
 		};
 	}
 
@@ -104,10 +125,20 @@ readonly class StateId implements \Stringable
 
 	public function isPartitioned(): bool
 	{
+		return $this->isEntityId() || $this->isOrchestrationId();
+	}
+
+	public function isEntityId(): bool
+	{
+		return str_starts_with($this->id, 'entity:');
+	}
+
+	public function isOrchestrationId(): bool
+	{
 		return str_starts_with($this->id, 'orchestration:');
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
 		return $this->id;
 	}
