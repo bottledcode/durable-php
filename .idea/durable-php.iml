@@ -43,6 +43,9 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/revolt/event-loop" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/bottledcode/php-rql" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/pleonasm/bloom-filter" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/amphp/log" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/monolog/monolog" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/psr/log" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

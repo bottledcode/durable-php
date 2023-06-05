@@ -33,4 +33,6 @@ interface StateInterface
 	public function hasAppliedEvent(Event $event): bool;
 
 	public function resetState(): void;
+
+	public function ackedEvent(Event $event): void;
 }
