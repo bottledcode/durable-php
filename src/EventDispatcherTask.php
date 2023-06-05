@@ -34,6 +34,7 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Bottledcode\DurablePhp\State\ApplyStateInterface;
+use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\StateInterface;
@@ -147,6 +148,6 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
 	private function hasExtendedState(array $states): bool
 	{
-		return ($states[0] ?? null) instanceof OrchestrationHistory;
+		return ($states[0] ?? null) instanceof OrchestrationHistory || ($states[0] ?? null) instanceof EntityHistory;
 	}
 }

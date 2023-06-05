@@ -21,25 +21,49 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
+use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Config\Config;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\WithDelay;
+use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
-class StartOrchestration extends Event
+class EntityClient implements EntityClientInterface
 {
-	public function __construct(string $eventId)
+	use PartitionCalculator;
+
+	public function __construct(private Config $config, private Source $source)
 	{
-		parent::__construct($eventId);
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public function cleanEntityStorage(): void
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+		throw new \Exception('Not implemented');
 	}
 
-	public function __toString(): string
+	public function listEntities(): \Generator
 	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+		throw new \Exception('Not implemented');
+	}
+
+	public function signalEntity(
+		EntityId $entityId,
+		string $operationName,
+		array $input = [],
+		\DateTimeImmutable $scheduledTime = null
+	): void {
+		$event = WithEntity::forInstance(
+			StateId::fromEntityId($entityId),
+			RaiseEvent::forOperation($operationName, $input)
+		);
+		if ($scheduledTime !== null) {
+			WithDelay::forEvent($scheduledTime, $event);
+		}
+
+		$this->source->storeEvent($event);
 	}
 }

@@ -21,25 +21,21 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Exceptions;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-
-class StartOrchestration extends Event
+readonly class ExternalException
 {
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
+	public function __construct(
+		public string $message,
+		public string $trace,
+		public string $type,
+		public string $file,
+		public string $line,
+	) {
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public static function fromException(\Throwable $e): self
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
-
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+		return new self($e->getMessage(), $e->getTraceAsString(), $e::class, $e->getFile(), $e->getLine());
 	}
 }

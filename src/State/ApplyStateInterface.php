@@ -38,8 +38,6 @@ interface ApplyStateInterface
 {
 	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator;
 
-	public function applyEventResult(EventResult $event, Event $original): \Generator;
-
 	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator;
 
 	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator;

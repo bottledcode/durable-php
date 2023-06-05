@@ -23,6 +23,8 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\EntityLock;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Ramsey\Uuid\UuidInterface;
 
@@ -38,6 +40,43 @@ interface OrchestrationContextInterface
 	 * @return DurableFuture<T>
 	 */
 	public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): DurableFuture;
+
+	/**
+	 * Call an entity and get the response
+	 *
+	 * @template T
+	 * @param EntityId $entityId
+	 * @param string $operation
+	 * @param array $args
+	 * @return DurableFuture<T>
+	 */
+	public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture;
+
+	public function signalEntity(EntityId $entityId, string $operation, array $args = []): void;
+
+	/**
+	 * Determines if an entity is locked. Returns true if the entity is locked.
+	 *
+	 * @param EntityId $entityId
+	 * @return bool
+	 */
+	public function isLocked(EntityId $entityId): bool;
+
+	/**
+	 * Determines if the current lock is owned by the current instance.
+	 *
+	 * @param EntityId $entityId
+	 * @return bool
+	 */
+	public function isLockedOwned(EntityId $entityId): bool;
+
+	/**
+	 * Attempts to lock an entity. Returns once the lock is acquired.
+	 *
+	 * @param EntityId ...$entityId
+	 * @return EntityLock
+	 */
+	public function lockEntity(EntityId ...$entityId): EntityLock;
 
 	public function callSubOrchestrator(
 		string $name,
@@ -178,4 +217,13 @@ interface OrchestrationContextInterface
 	 * @return mixed
 	 */
 	public function waitOne(DurableFuture $task): mixed;
+
+	/**
+	 * Creates a simple proxy for the given class
+	 *
+	 * @template T
+	 * @param class-string<T> $className
+	 * @return T
+	 */
+	public function createEntityProxy(string $className, EntityId $entityId): object;
 }

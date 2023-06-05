@@ -31,24 +31,6 @@ use function Amp\ByteStream\getStdout;
 
 class Logger
 {
-	private static function init(): Monologger
-	{
-		static $logger = false;
-
-		if ($logger) {
-			return $logger;
-		}
-
-		$called = true;
-		$handler = new StreamHandler(getStdout());
-		$handler->setFormatter(new ConsoleFormatter());
-
-		$logger = new Monologger('main');
-		$logger->pushHandler($handler);
-
-		return $logger;
-	}
-
 	public static function log(string $message, ...$vars): void
 	{
 		$logger = self::init();
@@ -58,5 +40,22 @@ class Logger
 			[basename($caller['file'], '.php'), ...$vars]
 		);
 		$logger->info($output);
+	}
+
+	private static function init(): Monologger
+	{
+		static $logger = false;
+
+		if ($logger) {
+			return $logger;
+		}
+
+		$handler = new StreamHandler(getStdout());
+		$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
+
+		$logger = new Monologger('main');
+		$logger->pushHandler($handler);
+
+		return $logger;
 	}
 }

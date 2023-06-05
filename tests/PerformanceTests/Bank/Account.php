@@ -21,25 +21,35 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\EntityContextInterface;
 
-class StartOrchestration extends Event
+class Account implements AccountInterface
 {
-	public function __construct(string $eventId)
+	public int $balance = 0;
+
+	public function __construct(private EntityContextInterface $context)
 	{
-		parent::__construct($eventId);
 	}
 
-	public static function forInstance(OrchestrationInstance $instance): Event
+	public function add(int $amount): void
 	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+		$this->balance += $amount;
 	}
 
-	public function __toString(): string
+	public function reset(): void
 	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+		$this->balance = 0;
+	}
+
+	public function get(): int
+	{
+		return $this->balance;
+	}
+
+	public function delete(): void
+	{
+		$this->context->delete();
 	}
 }

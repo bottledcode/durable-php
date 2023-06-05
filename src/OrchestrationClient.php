@@ -27,7 +27,6 @@ use Amp\Cancellation;
 use Amp\NullCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
@@ -35,9 +34,10 @@ use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Bottledcode\DurablePhp\State\OrchestrationStatus;
-use Carbon\Carbon;
+use Bottledcode\DurablePhp\State\RuntimeStatus;
+use Bottledcode\DurablePhp\State\Status;
 use LogicException;
 use Ramsey\Uuid\Uuid;
 
@@ -47,34 +47,8 @@ final class OrchestrationClient implements OrchestrationClientInterface
 {
 	use PartitionCalculator;
 
-	private readonly Source $source;
-
-	public function __construct(private readonly Config $config)
+	public function __construct(private readonly Config $config, private readonly Source $source)
 	{
-		$this->source = SourceFactory::fromConfig($config);
-	}
-
-	public function getStatus(OrchestrationInstance $instance): OrchestrationStatus
-	{
-		$id = StateId::fromInstance($instance);
-		$state = $this->source->get($id, $id->getStateType());
-		if ($state === null) {
-			return OrchestrationStatus::Pending;
-		}
-		return $state->status;
-	}
-
-	public function getStatusAll(): array
-	{
-		throw new LogicException('Not implemented');
-	}
-
-	public function getStatusBy(
-		?Carbon $createdFrom = null,
-		?Carbon $createdTo = null,
-		?OrchestrationStatus ...$status
-	): array {
-		throw new LogicException('Not implemented');
 	}
 
 	public function purge(OrchestrationInstance $instance): void
@@ -92,11 +66,6 @@ final class OrchestrationClient implements OrchestrationClientInterface
 	private function postEvent(Event $event): string
 	{
 		return $this->source->storeEvent($event, false);
-	}
-
-	public function rewind(OrchestrationInstance $instance): void
-	{
-		throw new LogicException('Not implemented');
 	}
 
 	public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance
@@ -131,11 +100,44 @@ final class OrchestrationClient implements OrchestrationClientInterface
 		async(function () use ($instance) {
 			$this->source->watch(
 				StateId::fromInstance($instance),
-				OrchestrationStatus::Completed,
-				OrchestrationStatus::Canceled,
-				OrchestrationStatus::Failed,
-				OrchestrationStatus::Terminated,
+				RuntimeStatus::Completed,
+				RuntimeStatus::Canceled,
+				RuntimeStatus::Failed,
+				RuntimeStatus::Terminated,
 			);
 		})->await($timeout ?? new NullCancellation());
+	}
+
+	public function getStatus(OrchestrationInstance $instance): Status
+	{
+		return $this->source->get(StateId::fromInstance($instance), OrchestrationHistory::class)->status ?? new Status(
+			new \DateTimeImmutable(),
+			'',
+			[],
+			StateId::fromInstance($instance),
+			new \DateTimeImmutable(),
+			null,
+			RuntimeStatus::Unknown
+		);
+	}
+
+	public function listInstances(): \Generator
+	{
+		throw new LogicException('Not implemented');
+	}
+
+	public function restart(OrchestrationInstance $instance): void
+	{
+		throw new LogicException('Not implemented');
+	}
+
+	public function resume(OrchestrationInstance $instance, string $reason): void
+	{
+		throw new LogicException('Not implemented');
+	}
+
+	public function suspend(OrchestrationInstance $instance, string $reason): void
+	{
+		throw new LogicException('Not implemented');
 	}
 }

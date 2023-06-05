@@ -30,16 +30,15 @@ use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Exceptions\ExternalException;
+use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class ActivityHistory extends AbstractHistory
 {
 	public string $activityId;
 
-	public OrchestrationStatus $status = OrchestrationStatus::Pending;
-	public mixed $result = null;
-
-	public function __construct(StateId $id)
+	public function __construct(private StateId $id)
 	{
 		$this->activityId = $id->toActivityId();
 	}
@@ -58,8 +57,8 @@ class ActivityHistory extends AbstractHistory
 				$task = new $task();
 			}
 			$result = $task(...($event->input ?? []));
-			$this->result = $result;
-			$this->status = OrchestrationStatus::Completed;
+			$now = MonotonicClock::current()->now();
+			$this->status = new Status($now, '', $event->input, $this->id, $now, $result, RuntimeStatus::Completed);
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
 					$id,
@@ -67,8 +66,10 @@ class ActivityHistory extends AbstractHistory
 				);
 			}
 		} catch (\Throwable $e) {
-			$this->status = OrchestrationStatus::Failed;
-			$this->result = $e->getMessage();
+			$now = MonotonicClock::current()->now();
+			$this->status = new Status(
+				$now, '', $event->input, $this->id, $now, ExternalException::fromException($e), RuntimeStatus::Failed
+			);
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
 					$id,

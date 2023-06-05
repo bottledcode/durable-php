@@ -23,13 +23,14 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
-$client = new \Bottledcode\DurablePhp\OrchestrationClient($config);
+$client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
 
 $watch = new StopWatch();
 $watch->start();

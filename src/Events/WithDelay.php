@@ -30,13 +30,20 @@ class WithDelay extends Event implements HasInnerEventInterface
 		parent::__construct($eventId);
 	}
 
+	public static function forEvent(\DateTimeImmutable $fireAt, Event $innerEvent): static
+	{
+		return new static(
+			$innerEvent->eventId, $fireAt, $innerEvent
+		);
+	}
+
 	public function getInnerEvent(): Event
 	{
 		$this->innerEvent->eventId = $this->eventId;
 		return $this->innerEvent;
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
 		return sprintf("WithDelay(%s, %s)", $this->fireAt->format('Y-m-d H:i:s'), $this->innerEvent);
 	}

@@ -21,25 +21,39 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\State\EntityId;
 
-class StartOrchestration extends Event
+class BankTransaction
 {
-	public function __construct(string $eventId)
+	public function __invoke(OrchestrationContextInterface $context)
 	{
-		parent::__construct($eventId);
-	}
+		[$target] = $context->getInput();
+		$sourceId = "src$target";
+		$sourceEntity = new EntityId(Account::class, $sourceId);
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
+		$destinationId = "dst$target";
+		$destinationEntity = new EntityId(Account::class, $destinationId);
 
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
+		$transferAmount = 1000;
+
+		$sourceProxy = $context->createEntityProxy(AccountInterface::class, $sourceEntity);
+		$destinationProxy = $context->createEntityProxy(AccountInterface::class, $destinationEntity);
+
+		$forceSuccess = false;
+
+		$lock = $context->lockEntity($sourceEntity, $destinationEntity);
+
+		$sourceBalance = $sourceProxy->get();
+		$sourceProxy->add(-$transferAmount);
+		$destinationProxy->add($transferAmount);
+
+		$value = $sourceProxy->get();
+
+		$lock->unlock();
+
+		return $value;
 	}
 }

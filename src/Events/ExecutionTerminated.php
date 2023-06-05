@@ -32,11 +32,12 @@ class ExecutionTerminated extends Event
 		parent::__construct($eventId);
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
 		return sprintf(
-			'ExecutionTerminated: %s',
+			'ExecutionTerminated(%s, %s)',
 			$this->eventId,
+			$this->input,
 		);
 	}
 }

@@ -25,7 +25,6 @@ namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\EventResult;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
@@ -36,30 +35,9 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
-	protected OrchestrationStatus $status = OrchestrationStatus::Pending;
-
-	protected function isFinished(): bool
-	{
-		return match ($this->status) {
-			OrchestrationStatus::Terminated, OrchestrationStatus::Canceled, OrchestrationStatus::Failed, OrchestrationStatus::Completed => true,
-			default => false,
-		};
-	}
-
-	protected function isRunning(): bool
-	{
-		return match ($this->status) {
-			OrchestrationStatus::Running => true,
-			default => false,
-		};
-	}
+	public Status|null $status = null;
 
 	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
-	{
-		yield null;
-	}
-
-	public function applyEventResult(EventResult $event, Event $original): \Generator
 	{
 		yield null;
 	}
@@ -97,5 +75,21 @@ abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
 	{
 		yield null;
+	}
+
+	protected function isFinished(): bool
+	{
+		return match ($this->status?->runtimeStatus ?? null) {
+			RuntimeStatus::Terminated, RuntimeStatus::Canceled, RuntimeStatus::Failed, RuntimeStatus::Completed => true,
+			default => false,
+		};
+	}
+
+	protected function isRunning(): bool
+	{
+		return match ($this->status?->runtimeStatus ?? null) {
+			RuntimeStatus::Running => true,
+			default => false,
+		};
 	}
 }

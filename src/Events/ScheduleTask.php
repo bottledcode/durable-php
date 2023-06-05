@@ -39,8 +39,14 @@ class ScheduleTask extends Event
 		return new self('', $data['name'], input: $data['input']);
 	}
 
-	public function __toString()
+	public function __toString(): string
 	{
-		return "ScheduleTask: {$this->name}";
+		return sprintf(
+			'ScheduleTask(%s, %s, %s, %s)',
+			$this->eventId,
+			$this->name,
+			$this->version,
+			json_encode($this->input),
+		);
 	}
 }
