@@ -34,6 +34,7 @@ use Generator;
 use r\Connection;
 use r\ConnectionOptions;
 use r\Options\ChangesOptions;
+use r\Options\Durability;
 use r\Options\RunOptions;
 use r\Options\TableInsertOptions;
 use Withinboredom\Time\Seconds;
@@ -157,8 +158,8 @@ class RethinkDbSource implements Source
 				'ttl' => $ttl?->inSeconds(),
 				'type' => $data::class,
 			],
-			new TableInsertOptions(conflict: 'update')
-		)->run($this->connection);
+			new TableInsertOptions(conflict: 'update', durability: Durability::Soft)
+		)->run($this->connection, new RunOptions());
 	}
 
 	public function ack(Event $event): void

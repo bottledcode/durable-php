@@ -77,15 +77,6 @@ class OrchestrationHistory extends AbstractHistory
 		$this->historicalTaskResults = new HistoricalStateTracker();
 	}
 
-	private function addEventToHistory(Event $event): void
-	{
-		if ($this->debugHistory) {
-			$this->history[$event->eventId] = $event;
-		} else {
-			$this->history[$event->eventId] = true;
-		}
-	}
-
 	/**
 	 * This represents the beginning of the orchestration and is the first event
 	 * that is applied to the history. The next phase is to actually run the
@@ -130,6 +121,15 @@ class OrchestrationHistory extends AbstractHistory
 		$this->addEventToHistory($event);
 
 		yield null;
+	}
+
+	private function addEventToHistory(Event $event): void
+	{
+		if ($this->debugHistory) {
+			$this->history[$event->eventId] = $event;
+		} else {
+			$this->history[$event->eventId] = true;
+		}
 	}
 
 	public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
@@ -256,5 +256,10 @@ class OrchestrationHistory extends AbstractHistory
 	public function resetState(): void
 	{
 		$this->historicalTaskResults->resetState();
+	}
+
+	public function ackedEvent(Event $event): void
+	{
+		unset($this->history[$event->eventId]);
 	}
 }

@@ -51,6 +51,10 @@
       <path value="$PROJECT_DIR$/vendor/crell/attributeutils" />
       <path value="$PROJECT_DIR$/vendor/crell/fp" />
       <path value="$PROJECT_DIR$/vendor/crell/serde" />
+      <path value="$PROJECT_DIR$/vendor/psr/http-client" />
+      <path value="$PROJECT_DIR$/vendor/psr/log" />
+      <path value="$PROJECT_DIR$/vendor/amphp/log" />
+      <path value="$PROJECT_DIR$/vendor/monolog/monolog" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.2">

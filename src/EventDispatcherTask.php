@@ -92,6 +92,9 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 		}
 
 		$this->source->ack($originalEvent);
+		foreach ($states as $state) {
+			$state->ackedEvent($originalEvent);
+		}
 		Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 
 		try {
