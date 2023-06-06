@@ -46,7 +46,7 @@ class EntityHistory extends AbstractHistory
 	public array $history = [];
 	public string|null $lock;
 	private bool $debugHistory = false;
-	private mixed $state = null;
+	private EntityState|null $state = null;
 	private array $lockQueue = [];
 
 	public function __construct(public StateId $id)
@@ -95,10 +95,16 @@ class EntityHistory extends AbstractHistory
 				break;
 			case '__lock':
 				$this->lock = $event->eventData['name'];
+				foreach ($this->getReplyTo($original) as $replyTo) {
+					yield WithOrchestration::forInstance($replyTo, TaskCompleted::forId($original->eventId, null));
+				}
 				break;
 			case '__unlock':
 				if ($this->lock === $event->eventData['name']) {
 					$this->lock = null;
+				}
+				foreach ($this->getReplyTo($original) as $replyTo) {
+					yield WithOrchestration::forInstance($replyTo, TaskCompleted::forId($original->eventId, null));
 				}
 				foreach ($this->lockQueue as $nextEvent) {
 					yield $nextEvent;
@@ -153,13 +159,7 @@ class EntityHistory extends AbstractHistory
 
 	private function execute(Event $original, string $operation, array $input): Generator
 	{
-		$replyTo = [];
-		while ($original instanceof HasInnerEventInterface) {
-			if ($original instanceof AwaitResult) {
-				$replyTo[] = $original->origin;
-			}
-			$original = $original->getInnerEvent();
-		}
+		$replyTo = $this->getReplyTo($original);
 
 		$taskDispatcher = null;
 		yield static function ($task) use (&$taskDispatcher) {

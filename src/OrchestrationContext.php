@@ -256,7 +256,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 			);
 			[$eventId] = $this->taskController->fire($event);
 			$future = new DeferredFuture();
-			$this->history->historicalTaskResults->sentEvent($id->id . 'lock', $eventId, $future);
+			$this->history->historicalTaskResults->sentEvent($eventId, $eventId, $future);
 			$futures[] = new DurableFuture($future->getFuture());
 			$this->history->locks[$id->id] = time();
 		}

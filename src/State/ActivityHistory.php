@@ -24,8 +24,6 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\ReplyToInterface;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
@@ -84,28 +82,11 @@ class ActivityHistory extends AbstractHistory
 		}
 	}
 
-	/**
-	 * @param Event $event
-	 * @return array<StateId>
-	 */
-	private function getReplyTo(Event $event): array
-	{
-		$ids = [];
-		while ($event instanceof HasInnerEventInterface) {
-			if ($event instanceof ReplyToInterface) {
-				$ids[] = $event->getReplyTo();
-			}
-			$event = $event->getInnerEvent();
-		}
-		return $ids;
-	}
-
 	public function resetState(): void
 	{
 	}
 
 	public function ackedEvent(Event $event): void
 	{
-		// TODO: Implement ackedEvent() method.
 	}
 }

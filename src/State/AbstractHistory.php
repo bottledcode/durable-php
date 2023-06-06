@@ -26,12 +26,15 @@ namespace Bottledcode\DurablePhp\State;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\ReplyToInterface;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
@@ -91,5 +94,21 @@ abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 			RuntimeStatus::Running => true,
 			default => false,
 		};
+	}
+
+	/**
+	 * @param Event $event
+	 * @return array<StateId>
+	 */
+	protected function getReplyTo(Event $event): array
+	{
+		$reply = [];
+		while ($event instanceof HasInnerEventInterface) {
+			if ($event instanceof ReplyToInterface) {
+				$reply[] = $event->getReplyTo();
+			}
+			$event = $event->getInnerEvent();
+		}
+		return $reply;
 	}
 }
