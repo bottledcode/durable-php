@@ -24,8 +24,9 @@
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
 use Bottledcode\DurablePhp\EntityContextInterface;
+use Bottledcode\DurablePhp\State\EntityState;
 
-class Account implements AccountInterface
+class Account extends EntityState implements AccountInterface
 {
 	public int $balance = 0;
 

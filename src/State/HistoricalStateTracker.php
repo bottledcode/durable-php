@@ -103,6 +103,12 @@ class HistoricalStateTracker
 				$identity = sha1($event->eventName);
 				$this->results[$identity][] = ['result' => $event];
 			}
+
+			// or perhaps the expected identity does not match, but we are expecting the event subject
+			if ($event instanceof TaskCompleted) {
+				$eventId = $event->scheduledId;
+				$identities = array_column($this->results[$eventId] ?? [], 'eventId');
+			}
 			return;
 		}
 		unset($this->results[$id]);
