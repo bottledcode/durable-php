@@ -45,6 +45,11 @@ class RaiseEvent extends Event
 		return new static('', '__unlock', ['name' => $name]);
 	}
 
+	public static function forTimer(string $identity): static
+	{
+		return new static('', $identity, []);
+	}
+
 	public function __toString(): string
 	{
 		return sprintf('RaiseEvent(%s, %s, %s)', $this->eventId, $this->eventName, json_encode($this->eventData));

@@ -149,7 +149,7 @@ class EntityHistory extends AbstractHistory
 
 		$this->name = $this->id->toEntityId()->name;
 		$now = MonotonicClock::current()->now();
-		$this->status = new Status($now, '', [], $this->id, $now, null, RuntimeStatus::Running);
+		$this->status = new Status($now, '', [], $this->id, $now, [], RuntimeStatus::Running);
 
 		if (class_exists($this->name)) {
 			$reflection = new ReflectionClass($this->name);

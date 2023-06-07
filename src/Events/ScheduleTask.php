@@ -39,6 +39,11 @@ class ScheduleTask extends Event
 		return new self('', $data['name'], input: $data['input']);
 	}
 
+	public static function forName(string $name, array $data): self
+	{
+		return new self('', $name, input: $data);
+	}
+
 	public function __toString(): string
 	{
 		return sprintf(

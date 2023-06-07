@@ -27,9 +27,8 @@ use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
+use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\Status;
-use Crell\Serde\Serde;
-use Crell\Serde\SerdeCommon;
 use Exception;
 use Generator;
 use r\Connection;
@@ -50,15 +49,12 @@ class RethinkDbSource implements Source
 {
 	use PartitionCalculator;
 
-	private readonly Serde $serde;
-
 	private function __construct(
-		private Connection $connection,
-		private Config $config,
-		private string $partitionTable,
-		private string $stateTable
+		private readonly Connection $connection,
+		private readonly Config $config,
+		private readonly string $partitionTable,
+		private readonly string $stateTable
 	) {
-		$this->serde = new SerdeCommon();
 	}
 
 	public static function connect(Config $config): static
@@ -91,24 +87,14 @@ class RethinkDbSource implements Source
 
 	public function getPastEvents(): Generator
 	{
-		return;
-		$events = table($this->partitionTable)->run($this->connection);
-
-		foreach ($events as ['event' => $event, 'id' => $id, 'type' => $type]) {
-			/**
-			 * @var Event $actualEvent
-			 */
-			$actualEvent = $this->serde->deserialize($event, 'array', $type);
-			$actualEvent->eventId = $id;
-			yield $actualEvent;
-		}
+		yield;
 	}
 
 	public function receiveEvents(): Generator
 	{
 		$events = table($this->partitionTable)->changes(
 			new ChangesOptions(
-				include_initial: true, include_types: true, squash: true
+				squash: true, include_initial: true, include_types: true
 			)
 		)->run($this->connection);
 
@@ -124,7 +110,7 @@ class RethinkDbSource implements Source
 			/**
 			 * @var Event $actualEvent
 			 */
-			$actualEvent = $this->serde->deserialize(
+			$actualEvent = Serializer::get()->deserialize(
 				$event['new_val']['event'],
 				'array',
 				$event['new_val']['type'],
@@ -132,43 +118,6 @@ class RethinkDbSource implements Source
 			$actualEvent->eventId = $event['new_val']['id'];
 			yield $actualEvent;
 		}
-	}
-
-	public function cleanHouse(): void
-	{
-		// no-op
-	}
-
-	public function storeEvent(Event $event, bool $local): string
-	{
-		$partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
-		$results = table($partition)->insert(
-			['event' => $this->serde->serialize($event, 'array'), 'id' => uuid(), 'type' => $event::class],
-			new TableInsertOptions(return_changes: true)
-		)->run($this->connection);
-		return $results['changes'][0]['new_val']['id'];
-	}
-
-	public function put(string $key, mixed $data, ?Seconds $ttl = null, ?string $etag = null): void
-	{
-		table($this->stateTable)->insert(
-			[
-				'id' => $key,
-				'data' => $this->serde->serialize($data, 'array'),
-				'etag' => $etag,
-				'ttl' => $ttl?->inSeconds(),
-				'type' => $data::class,
-			],
-			new TableInsertOptions(conflict: 'update', durability: Durability::Soft)
-		)->run($this->connection, new RunOptions());
-	}
-
-	public function ack(Event $event): void
-	{
-		table($this->partitionTable)->get($event->eventId)->delete()->run(
-			$this->connection,
-			new RunOptions(noreply: true)
-		);
 	}
 
 	/**
@@ -183,10 +132,47 @@ class RethinkDbSource implements Source
 		$result = table($this->stateTable)->get($key)->run($this->connection);
 
 		if ($result) {
-			return $this->serde->deserialize($result['data'], 'array', $result['type']);
+			return Serializer::get()->deserialize($result['data'], 'array', $result['type']);
 		}
 
 		return null;
+	}
+
+	public function cleanHouse(): void
+	{
+		// no-op
+	}
+
+	public function storeEvent(Event $event, bool $local): string
+	{
+		$partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
+		$results = table($partition)->insert(
+			['event' => Serializer::get()->serialize($event, 'array'), 'id' => uuid(), 'type' => $event::class],
+			new TableInsertOptions(return_changes: true)
+		)->run($this->connection);
+		return $results['changes'][0]['new_val']['id'];
+	}
+
+	public function put(string $key, mixed $data, ?Seconds $ttl = null, ?string $etag = null): void
+	{
+		table($this->stateTable)->insert(
+			[
+				'id' => $key,
+				'data' => Serializer::get()->serialize($data, 'array'),
+				'etag' => $etag,
+				'ttl' => $ttl?->inSeconds(),
+				'type' => $data::class,
+			],
+			new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
+		)->run($this->connection, new RunOptions());
+	}
+
+	public function ack(Event $event): void
+	{
+		table($this->partitionTable)->get($event->eventId)->delete()->run(
+			$this->connection,
+			new RunOptions(noreply: true)
+		);
 	}
 
 	public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null
@@ -201,7 +187,7 @@ class RethinkDbSource implements Source
 			if ($rawStatus === null) {
 				continue;
 			}
-			$status = $this->serde->deserialize($rawStatus, 'array', Status::class);
+			$status = Serializer::get()->deserialize($rawStatus, 'array', Status::class);
 			if (in_array($status->runtimeStatus, $expected, true)) {
 				return $status;
 			}

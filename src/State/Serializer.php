@@ -23,14 +23,20 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-readonly class OrchestrationInstance implements \Stringable
+use Crell\Serde\Serde;
+use Crell\Serde\SerdeCommon;
+
+abstract class Serializer
 {
-	public function __construct(public string $instanceId, public string $executionId)
+	private static mixed $serializer = null;
+
+	public static function get(): Serde
 	{
+		return self::$serializer ??= new SerdeCommon();
 	}
 
-	public function __toString(): string
+	public static function set(Serde $serializer): void
 	{
-		return "$this->instanceId:$this->executionId";
+		self::$serializer = $serializer;
 	}
 }

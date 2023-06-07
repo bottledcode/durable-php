@@ -70,6 +70,9 @@ class Run
 
 		$pool = $this->createPool($this->config);
 		foreach ($this->source->getPastEvents() as $event) {
+			if ($event === null) {
+				continue;
+			}
 			$key = $this->getEventKey($event);
 			$map[$key] = null;
 			$queue->enqueue($key, $event);
