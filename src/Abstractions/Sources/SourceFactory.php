@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -29,11 +30,11 @@ use Bottledcode\DurablePhp\Config\RethinkDbConfig;
 
 class SourceFactory
 {
-	public static function fromConfig(Config $config): Source
-	{
-		return match ($config->storageConfig::class) {
-			RedisConfig::class => RedisSource::connect($config),
-			RethinkDbConfig::class => RethinkDbSource::connect($config)
-		};
-	}
+    public static function fromConfig(Config $config): Source
+    {
+        return match ($config->storageConfig::class) {
+            RedisConfig::class => RedisSource::connect($config),
+            RethinkDbConfig::class => RethinkDbSource::connect($config)
+        };
+    }
 }

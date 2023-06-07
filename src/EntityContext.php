@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -37,73 +38,71 @@ use Crell\Serde\Attributes\ClassSettings;
 #[ClassSettings(includeFieldsByDefault: false)]
 class EntityContext implements EntityContextInterface
 {
-	public function __construct(
-		private readonly EntityId $id,
-		private readonly string $operation,
-		private readonly mixed $input,
-		private mixed $state,
-		private readonly EntityHistory $history,
-		private readonly EventDispatcherTask $eventDispatcher,
-		private readonly array $caller,
-		private readonly string $requestingId,
-	) {
-	}
+    public function __construct(
+        private readonly EntityId $id,
+        private readonly string $operation,
+        private readonly mixed $input,
+        private mixed $state,
+        private readonly EntityHistory $history,
+        private readonly EventDispatcherTask $eventDispatcher,
+        private readonly array $caller,
+        private readonly string $requestingId,
+    ) {
+    }
 
-	public function delete(): never
-	{
-		$this->history->delete();
-		throw new Unwind('delete');
-	}
+    public function delete(): never
+    {
+        $this->history->delete();
+        throw new Unwind('delete');
+    }
 
-	public function getInput(): mixed
-	{
-		return $this->input;
-	}
+    public function getInput(): mixed
+    {
+        return $this->input;
+    }
 
-	public function getState(): mixed
-	{
-		return $this->state;
-	}
+    public function getState(): mixed
+    {
+        return $this->state;
+    }
 
-	public function return(mixed $value): never
-	{
-		foreach ($this->caller as $caller) {
-			$this->eventDispatcher->fire(
-				WithOrchestration::forInstance($caller, TaskCompleted::forId($this->requestingId, $value))
-			);
-		}
-		throw new Unwind('return');
-	}
+    public function return(mixed $value): never
+    {
+        foreach ($this->caller as $caller) {
+            $this->eventDispatcher->fire(WithOrchestration::forInstance($caller, TaskCompleted::forId($this->requestingId, $value)));
+        }
+        throw new Unwind('return');
+    }
 
-	public function setState(mixed $value): void
-	{
-		$this->history->setState($value);
-		$this->state = $value;
-	}
+    public function setState(mixed $value): void
+    {
+        $this->history->setState($value);
+        $this->state = $value;
+    }
 
-	public function signalEntity(
-		EntityId $entityId,
-		string $operation,
-		array $input = [],
-		?\DateTimeImmutable $scheduledTime = null
-	): void {
-		$event = WithEntity::forInstance(
-			StateId::fromEntityId($entityId),
-			RaiseEvent::forOperation($operation, $input)
-		);
-		if ($scheduledTime) {
-			$event = WithDelay::forEvent($scheduledTime, $event);
-		}
-		$this->eventDispatcher->fire($event);
-	}
+    public function signalEntity(
+        EntityId $entityId,
+        string $operation,
+        array $input = [],
+        ?\DateTimeImmutable $scheduledTime = null
+    ): void {
+        $event = WithEntity::forInstance(
+            StateId::fromEntityId($entityId),
+            RaiseEvent::forOperation($operation, $input)
+        );
+        if ($scheduledTime) {
+            $event = WithDelay::forEvent($scheduledTime, $event);
+        }
+        $this->eventDispatcher->fire($event);
+    }
 
-	public function getId(): EntityId
-	{
-		return $this->id;
-	}
+    public function getId(): EntityId
+    {
+        return $this->id;
+    }
 
-	public function getOperation(): string
-	{
-		return $this->operation;
-	}
+    public function getOperation(): string
+    {
+        return $this->operation;
+    }
 }

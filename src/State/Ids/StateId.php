@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -35,111 +36,112 @@ use Ramsey\Uuid\UuidInterface;
 
 readonly class StateId implements \Stringable
 {
-	public function __construct(public string $id)
-	{
-	}
+    public function __construct(public string $id)
+    {
+    }
 
-	public static function fromState(StateInterface $state): self
-	{
-		return match ($state::class) {
-			OrchestrationHistory::class => self::fromInstance($state->instance),
-			ActivityHistory::class => self::fromActivityId($state->activityId),
-			EntityHistory::class => self::fromEntityId($state->entityId),
-		};
-	}
+    public static function fromString(string $id): self
+    {
+        return new self($id);
+    }
 
-	public static function fromInstance(OrchestrationInstance $instance): self
-	{
-		return new self("orchestration:{$instance}");
-	}
+    public static function fromState(StateInterface $state): self
+    {
+        return match ($state::class) {
+            OrchestrationHistory::class => self::fromInstance($state->instance),
+            ActivityHistory::class => self::fromActivityId($state->activityId),
+            EntityHistory::class => self::fromEntityId($state->entityId),
+        };
+    }
 
-	public static function fromActivityId(UuidInterface|string $activityId): self
-	{
-		return new self("activity:{$activityId}");
-	}
+    public static function fromInstance(OrchestrationInstance $instance): self
+    {
+        return new self("orchestration:{$instance}");
+    }
 
-	public static function fromEntityId(EntityId $entityId): self
-	{
-		return new self("entity:{$entityId}");
-	}
+    public static function fromActivityId(UuidInterface|string $activityId): self
+    {
+        return new self("activity:{$activityId}");
+    }
 
-	public function toActivityId(): string
-	{
-		$parts = explode(':', $this->id, 3);
-		return match ($parts) {
-			['orchestration', $parts[1]] => throw new Exception("Cannot convert orchestration state to activity id"),
-			['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
-			['entity', $parts[1], $parts[2]] => throw new Exception("Cannot convert entity state to activity id"),
-		};
-	}
+    public static function fromEntityId(EntityId $entityId): self
+    {
+        return new self("entity:{$entityId}");
+    }
 
-	public function toOrchestrationInstance(): OrchestrationInstance
-	{
-		$parts = explode(':', $this->id, 3);
-		return match ($parts) {
-			['activity', $parts[1]] => throw new Exception("Cannot convert activity state to orchestration instance"),
-			['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
-			['entity', $parts[1], $parts[2]] => throw new Exception(
-				"Cannot convert entity state to orchestration instance"
-			),
-		};
-	}
+    public function toActivityId(): string
+    {
+        $parts = explode(':', $this->id, 3);
+        return match ($parts) {
+            ['orchestration', $parts[1]] => throw new Exception("Cannot convert orchestration state to activity id"),
+            ['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
+            ['entity', $parts[1], $parts[2]] => throw new Exception("Cannot convert entity state to activity id"),
+        };
+    }
 
-	public function toEntityId(): EntityId
-	{
-		$parts = explode(':', $this->id, 3);
-		return match ($parts) {
-			['activity', $parts[1]] => throw new Exception("Cannot convert activity state to entity id"),
-			['orchestration', $parts[1], $parts[2]] => throw new Exception(
-				"Cannot convert orchestration state to entity id"
-			),
-			['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
-		};
-	}
+    public function toOrchestrationInstance(): OrchestrationInstance
+    {
+        $parts = explode(':', $this->id, 3);
+        return match ($parts) {
+            ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to orchestration instance"),
+            ['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
+            ['entity', $parts[1], $parts[2]] => throw new Exception("Cannot convert entity state to orchestration instance"),
+        };
+    }
 
-	public function isActivityId(): bool
-	{
-		return str_starts_with($this->id, 'activity:');
-	}
+    public function toEntityId(): EntityId
+    {
+        $parts = explode(':', $this->id, 3);
+        return match ($parts) {
+            ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to entity id"),
+            ['orchestration', $parts[1], $parts[2]] => throw new Exception("Cannot convert orchestration state to entity id"),
+            ['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
+        };
+    }
 
-	/**
-	 * @return class-string
-	 */
-	public function getStateType(): string
-	{
-		$parts = explode(':', $this->id, 3);
-		return match ($parts) {
-			['activity', $parts[1]] => ActivityHistory::class,
-			['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
-			['entity', $parts[1], $parts[2]] => EntityHistory::class,
-		};
-	}
+    public function isActivityId(): bool
+    {
+        return str_starts_with($this->id, 'activity:');
+    }
 
-	public function getPartitionKey(int $totalPartitions): int|null
-	{
-		return match ($this->isPartitioned()) {
-			true => crc32($this->id) % $totalPartitions,
-			false => null,
-		};
-	}
+    /**
+     * @return class-string
+     */
+    public function getStateType(): string
+    {
+        $parts = explode(':', $this->id, 3);
+        return match ($parts) {
+            ['activity', $parts[1]] => ActivityHistory::class,
+            ['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
+            ['entity', $parts[1], $parts[2]] => EntityHistory::class,
+        };
+    }
 
-	public function isPartitioned(): bool
-	{
-		return $this->isEntityId() || $this->isOrchestrationId();
-	}
+    public function getPartitionKey(int $totalPartitions): int|null
+    {
+        return match ($this->isPartitioned()) {
+            true => crc32($this->id) % $totalPartitions,
+            false => null,
+        };
+    }
 
-	public function isEntityId(): bool
-	{
-		return str_starts_with($this->id, 'entity:');
-	}
+    public function isPartitioned(): bool
+    {
+        return $this->isEntityId() || $this->isOrchestrationId();
+    }
 
-	public function isOrchestrationId(): bool
-	{
-		return str_starts_with($this->id, 'orchestration:');
-	}
+    public function isEntityId(): bool
+    {
+        return str_starts_with($this->id, 'entity:');
+    }
 
-	public function __toString(): string
-	{
-		return $this->id;
-	}
+    public function isOrchestrationId(): bool
+    {
+        return str_starts_with($this->id, 'orchestration:');
+    }
+
+    public function __toString(): string
+    {
+        return $this->id;
+    }
 }

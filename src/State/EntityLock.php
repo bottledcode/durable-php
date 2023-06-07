@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,33 +26,29 @@ namespace Bottledcode\DurablePhp\State;
 
 class EntityLock
 {
-	public function __construct(private readonly \Closure $unlocker, private bool $locked = true)
-	{
-	}
+    public function __construct(private readonly \Closure $unlocker, private bool $locked = true)
+    {
+    }
 
-	public function __destruct()
-	{
-		if ($this->locked) {
-			($this->unlocker)();
-			$this->locked = false;
-		}
-	}
+    public function __destruct()
+    {
+    }
 
-	public function unlock(): void
-	{
-		if ($this->locked) {
-			($this->unlocker)();
-			$this->locked = false;
-		}
-	}
+    public function unlock(): void
+    {
+        if ($this->locked) {
+            ($this->unlocker)();
+            $this->locked = false;
+        }
+    }
 
-	public function isLocked(): bool
-	{
-		return $this->locked;
-	}
+    public function isLocked(): bool
+    {
+        return $this->locked;
+    }
 
-	public function __debugInfo(): ?array
-	{
-		return ['locked' => $this->locked];
-	}
+    public function __debugInfo(): ?array
+    {
+        return ['locked' => $this->locked];
+    }
 }

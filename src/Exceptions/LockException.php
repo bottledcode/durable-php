@@ -22,36 +22,10 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\Exceptions;
 
-use Amp\Future;
+use RuntimeException;
 
-/**
- * @template T
- */
-class DurableFuture
+class LockException extends RuntimeException
 {
-    /**
-     * @param Future<T> $future
-     */
-    public function __construct(public readonly Future $future)
-    {
-    }
-
-    /**
-     * @return T
-     */
-    public function getResult(): mixed
-    {
-        if ($this->future->isComplete()) {
-            return $this->future->await();
-        }
-
-        throw new \LogicException('Future is not complete');
-    }
-
-    public function hasResult(): bool
-    {
-        return $this->future->isComplete();
-    }
 }

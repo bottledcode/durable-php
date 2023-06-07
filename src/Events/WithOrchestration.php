@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,32 +28,32 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class WithOrchestration extends Event implements HasInnerEventInterface, StateTargetInterface
 {
-	public function __construct(
-		string $eventId,
-		public StateId $target,
-		private readonly Event $innerEvent
-	) {
-		parent::__construct($eventId);
-	}
+    public function __construct(
+        string $eventId,
+        public StateId $target,
+        private readonly Event $innerEvent
+    ) {
+        parent::__construct($eventId);
+    }
 
-	public static function forInstance(StateId $instance, Event $innerEvent): Event
-	{
-		return new WithOrchestration('', $instance, $innerEvent);
-	}
+    public static function forInstance(StateId $instance, Event $innerEvent): Event
+    {
+        return new WithOrchestration('', $instance, $innerEvent);
+    }
 
-	public function getInnerEvent(): Event
-	{
-		$this->innerEvent->eventId = $this->eventId;
-		return $this->innerEvent;
-	}
+    public function getInnerEvent(): Event
+    {
+        $this->innerEvent->eventId = $this->eventId;
+        return $this->innerEvent;
+    }
 
-	public function getTarget(): StateId
-	{
-		return $this->target;
-	}
+    public function getTarget(): StateId
+    {
+        return $this->target;
+    }
 
-	public function __toString(): string
-	{
-		return sprintf("WithOrchestration(%s)", $this->innerEvent);
-	}
+    public function __toString(): string
+    {
+        return sprintf("WithOrchestration(%s)", $this->innerEvent);
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -28,18 +29,18 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
 class StartOrchestration extends Event
 {
-	public function __construct(string $eventId)
-	{
-		parent::__construct($eventId);
-	}
+    public function __construct(string $eventId)
+    {
+        parent::__construct($eventId);
+    }
 
-	public static function forInstance(OrchestrationInstance $instance): Event
-	{
-		return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
-	}
+    public static function forInstance(OrchestrationInstance $instance): Event
+    {
+        return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+    }
 
-	public function __toString(): string
-	{
-		return sprintf('StartOrchestration(%s)', $this->eventId);
-	}
+    public function __toString(): string
+    {
+        return sprintf('StartOrchestration(%s)', $this->eventId);
+    }
 }

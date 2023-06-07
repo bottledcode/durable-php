@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,23 +26,23 @@ namespace Bottledcode\DurablePhp\Events;
 
 class TaskCompleted extends Event
 {
-	public function __construct(string $eventId, public string $scheduledId, public mixed $result = null)
-	{
-		parent::__construct($eventId);
-	}
+    public function __construct(string $eventId, public string $scheduledId, public mixed $result = null)
+    {
+        parent::__construct($eventId);
+    }
 
-	public static function forId(string $scheduledId, mixed $result = null): self
-	{
-		return new self('', $scheduledId, $result);
-	}
+    public static function forId(string $scheduledId, mixed $result = null): self
+    {
+        return new self('', $scheduledId, $result);
+    }
 
-	public function __toString(): string
-	{
-		return sprintf(
-			'TaskCompleted(%s, %s, %s)',
-			$this->eventId,
-			$this->scheduledId,
-			json_encode($this->result),
-		);
-	}
+    public function __toString(): string
+    {
+        return sprintf(
+            'TaskCompleted(%s, %s, %s)',
+            $this->eventId,
+            $this->scheduledId,
+            json_encode($this->result),
+        );
+    }
 }

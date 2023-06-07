@@ -38,5 +38,13 @@
     "ext-redis": "Required for Redis Streams",
     "ext-igbinary": "Use a better serializer"
   },
-  "type": "library"
+  "type": "library",
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  }
 }

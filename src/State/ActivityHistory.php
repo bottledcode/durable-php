@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -23,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
@@ -34,67 +36,76 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class ActivityHistory extends AbstractHistory
 {
-	public string $activityId;
+    public string $activityId;
+    public function __construct(private StateId $id)
+    {
+        $this->activityId = $id->toActivityId();
+    }
 
-	public function __construct(private StateId $id)
-	{
-		$this->activityId = $id->toActivityId();
-	}
+    public function hasAppliedEvent(Event $event): bool
+    {
+        return false;
+    }
 
-	public function hasAppliedEvent(Event $event): bool
-	{
-		return false;
-	}
+    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
+    {
+        $task = $event->name;
+        $replyTo = $this->getReplyTo($original);
+        try {
+            if (class_exists($task)) {
+                $task = new $task();
+            }
+            $result = $task(...($event->input ?? []));
+            $now = MonotonicClock::current()->now();
+            $this->status = new Status(
+                $now,
+                '',
+                $event->input,
+                $this->id,
+                $now,
+                Serializer::serialize($result),
+                RuntimeStatus::Completed
+            );
+            foreach ($replyTo as $id) {
+                yield WithOrchestration::forInstance(
+                    $id,
+                    TaskCompleted::forId($original->eventId, $result)
+                );
+            }
+        } catch (\Throwable $e) {
+            $now = MonotonicClock::current()->now();
+            $this->status = new Status(
+                $now,
+                '',
+                $event->input,
+                $this->id,
+                $now,
+                Serializer::serialize(ExternalException::fromException($e)),
+                RuntimeStatus::Failed
+            );
+            foreach ($replyTo as $id) {
+                yield WithOrchestration::forInstance(
+                    $id,
+                    TaskFailed::forTask(
+                        $original->eventId,
+                        $e->getMessage(),
+                        $e->getTraceAsString(),
+                        $e::class
+                    )
+                );
+            }
+        }
+    }
 
-	public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
-	{
-		$task = $event->name;
-		$replyTo = $this->getReplyTo($original);
-		try {
-			if (class_exists($task)) {
-				$task = new $task();
-			}
-			$result = $task(...($event->input ?? []));
-			$now = MonotonicClock::current()->now();
-			$this->status = new Status(
-				$now, '', $event->input, $this->id, $now, Serializer::serialize($result), RuntimeStatus::Completed
-			);
-			foreach ($replyTo as $id) {
-				yield WithOrchestration::forInstance(
-					$id,
-					TaskCompleted::forId($original->eventId, $result)
-				);
-			}
-		} catch (\Throwable $e) {
-			$now = MonotonicClock::current()->now();
-			$this->status = new Status(
-				$now,
-				'',
-				$event->input,
-				$this->id,
-				$now,
-				Serializer::serialize(ExternalException::fromException($e)),
-				RuntimeStatus::Failed
-			);
-			foreach ($replyTo as $id) {
-				yield WithOrchestration::forInstance(
-					$id,
-					TaskFailed::forTask(
-						$original->eventId,
-						$e->getMessage(),
-						$e->getTraceAsString(),
-						$e::class
-					)
-				);
-			}
-		}
-	}
+    public function resetState(): void
+    {
+    }
 
-	public function resetState(): void
-	{
-	}
+    public function ackedEvent(Event $event): void
+    {
+    }
 
-	public function ackedEvent(Event $event): void
-	{
-	}
+    public function onComplete(Source $source): void
+    {
+    }
 }

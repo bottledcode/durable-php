@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -38,77 +39,76 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
-	public Status|null $status = null;
+    public Status|null $status = null;
+    public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyStartExecution(StartExecution $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyStartExecution(StartExecution $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+    {
+        yield null;
+    }
 
-	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
-	{
-		yield null;
-	}
+    protected function isFinished(): bool
+    {
+        return match ($this->status?->runtimeStatus ?? null) {
+            RuntimeStatus::Terminated, RuntimeStatus::Canceled, RuntimeStatus::Failed, RuntimeStatus::Completed => true,
+            default => false,
+        };
+    }
 
-	protected function isFinished(): bool
-	{
-		return match ($this->status?->runtimeStatus ?? null) {
-			RuntimeStatus::Terminated, RuntimeStatus::Canceled, RuntimeStatus::Failed, RuntimeStatus::Completed => true,
-			default => false,
-		};
-	}
+    protected function isRunning(): bool
+    {
+        return match ($this->status?->runtimeStatus ?? null) {
+            RuntimeStatus::Running => true,
+            default => false,
+        };
+    }
 
-	protected function isRunning(): bool
-	{
-		return match ($this->status?->runtimeStatus ?? null) {
-			RuntimeStatus::Running => true,
-			default => false,
-		};
-	}
-
-	/**
-	 * @param Event $event
-	 * @return array<StateId>
-	 */
-	protected function getReplyTo(Event $event): array
-	{
-		$reply = [];
-		while ($event instanceof HasInnerEventInterface) {
-			if ($event instanceof ReplyToInterface) {
-				$reply[] = $event->getReplyTo();
-			}
-			$event = $event->getInnerEvent();
-		}
-		return $reply;
-	}
+    /**
+     * @param Event $event
+     * @return array<StateId>
+     */
+    protected function getReplyTo(Event $event): array
+    {
+        $reply = [];
+        while ($event instanceof HasInnerEventInterface) {
+            if ($event instanceof ReplyToInterface) {
+                $reply[] = $event->getReplyTo();
+            }
+            $event = $event->getInnerEvent();
+        }
+        return $reply;
+    }
 }

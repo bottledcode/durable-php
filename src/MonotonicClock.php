@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -33,60 +34,55 @@ namespace Bottledcode\DurablePhp;
  */
 class MonotonicClock
 {
-	private static MonotonicClock $instance;
-	private int $secondsOffset;
-	private int $μOffset;
+    private static MonotonicClock $instance;
+    private int $secondsOffset;
+    private int $μOffset;
+    public function __construct()
+    {
+        $offset = hrtime();
+        $time = explode(' ', microtime(), 2);
+        $this->secondsOffset = $time[1] - $offset[0];
+        $this->μOffset = (int)($time[0] * 1000000) - (int)($offset[1] / 1000);
+    }
 
-	public function __construct()
-	{
-		$offset = hrtime();
-		$time = explode(' ', microtime(), 2);
-		$this->secondsOffset = $time[1] - $offset[0];
-		$this->μOffset = (int)($time[0] * 1000000) - (int)($offset[1] / 1000);
-	}
+    public static function current(): self
+    {
+        self::$instance ??= new self();
+        return self::$instance;
+    }
 
-	public static function current(): self
-	{
-		self::$instance ??= new self();
+    public function __serialize(): array
+    {
+        return [
+            'now' => $this->now()->format('u U'),
+        ];
+    }
 
-		return self::$instance;
-	}
+    public function now(): \DateTimeImmutable
+    {
+        [$s, $μs] = hrtime();
+        if (1000000 <= $μs = (int)($μs / 1000) + $this->μOffset) {
+            ++$s;
+            $μs -= 1000000;
+        } elseif (0 > $μs) {
+            --$s;
+            $μs += 1000000;
+        }
 
-	public function __serialize(): array
-	{
-		return [
-			'now' => $this->now()->format('u U'),
-		];
-	}
+        if (6 !== \strlen($now = (string)$μs)) {
+            $now = str_pad($now, 6, '0', \STR_PAD_LEFT);
+        }
 
-	public function now(): \DateTimeImmutable
-	{
-		[$s, $μs] = hrtime();
+        $now = '@' . ($s + $this->secondsOffset) . '.' . $now;
+        return new \DateTimeImmutable($now);
+    }
 
-		if (1000000 <= $μs = (int)($μs / 1000) + $this->μOffset) {
-			++$s;
-			$μs -= 1000000;
-		} elseif (0 > $μs) {
-			--$s;
-			$μs += 1000000;
-		}
-
-		if (6 !== \strlen($now = (string)$μs)) {
-			$now = str_pad($now, 6, '0', \STR_PAD_LEFT);
-		}
-
-		$now = '@' . ($s + $this->secondsOffset) . '.' . $now;
-
-		return new \DateTimeImmutable($now);
-	}
-
-	public function __unserialize(array $data): void
-	{
-		self::$instance ??= $this;
-
-		$offset = hrtime();
-		$time = explode(' ', $data['now'], 2);
-		$this->secondsOffset = $time[1] - $offset[0];
-		$this->μOffset = (int)($time[0]) - (int)($offset[1] / 1000);
-	}
+    public function __unserialize(array $data): void
+    {
+        self::$instance ??= $this;
+        $offset = hrtime();
+        $time = explode(' ', $data['now'], 2);
+        $this->secondsOffset = $time[1] - $offset[0];
+        $this->μOffset = (int)($time[0]) - (int)($offset[1] / 1000);
+    }
 }

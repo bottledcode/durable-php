@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -28,16 +29,18 @@ use Crell\fp\Evolvable;
 
 readonly class Status
 {
-	use Evolvable;
+    use Evolvable;
 
-	public function __construct(
-		public \DateTimeImmutable $createdAt,
-		public string $customStatus,
-		public array $input,
-		public StateId $id,
-		public \DateTimeImmutable $lastUpdated,
-		public array $output,
-		public RuntimeStatus $runtimeStatus,
-	) {
-	}
+
+
+    public function __construct(
+        public \DateTimeImmutable $createdAt,
+        public string $customStatus,
+        public array $input,
+        public StateId $id,
+        public \DateTimeImmutable $lastUpdated,
+        public array $output,
+        public RuntimeStatus $runtimeStatus,
+    ) {
+    }
 }

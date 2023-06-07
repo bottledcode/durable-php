@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -23,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
@@ -32,6 +34,7 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
@@ -43,200 +46,212 @@ use Crell\Serde\Attributes\Field;
 
 class OrchestrationHistory extends AbstractHistory
 {
-	public \DateTimeImmutable $now;
+    public \DateTimeImmutable $now;
 
-	public string $name;
+    public string $name;
 
-	public string $version;
+    public string $version;
 
-	public array $tags;
+    public array $tags;
 
-	public OrchestrationInstance $instance;
+    public OrchestrationInstance $instance;
 
-	public OrchestrationInstance|null $parentInstance;
+    public OrchestrationInstance|null $parentInstance;
 
-	public HistoricalStateTracker $historicalTaskResults;
+    public HistoricalStateTracker $historicalTaskResults;
 
-	public array $history = [];
-	public array $locks = [];
-	private bool $debugHistory = false;
-	#[Field(exclude: true)]
-	private mixed $constructed = null;
+    public array $history = [];
+    public array $locks = [];
+    private bool $debugHistory = false;
+    #[Field(exclude: true)]
+    private mixed $constructed = null;
 
-	public function __construct(private StateId $id)
-	{
-		$this->instance = $id->toOrchestrationInstance();
-		$this->historicalTaskResults = new HistoricalStateTracker();
-	}
+    public function __construct(private StateId $id)
+    {
+        $this->instance = $id->toOrchestrationInstance();
+        $this->historicalTaskResults = new HistoricalStateTracker();
+    }
 
-	/**
-	 * This represents the beginning of the orchestration and is the first event
-	 * that is applied to the history. The next phase is to actually run the
-	 * orchestration now that we've set up the history.
-	 *
-	 * @param StartExecution $event
-	 * @return array
-	 */
-	public function applyStartExecution(StartExecution $event, Event $original): \Generator
-	{
-		if ($this->isFinished()) {
-			return;
-		}
+    /**
+     * This represents the beginning of the orchestration and is the first event
+     * that is applied to the history. The next phase is to actually run the
+     * orchestration now that we've set up the history.
+     *
+     * @param StartExecution $event
+     * @return array
+     */
+    public function applyStartExecution(StartExecution $event, Event $original): \Generator
+    {
+        if ($this->isFinished()) {
+            return;
+        }
 
-		Logger::log("Applying StartExecution event to OrchestrationHistory");
-		$this->now = $event->timestamp;
-		$this->name = $event->name;
-		$this->version = $event->version;
-		$this->tags = $event->tags;
-		$this->parentInstance = $event->parentInstance ?? null;
-		$this->history = [];
-		$this->historicalTaskResults = new HistoricalStateTracker();
-		$this->status = new Status($this->now, '', $event->input, $this->id, $this->now, [], RuntimeStatus::Pending);
+        Logger::log("Applying StartExecution event to OrchestrationHistory");
+        $this->now = $event->timestamp;
+        $this->name = $event->name;
+        $this->version = $event->version;
+        $this->tags = $event->tags;
+        $this->parentInstance = $event->parentInstance ?? null;
+        $this->history = [];
+        $this->historicalTaskResults = new HistoricalStateTracker();
+        $this->status = new Status($this->now, '', $event->input, $this->id, $this->now, [], RuntimeStatus::Pending);
 
-		yield StartOrchestration::forInstance($this->instance);
+        yield StartOrchestration::forInstance($this->instance);
 
-		yield from $this->finalize($event);
-	}
+        yield from $this->finalize($event);
+    }
 
-	private function finalize(Event $event): \Generator
-	{
-		$this->addEventToHistory($event);
-		$this->status->with(lastUpdated: MonotonicClock::current()->now());
+    private function finalize(Event $event): \Generator
+    {
+        $this->addEventToHistory($event);
+        $this->status->with(lastUpdated: MonotonicClock::current()->now());
 
-		yield null;
-	}
+        yield null;
+    }
 
-	private function addEventToHistory(Event $event): void
-	{
-		if ($this->debugHistory) {
-			$this->history[$event->eventId] = $event;
-		} else {
-			$this->history[$event->eventId] = true;
-		}
-	}
+    private function addEventToHistory(Event $event): void
+    {
+        if ($this->debugHistory) {
+            $this->history[$event->eventId] = $event;
+        } else {
+            $this->history[$event->eventId] = true;
+        }
+    }
 
-	public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
-	{
-		if ($this->isFinished()) {
-			return;
-		}
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
+    {
+        if ($this->isFinished()) {
+            return;
+        }
 
-		$this->status = $this->status->with(runtimeStatus: RuntimeStatus::Running);
+        $this->status = $this->status->with(runtimeStatus: RuntimeStatus::Running);
 
-		// go ahead and finalize this event to the history and update the status
-		// we won't be updating any more state
-		yield from $this->finalize($event);
-		yield from $this->construct();
-	}
+        // go ahead and finalize this event to the history and update the status
+        // we won't be updating any more state
+        yield from $this->finalize($event);
+        yield from $this->construct();
+    }
 
-	private function construct(): \Generator
-	{
-		$class = new \ReflectionClass($this->instance->instanceId);
+    private function construct(): \Generator
+    {
+        $class = new \ReflectionClass($this->instance->instanceId);
 
-		$this->constructed ??= $class->newInstanceWithoutConstructor();
-		try {
-			$taskScheduler = null;
-			yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
-				$taskScheduler = $task;
-			};
-			$context = new OrchestrationContext($this->instance, $this, $taskScheduler);
-			try {
-				$result = ($this->constructed)($context);
-			} catch (Unwind) {
-				// we don't need to do anything here, we just need to catch it
-				// so that we don't throw an exception
-				return;
-			}
+        $this->constructed ??= $class->newInstanceWithoutConstructor();
+        try {
+            $taskScheduler = null;
+            yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
+                $taskScheduler = $task;
+            };
+            $context = new OrchestrationContext($this->instance, $this, $taskScheduler);
+            try {
+                $result = ($this->constructed)($context);
+            } catch (Unwind) {
+                // we don't need to do anything here, we just need to catch it
+                // so that we don't throw an exception
+                return;
+            }
 
-			$this->status = $this->status->with(
-				runtimeStatus: RuntimeStatus::Completed,
-				output: Serializer::serialize($result),
-			);
-			$completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
-		} catch (\Throwable $e) {
-			$this->status = $this->status->with(
-				runtimeStatus: RuntimeStatus::Failed,
-				output: Serializer::serialize(ExternalException::fromException($e)),
-			);
-			$completion = TaskFailed::forTask(
-				StateId::fromInstance($this->instance),
-				$e->getMessage(),
-				$e->getTraceAsString(),
-				$e::class
-			);
-		}
+            $this->status = $this->status->with(
+                runtimeStatus: RuntimeStatus::Completed,
+                output: Serializer::serialize($result),
+            );
+            $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
+        } catch (\Throwable $e) {
+            $this->status = $this->status->with(
+                runtimeStatus: RuntimeStatus::Failed,
+                output: Serializer::serialize(
+                    ExternalException::fromException($e)
+                ),
+            );
+            $completion = TaskFailed::forTask(
+                StateId::fromInstance($this->instance),
+                $e->getMessage(),
+                $e->getTraceAsString(),
+                $e::class
+            );
+        }
 
-		$completion = WithOrchestration::forInstance(StateId::fromInstance($this->instance), $completion);
+        $completion = WithOrchestration::forInstance(StateId::fromInstance($this->instance), $completion);
 
-		if ($this->parentInstance ?? false) {
-			$completion = AwaitResult::forEvent(StateId::fromInstance($this->parentInstance), $completion);
-		} else {
-			$completion = null;
-		}
+        if ($this->parentInstance ?? false) {
+            $completion = AwaitResult::forEvent(StateId::fromInstance($this->parentInstance), $completion);
+        } else {
+            $completion = null;
+        }
 
-		yield $completion;
-	}
+        yield $completion;
+    }
 
-	public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
-	{
-		if ($this->isFinished()) {
-			return;
-		}
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+    {
+        if ($this->isFinished()) {
+            return;
+        }
 
-		yield from $this->finalize($event);
+        yield from $this->finalize($event);
 
-		$this->historicalTaskResults->receivedEvent($event);
+        $this->historicalTaskResults->receivedEvent($event);
 
-		yield from $this->construct();
-	}
+        yield from $this->construct();
+    }
 
-	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
-	{
-		if ($this->isFinished()) {
-			return;
-		}
+    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+    {
+        if ($this->isFinished()) {
+            return;
+        }
 
-		yield from $this->finalize($event);
+        yield from $this->finalize($event);
 
-		$this->historicalTaskResults->receivedEvent($event);
+        $this->historicalTaskResults->receivedEvent($event);
 
-		yield from $this->construct();
-	}
+        yield from $this->construct();
+    }
 
-	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
-	{
-		yield from $this->finalize($event);
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
+    {
+        yield from $this->finalize($event);
 
-		$this->historicalTaskResults->receivedEvent($event);
+        $this->historicalTaskResults->receivedEvent($event);
 
-		if ($this->isRunning()) {
-			yield from $this->construct();
-		}
-	}
+        if ($this->isRunning()) {
+            yield from $this->construct();
+        }
+    }
 
-	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
-	{
-		if ($this->isFinished()) {
-			return;
-		}
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
+    {
+        if ($this->isFinished()) {
+            return;
+        }
 
-		$this->status = $this->status->with(runtimeStatus: RuntimeStatus::Terminated);
+        $this->status = $this->status->with(runtimeStatus: RuntimeStatus::Terminated);
 
-		yield from $this->finalize($event);
-	}
+        yield from $this->finalize($event);
+    }
 
-	public function hasAppliedEvent(Event $event): bool
-	{
-		return array_key_exists($event->eventId, $this->history);
-	}
+    public function hasAppliedEvent(Event $event): bool
+    {
+        return array_key_exists($event->eventId, $this->history);
+    }
 
-	public function resetState(): void
-	{
-		$this->historicalTaskResults->resetState();
-	}
+    public function resetState(): void
+    {
+        $this->historicalTaskResults->resetState();
+    }
 
-	public function ackedEvent(Event $event): void
-	{
-		unset($this->history[$event->eventId]);
-	}
+    public function ackedEvent(Event $event): void
+    {
+        unset($this->history[$event->eventId]);
+    }
+
+    public function onComplete(Source $source): void
+    {
+        foreach ($this->locks as $entity => $time) {
+            $howLong = time() - $time;
+            Logger::log("Releasing lock on $entity after $howLong seconds");
+            $entityId = StateId::fromString($entity);
+            $source->storeEvent(WithEntity::forInstance($entityId, RaiseEvent::forUnlock($this->id)));
+        }
+    }
 }

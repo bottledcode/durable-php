@@ -22,36 +22,19 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\Events;
 
-use Amp\Future;
+use Bottledcode\DurablePhp\State\Ids\StateId;
+use LogicException;
 
-/**
- * @template T
- */
-class DurableFuture
+abstract class With
 {
-    /**
-     * @param Future<T> $future
-     */
-    public function __construct(public readonly Future $future)
+    public static function id(StateId $id, Event $innerEvent): WithEntity|WithOrchestration
     {
-    }
-
-    /**
-     * @return T
-     */
-    public function getResult(): mixed
-    {
-        if ($this->future->isComplete()) {
-            return $this->future->await();
-        }
-
-        throw new \LogicException('Future is not complete');
-    }
-
-    public function hasResult(): bool
-    {
-        return $this->future->isComplete();
+        return match (true) {
+            $id->isOrchestrationId() => WithOrchestration::forInstance($id, $innerEvent),
+            $id->isEntityId() => WithEntity::forInstance($id, $innerEvent),
+            $id->isActivityId() => throw new LogicException('ActivityId is not supported'),
+        };
     }
 }

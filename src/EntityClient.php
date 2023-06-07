@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -34,36 +35,37 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class EntityClient implements EntityClientInterface
 {
-	use PartitionCalculator;
+    use PartitionCalculator;
 
-	public function __construct(private Config $config, private Source $source)
-	{
-	}
 
-	public function cleanEntityStorage(): void
-	{
-		throw new \Exception('Not implemented');
-	}
+    public function __construct(private Config $config, private Source $source)
+    {
+    }
 
-	public function listEntities(): \Generator
-	{
-		throw new \Exception('Not implemented');
-	}
+    public function cleanEntityStorage(): void
+    {
+        throw new \Exception('Not implemented');
+    }
 
-	public function signalEntity(
-		EntityId $entityId,
-		string $operationName,
-		array $input = [],
-		\DateTimeImmutable $scheduledTime = null
-	): void {
-		$event = WithEntity::forInstance(
-			StateId::fromEntityId($entityId),
-			RaiseEvent::forOperation($operationName, $input)
-		);
-		if ($scheduledTime !== null) {
-			WithDelay::forEvent($scheduledTime, $event);
-		}
+    public function listEntities(): \Generator
+    {
+        throw new \Exception('Not implemented');
+    }
 
-		$this->source->storeEvent($event);
-	}
+    public function signalEntity(
+        EntityId $entityId,
+        string $operationName,
+        array $input = [],
+        \DateTimeImmutable $scheduledTime = null
+    ): void {
+        $event = WithEntity::forInstance(
+            StateId::fromEntityId($entityId),
+            RaiseEvent::forOperation($operationName, $input)
+        );
+        if ($scheduledTime !== null) {
+            WithDelay::forEvent($scheduledTime, $event);
+        }
+
+        $this->source->storeEvent($event);
+    }
 }

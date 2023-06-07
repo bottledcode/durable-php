@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,33 +26,33 @@ namespace Bottledcode\DurablePhp\Events;
 
 class RaiseEvent extends Event
 {
-	public function __construct(string $eventId, public string $eventName, public array $eventData)
-	{
-		parent::__construct($eventId);
-	}
+    public function __construct(string $eventId, public string $eventName, public array $eventData)
+    {
+        parent::__construct($eventId);
+    }
 
-	public static function forOperation(string $operation, array $input): static
-	{
-		return new static('', '__signal', ['input' => $input, 'operation' => $operation]);
-	}
+    public static function forOperation(string $operation, array $input): static
+    {
+        return new static('', '__signal', ['input' => $input, 'operation' => $operation]);
+    }
 
-	public static function forLock(string $name): static
-	{
-		return new static('', '__lock', ['name' => $name]);
-	}
+    public static function forLock(string $name, ?string $owner, ?string $target): static
+    {
+        return new static('', '__lock', ['name' => $name, 'owner' => $owner, 'target' => $target]);
+    }
 
-	public static function forUnlock(string $name): static
-	{
-		return new static('', '__unlock', ['name' => $name]);
-	}
+    public static function forUnlock(string $name, ?string $owner, ?string $target): static
+    {
+        return new static('', '__unlock', ['name' => $name, 'owner' => $owner, 'target' => $target]);
+    }
 
-	public static function forTimer(string $identity): static
-	{
-		return new static('', $identity, []);
-	}
+    public static function forTimer(string $identity): static
+    {
+        return new static('', $identity, []);
+    }
 
-	public function __toString(): string
-	{
-		return sprintf('RaiseEvent(%s, %s, %s)', $this->eventId, $this->eventName, json_encode($this->eventData));
-	}
+    public function __toString(): string
+    {
+        return sprintf('RaiseEvent(%s, %s, %s)', $this->eventId, $this->eventName, json_encode($this->eventData));
+    }
 }

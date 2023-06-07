@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,30 +28,33 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class WithEntity extends Event implements HasInnerEventInterface, StateTargetInterface
 {
-	public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
-	{
-		parent::__construct($eventId);
-	}
+    public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
+    {
+        parent::__construct($eventId);
+    }
 
-	public static function forInstance(StateId $target, Event $innerEvent): static
-	{
-		return new static(
-			$innerEvent->eventId, $target, $innerEvent
-		);
-	}
+    public static function forInstance(StateId $target, Event $innerEvent): static
+    {
+        return new static(
+            $innerEvent->eventId,
+            $target,
+            $innerEvent
+        );
+    }
 
-	public function getInnerEvent(): Event
-	{
-		return $this->innerEvent;
-	}
+    public function getInnerEvent(): Event
+    {
+        $this->innerEvent->eventId = $this->eventId;
+        return $this->innerEvent;
+    }
 
-	public function getTarget(): StateId
-	{
-		return $this->target;
-	}
+    public function getTarget(): StateId
+    {
+        return $this->target;
+    }
 
-	public function __toString(): string
-	{
-		return sprintf('WithEntity(%s, %s)', $this->target, $this->innerEvent);
-	}
+    public function __toString(): string
+    {
+        return sprintf('WithEntity(%s, %s)', $this->target, $this->innerEvent);
+    }
 }

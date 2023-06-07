@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -29,18 +30,18 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 #[ClassNameTypeMap(key: 'eventType')]
 abstract class Event implements \Stringable
 {
-	public bool $isPlayed;
+    public bool $isPlayed;
 
-	public \DateTimeImmutable $timestamp;
+    public \DateTimeImmutable $timestamp;
 
-	public function __construct(public string $eventId)
-	{
-		$this->isPlayed = false;
-		$this->timestamp = MonotonicClock::current()->now();
-	}
+    public function __construct(public string $eventId)
+    {
+        $this->isPlayed = false;
+        $this->timestamp = MonotonicClock::current()->now();
+    }
 
-	public function eventType(): string
-	{
-		return static::class;
-	}
+    public function eventType(): string
+    {
+        return static::class;
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -45,99 +46,99 @@ use function Amp\async;
 
 final class OrchestrationClient implements OrchestrationClientInterface
 {
-	use PartitionCalculator;
+    use PartitionCalculator;
 
-	public function __construct(private readonly Config $config, private readonly Source $source)
-	{
-	}
+    public function __construct(private readonly Config $config, private readonly Source $source)
+    {
+    }
 
-	public function purge(OrchestrationInstance $instance): void
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function purge(OrchestrationInstance $instance): void
+    {
+        throw new LogicException('Not implemented');
+    }
 
-	public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
-	{
-		$this->postEvent(
-			WithOrchestration::forInstance(StateId::fromInstance($instance), new RaiseEvent('', $eventName, $eventData))
-		);
-	}
+    public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
+    {
+        $this->postEvent(
+            WithOrchestration::forInstance(StateId::fromInstance($instance), new RaiseEvent('', $eventName, $eventData))
+        );
+    }
 
-	private function postEvent(Event $event): string
-	{
-		return $this->source->storeEvent($event, false);
-	}
+    private function postEvent(Event $event): string
+    {
+        return $this->source->storeEvent($event, false);
+    }
 
-	public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance
-	{
-		$instance = $this->getInstanceFor($name);
-		if ($id) {
-			$instance = new OrchestrationInstance($instance->instanceId, $id);
-		}
+    public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance
+    {
+        $instance = $this->getInstanceFor($name);
+        if ($id) {
+            $instance = new OrchestrationInstance($instance->instanceId, $id);
+        }
 
-		$event = WithOrchestration::forInstance(
-			StateId::fromInstance($instance),
-			new StartExecution(null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, '')
-		);
-		$this->postEvent($event);
-		return $instance;
-	}
+        $event = WithOrchestration::forInstance(
+            StateId::fromInstance($instance),
+            new StartExecution(null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, '')
+        );
+        $this->postEvent($event);
+        return $instance;
+    }
 
-	private function getInstanceFor(string $name): OrchestrationInstance
-	{
-		return new OrchestrationInstance($name, Uuid::uuid7()->toString());
-	}
+    private function getInstanceFor(string $name): OrchestrationInstance
+    {
+        return new OrchestrationInstance($name, Uuid::uuid7()->toString());
+    }
 
-	public function terminate(OrchestrationInstance $instance, string $reason): void
-	{
-		$this->postEvent(
-			WithOrchestration::forInstance(StateId::fromInstance($instance), new ExecutionTerminated('', $reason))
-		);
-	}
+    public function terminate(OrchestrationInstance $instance, string $reason): void
+    {
+        $this->postEvent(
+            WithOrchestration::forInstance(StateId::fromInstance($instance), new ExecutionTerminated('', $reason))
+        );
+    }
 
-	public function waitForCompletion(OrchestrationInstance $instance, Cancellation $timeout = null): void
-	{
-		async(function () use ($instance) {
-			$this->source->watch(
-				StateId::fromInstance($instance),
-				RuntimeStatus::Completed,
-				RuntimeStatus::Canceled,
-				RuntimeStatus::Failed,
-				RuntimeStatus::Terminated,
-			);
-		})->await($timeout ?? new NullCancellation());
-	}
+    public function waitForCompletion(OrchestrationInstance $instance, Cancellation $timeout = null): void
+    {
+        async(function () use ($instance) {
+            $this->source->watch(
+                StateId::fromInstance($instance),
+                RuntimeStatus::Completed,
+                RuntimeStatus::Canceled,
+                RuntimeStatus::Failed,
+                RuntimeStatus::Terminated,
+            );
+        })->await($timeout ?? new NullCancellation());
+    }
 
-	public function getStatus(OrchestrationInstance $instance): Status
-	{
-		return $this->source->get(StateId::fromInstance($instance), OrchestrationHistory::class)->status ?? new Status(
-			new \DateTimeImmutable(),
-			'',
-			[],
-			StateId::fromInstance($instance),
-			new \DateTimeImmutable(),
-			null,
-			RuntimeStatus::Unknown
-		);
-	}
+    public function getStatus(OrchestrationInstance $instance): Status
+    {
+        return $this->source->get(StateId::fromInstance($instance), OrchestrationHistory::class)->status ?? new Status(
+            new \DateTimeImmutable(),
+            '',
+            [],
+            StateId::fromInstance($instance),
+            new \DateTimeImmutable(),
+            null,
+            RuntimeStatus::Unknown
+        );
+    }
 
-	public function listInstances(): \Generator
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function listInstances(): \Generator
+    {
+        throw new LogicException('Not implemented');
+    }
 
-	public function restart(OrchestrationInstance $instance): void
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function restart(OrchestrationInstance $instance): void
+    {
+        throw new LogicException('Not implemented');
+    }
 
-	public function resume(OrchestrationInstance $instance, string $reason): void
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function resume(OrchestrationInstance $instance, string $reason): void
+    {
+        throw new LogicException('Not implemented');
+    }
 
-	public function suspend(OrchestrationInstance $instance, string $reason): void
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function suspend(OrchestrationInstance $instance, string $reason): void
+    {
+        throw new LogicException('Not implemented');
+    }
 }

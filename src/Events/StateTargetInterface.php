@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -30,5 +31,5 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
  */
 interface StateTargetInterface
 {
-	public function getTarget(): StateId;
+    public function getTarget(): StateId;
 }

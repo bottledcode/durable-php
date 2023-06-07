@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,5 +26,5 @@ namespace Bottledcode\DurablePhp\Events;
 
 interface HasInnerEventInterface
 {
-	public function getInnerEvent(): Event;
+    public function getInnerEvent(): Event;
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,12 +26,12 @@ namespace Bottledcode\DurablePhp\Config;
 
 readonly class RethinkDbConfig
 {
-	public function __construct(
-		public string $host = 'localhost',
-		public int $port = 28015,
-		public string|null $username = null,
-		public string|null $password = null,
-		public string $database = 'durablephp',
-	) {
-	}
+    public function __construct(
+        public string $host = 'localhost',
+        public int $port = 28015,
+        public string|null $username = null,
+        public string|null $password = null,
+        public string $database = 'durablephp',
+    ) {
+    }
 }

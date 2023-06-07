@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -36,19 +37,19 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 
 interface ApplyStateInterface
 {
-	public function applyAwaitResult(AwaitResult $event, Event $original): \Generator;
+    public function applyAwaitResult(AwaitResult $event, Event $original): \Generator;
 
-	public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator;
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator;
 
-	public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator;
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator;
 
-	public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator;
+    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator;
 
-	public function applyStartExecution(StartExecution $event, Event $original): \Generator;
+    public function applyStartExecution(StartExecution $event, Event $original): \Generator;
 
-	public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator;
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator;
 
-	public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator;
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator;
 
-	public function applyTaskFailed(TaskFailed $event, Event $original): \Generator;
+    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator;
 }

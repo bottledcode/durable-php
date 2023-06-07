@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,8 +28,8 @@ use Bottledcode\DurablePhp\Events\Event;
 
 class FireEvent extends \DomainException
 {
-	public function __construct(public Event $event)
-	{
-		parent::__construct('An event was fired unexpectedly.');
-	}
+    public function __construct(public Event $event)
+    {
+        parent::__construct('An event was fired unexpectedly.');
+    }
 }

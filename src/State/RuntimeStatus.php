@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,48 +26,48 @@ namespace Bottledcode\DurablePhp\State;
 
 enum RuntimeStatus
 {
-	/**
-	 * The orchestration is running (it may be actively running or waiting for input).
-	 */
-	case Running;
+    /**
+     * The orchestration is running (it may be actively running or waiting for input).
+     */
+    case Running;
 
-	/**
-	 * The orchestration ran to completion.
-	 */
-	case Completed;
+    /**
+     * The orchestration ran to completion.
+     */
+    case Completed;
 
-	/**
-	 * The orchestration completed with ContinueAsNew as is in the process of restarting.
-	 */
-	case ContinuedAsNew;
+    /**
+     * The orchestration completed with ContinueAsNew as is in the process of restarting.
+     */
+    case ContinuedAsNew;
 
-	/**
-	 * The orchestration failed with an error.
-	 */
-	case Failed;
+    /**
+     * The orchestration failed with an error.
+     */
+    case Failed;
 
-	/**
-	 * The orchestration was canceled.
-	 */
-	case Canceled;
+    /**
+     * The orchestration was canceled.
+     */
+    case Canceled;
 
-	/**
-	 * The orchestration was terminated via an API call.
-	 */
-	case Terminated;
+    /**
+     * The orchestration was terminated via an API call.
+     */
+    case Terminated;
 
-	/**
-	 * The orchestration was scheduled but has not yet started.
-	 */
-	case Pending;
+    /**
+     * The orchestration was scheduled but has not yet started.
+     */
+    case Pending;
 
-	/**
-	 * The orchestration was suspended
-	 */
-	case Suspended;
+    /**
+     * The orchestration was suspended
+     */
+    case Suspended;
 
-	/**
-	 * The status of the orchestration could not be determined.
-	 */
-	case Unknown;
+    /**
+     * The status of the orchestration could not be determined.
+     */
+    case Unknown;
 }
