@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,17 +26,17 @@ namespace Bottledcode\DurablePhp\Exceptions;
 
 readonly class ExternalException
 {
-	public function __construct(
-		public string $message,
-		public string $trace,
-		public string $type,
-		public string $file,
-		public string $line,
-	) {
-	}
+    public function __construct(
+        public string $message,
+        public string $trace,
+        public string $type,
+        public string $file,
+        public string $line,
+    ) {
+    }
 
-	public static function fromException(\Throwable $e): self
-	{
-		return new self($e->getMessage(), $e->getTraceAsString(), $e::class, $e->getFile(), $e->getLine());
-	}
+    public static function fromException(\Throwable $e): self
+    {
+        return new self($e->getMessage(), $e->getTraceAsString(), $e::class, $e->getFile(), $e->getLine());
+    }
 }

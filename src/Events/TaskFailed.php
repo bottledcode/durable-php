@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,27 +26,27 @@ namespace Bottledcode\DurablePhp\Events;
 
 class TaskFailed extends Event
 {
-	public function __construct(
-		public string $eventId,
-		public string $scheduledId,
-		public string|null $reason,
-		public string|null $details = null,
-		public string|null $previous = null,
-	) {
-		parent::__construct($eventId);
-	}
+    public function __construct(
+        public string $eventId,
+        public string $scheduledId,
+        public string|null $reason,
+        public string|null $details = null,
+        public string|null $previous = null,
+    ) {
+        parent::__construct($eventId);
+    }
 
-	public static function forTask(
-		string $scheduledId,
-		string $reason,
-		string $details = null,
-		string $previous = null
-	): self {
-		return new self('', $scheduledId, $reason, $details, $previous);
-	}
+    public static function forTask(
+        string $scheduledId,
+        string $reason,
+        string $details = null,
+        string $previous = null
+    ): self {
+        return new self('', $scheduledId, $reason, $details, $previous);
+    }
 
-	public function __toString(): string
-	{
-		return sprintf('TaskFailed(%s, %s, %s)', $this->scheduledId, $this->reason, $this->details);
-	}
+    public function __toString(): string
+    {
+        return sprintf('TaskFailed(%s, %s, %s)', $this->scheduledId, $this->reason, $this->details);
+    }
 }

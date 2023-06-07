@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -23,16 +24,15 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 
 interface StateInterface
 {
-	public function __construct(StateId $id);
-
-	public function hasAppliedEvent(Event $event): bool;
-
-	public function resetState(): void;
-
-	public function ackedEvent(Event $event): void;
+    public function __construct(StateId $id);
+    public function hasAppliedEvent(Event $event): bool;
+    public function resetState(): void;
+    public function ackedEvent(Event $event): void;
+    public function onComplete(Source $source): void;
 }

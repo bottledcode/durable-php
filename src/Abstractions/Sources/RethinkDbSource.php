@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,6 +26,8 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\With;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
@@ -33,162 +36,261 @@ use Exception;
 use Generator;
 use r\Connection;
 use r\ConnectionOptions;
+use r\Exceptions\RqlDriverError;
 use r\Options\ChangesOptions;
 use r\Options\Durability;
 use r\Options\RunOptions;
 use r\Options\TableInsertOptions;
+use r\Options\UpdateOptions;
+use r\ValuedQuery\RVar;
 use Withinboredom\Time\Seconds;
 
+use function r\branch;
 use function r\connectAsync;
 use function r\dbCreate;
+use function r\row;
 use function r\table;
 use function r\tableCreate;
 use function r\uuid;
 
+/**
+ * Configures a rethinkdb source
+ */
 class RethinkDbSource implements Source
 {
-	use PartitionCalculator;
+    use PartitionCalculator;
 
-	private function __construct(
-		private readonly Connection $connection,
-		private readonly Config $config,
-		private readonly string $partitionTable,
-		private readonly string $stateTable
-	) {
-	}
 
-	public static function connect(Config $config): static
-	{
-		$conn = connectAsync(
-			new ConnectionOptions(
-				$config->storageConfig->host,
-				$config->storageConfig->port,
-				$config->storageConfig->database,
-				$config->storageConfig->username ?? 'admin',
-				$config->storageConfig->password ?? ''
-			)
-		);
+    private function __construct(
+        private readonly Connection $connection,
+        private readonly Config $config,
+        private readonly string $partitionTable,
+        private readonly string $stateTable
+    ) {
+    }
 
-		try {
-			try {
-				dbCreate($config->storageConfig->database)->run($conn);
-			} catch (Exception) {
-				// database already exists
-			}
-			tableCreate('partition_' . $config->currentPartition)->run($conn);
-			table('partition_' . $config->currentPartition)->indexCreate('timestamp')->run($conn);
-			tableCreate('state')->run($conn);
-		} catch (Exception) {
-			// table already exists
-		}
 
-		return new self($conn, $config, 'partition_' . $config->currentPartition, 'state');
-	}
+    public static function connect(Config $config): static
+    {
+        $conn = connectAsync(
+            new ConnectionOptions(
+                $config->storageConfig->host,
+                $config->storageConfig->port,
+                $config->storageConfig->database,
+                ($config->storageConfig->username ?? 'admin'),
+                ($config->storageConfig->password ?? '')
+            )
+        );
 
-	public function getPastEvents(): Generator
-	{
-		yield;
-	}
+        try {
+            try {
+                dbCreate($config->storageConfig->database)->run($conn);
+            } catch (Exception) {
+                // database already exists
+            }
 
-	public function receiveEvents(): Generator
-	{
-		$events = table($this->partitionTable)->changes(
-			new ChangesOptions(
-				squash: true, include_initial: true, include_types: true
-			)
-		)->run($this->connection);
+            tableCreate('partition_' . $config->currentPartition)->run($conn);
+            tableCreate('state')->run($conn);
+            tableCreate('locks')->run($conn);
+            table('locks')->indexCreate('lock', [row('owner'), row('target')])->run($conn);
+            table('locks')->indexWait('lock')->run($conn);
+        } catch (Exception) {
+            // table already exists
+        }
 
-		foreach ($events as $event) {
-			if ($event['type'] === 'remove') {
-				continue;
-			}
+        return new self($conn, $config, 'partition_' . $config->currentPartition, 'state');
+    }
 
-			if (empty($event['new_val'])) {
-				continue;
-			}
 
-			/**
-			 * @var Event $actualEvent
-			 */
-			$actualEvent = Serializer::deserialize($event['new_val']['event'], $event['new_val']['type']);
-			$actualEvent->eventId = $event['new_val']['id'];
-			yield $actualEvent;
-		}
-	}
+    public function getPastEvents(): Generator
+    {
+        yield;
+    }
 
-	/**
-	 * @template T
-	 * @param string $key
-	 * @param class-string<T> $class
-	 * @return T|null
-	 * @throws \r\Exceptions\RqlDriverError
-	 */
-	public function get(string $key, string $class): mixed
-	{
-		$result = table($this->stateTable)->get($key)->run($this->connection);
 
-		if ($result) {
-			return Serializer::deserialize($result['data'], $result['type']);
-		}
+    public function receiveEvents(): Generator
+    {
+        $events = table($this->partitionTable)->changes(
+            new ChangesOptions(
+                squash: true,
+                include_initial: true,
+                include_types: true
+            )
+        )->run($this->connection);
 
-		return null;
-	}
+        foreach ($events as $event) {
+            if ($event['type'] === 'remove') {
+                continue;
+            }
 
-	public function cleanHouse(): void
-	{
-		// no-op
-	}
+            if (empty($event['new_val'])) {
+                continue;
+            }
 
-	public function storeEvent(Event $event, bool $local): string
-	{
-		$partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
-		$results = table($partition)->insert(
-			['event' => Serializer::serialize($event), 'id' => uuid(), 'type' => $event::class],
-			new TableInsertOptions(return_changes: true)
-		)->run($this->connection);
-		return $results['changes'][0]['new_val']['id'];
-	}
+            /*
+             * @var Event $actualEvent
+             */
+            $actualEvent = Serializer::deserialize($event['new_val']['event'], $event['new_val']['type']);
+            $actualEvent->eventId = $event['new_val']['id'];
+            yield $actualEvent;
+        }
+    }
 
-	public function put(string $key, mixed $data, ?Seconds $ttl = null, ?string $etag = null): void
-	{
-		table($this->stateTable)->insert(
-			[
-				'id' => $key,
-				'data' => Serializer::serialize($data),
-				'etag' => $etag,
-				'ttl' => $ttl?->inSeconds(),
-				'type' => $data::class,
-			],
-			new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
-		)->run($this->connection, new RunOptions());
-	}
 
-	public function ack(Event $event): void
-	{
-		table($this->partitionTable)->get($event->eventId)->delete()->run(
-			$this->connection,
-			new RunOptions(noreply: true)
-		);
-	}
+    public function cleanHouse(): void
+    {
+    }
 
-	public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null
-	{
-		$cursor = table($this->stateTable)->get((string)$stateId)->changes(
-			new ChangesOptions(include_initial: true)
-		)->run(
-			$this->connection
-		);
-		foreach ($cursor as $results) {
-			$rawStatus = $results['new_val']['data']['status'] ?? null;
-			if ($rawStatus === null) {
-				continue;
-			}
-			$status = Serializer::deserialize($rawStatus, Status::class);
-			if (in_array($status->runtimeStatus, $expected, true)) {
-				return $status;
-			}
-		}
 
-		return null;
-	}
+    public function put(string $key, mixed $data, ?Seconds $ttl = null, ?string $etag = null): void
+    {
+        table($this->stateTable)->insert(
+            [
+                'id' => $key, 'data' => Serializer::serialize($data), 'etag' => $etag, 'ttl' => $ttl?->inSeconds(),
+                'type' => $data::class,
+            ],
+            new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
+        )->run($this->connection, new RunOptions());
+    }
+
+
+    public function ack(Event $event): void
+    {
+        table($this->partitionTable)->get($event->eventId)->delete()->run(
+            $this->connection,
+            new RunOptions(noreply: true)
+        );
+    }
+
+
+    /**
+     * @template T
+     * @param string $key
+     * @param class-string<T> $class
+     * @return   T|null
+     * @throws   RqlDriverError
+     */
+    public function get(string $key, string $class): mixed
+    {
+        $result = table($this->stateTable)->get($key)->run($this->connection);
+
+        if ($result) {
+            return Serializer::deserialize($result['data'], $result['type']);
+        }
+
+        return null;
+    }
+
+
+    public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null
+    {
+        $cursor = table($this->stateTable)->get((string)$stateId)->changes(
+            new ChangesOptions(include_initial: true)
+        )->run(
+            $this->connection
+        );
+        foreach ($cursor as $results) {
+            $rawStatus = $results['new_val']['data']['status'] ?? null;
+            if ($rawStatus === null) {
+                continue;
+            }
+
+            $status = Serializer::deserialize($rawStatus, Status::class);
+            if (in_array($status->runtimeStatus, $expected, true)) {
+                return $status;
+            }
+        }
+
+        return null;
+    }
+
+
+    public function lock(StateId $owner, StateId ...$target): Lock
+    {
+        $ids = [];
+        $lockName = $owner->id . '_' . implode('_', array_map(fn(StateId $id) => $id->id, $target));
+        foreach ($target as $targetId) {
+            $datum = [
+                'owner' => $owner->id, 'target' => $targetId->id, 'id' => uuid($targetId->id), 'waiting' => [],
+            ];
+            $results = table('locks')->insert(
+                $datum,
+                new TableInsertOptions(
+                    durability: Durability::Hard,
+                    return_changes: true,
+                    conflict: fn(
+                        $id, RVar $oldDoc, RVar $newDoc
+                    ) => branch(
+                        $oldDoc('owner')->eq(null),
+                        $newDoc,
+                        $oldDoc->merge(['waiting' => $oldDoc('waiting')->append($newDoc('owner'))])
+                    )
+                )
+            )->run(
+                $this->connection
+            );
+            $success = $results['inserted'] === 1 || $results['changes'][0]['new_val']['owner'] === $owner->id;
+            if ($success) {
+                $ids[] = $datum;
+            }
+        }//end foreach
+
+        // notify participants that the lock has been acquired
+        foreach ($ids as $datum) {
+            $this->storeEvent(
+                With::id($owner, RaiseEvent::forLock($lockName, $datum['owner'], $datum['target'])),
+                true
+            );
+            $this->storeEvent(
+                With::id($datum['target'], RaiseEvent::forLock($lockName, $datum['owner'], $datum['target'])),
+                true
+            );
+        }
+
+        return new Lock(
+            function () use ($owner, $target) {
+                $this->unlock($owner, ...$target);
+            }
+        );
+    }
+
+
+    public function storeEvent(Event $event, bool $local): string
+    {
+        $partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
+        $results = table($partition)->insert(
+            [
+                'event' => Serializer::serialize($event), 'id' => uuid(), 'type' => $event::class,
+            ],
+            new TableInsertOptions(return_changes: true)
+        )->run($this->connection);
+        return $results['changes'][0]['new_val']['id'];
+    }
+
+
+    public function unlock(?StateId $owner, StateId ...$target): void
+    {
+        foreach ($target as $targetId) {
+            table('locks')->get(uuid($targetId->id))->update(
+                fn(RVar $doc) => branch(
+                    $doc('waiting')->count()->gt(0),
+                    [
+                        'waiting' => $doc('waiting')->skip(1), 'owner' => $doc('waiting')(0),
+                    ],
+                    ['owner' => null]
+                ),
+                new UpdateOptions(durability: Durability::Hard, return_changes: true)
+            )->run($this->connection);
+        }
+    }
+
+
+    public function isLocked(?StateId $owner, StateId $target): bool
+    {
+        $currentLock = table('locks')->get(uuid($target->id))->run($this->connection);
+        if ($currentLock === null || $currentLock['owner'] === null) {
+            return false;
+        }
+        return $owner === null || $currentLock['owner'] !== $owner->id;
+    }
 }

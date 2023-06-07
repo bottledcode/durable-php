@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,29 +28,29 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterface
 {
-	public function __construct(string $eventId, public StateId $origin, public Event $innerEvent)
-	{
-		parent::__construct($eventId);
-	}
+    public function __construct(string $eventId, public StateId $origin, public Event $innerEvent)
+    {
+        parent::__construct($eventId);
+    }
 
-	public static function forEvent(StateId $replyTo, Event $innerEvent): Event
-	{
-		return new AwaitResult('', $replyTo, $innerEvent);
-	}
+    public static function forEvent(StateId $replyTo, Event $innerEvent): Event
+    {
+        return new AwaitResult('', $replyTo, $innerEvent);
+    }
 
-	public function getInnerEvent(): Event
-	{
-		$this->innerEvent->eventId = $this->eventId;
-		return $this->innerEvent;
-	}
+    public function getInnerEvent(): Event
+    {
+        $this->innerEvent->eventId = $this->eventId;
+        return $this->innerEvent;
+    }
 
-	public function getReplyTo(): StateId
-	{
-		return $this->origin;
-	}
+    public function getReplyTo(): StateId
+    {
+        return $this->origin;
+    }
 
-	public function __toString(): string
-	{
-		return sprintf('AwaitResult(%s, %s)', $this->innerEvent, $this->origin);
-	}
+    public function __toString(): string
+    {
+        return sprintf('AwaitResult(%s, %s)', $this->innerEvent, $this->origin);
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,26 +26,28 @@ namespace Bottledcode\DurablePhp\Events;
 
 class WithDelay extends Event implements HasInnerEventInterface
 {
-	public function __construct(string $eventId, public \DateTimeImmutable $fireAt, public Event $innerEvent)
-	{
-		parent::__construct($eventId);
-	}
+    public function __construct(string $eventId, public \DateTimeImmutable $fireAt, public Event $innerEvent)
+    {
+        parent::__construct($eventId);
+    }
 
-	public static function forEvent(\DateTimeImmutable $fireAt, Event $innerEvent): static
-	{
-		return new static(
-			$innerEvent->eventId, $fireAt, $innerEvent
-		);
-	}
+    public static function forEvent(\DateTimeImmutable $fireAt, Event $innerEvent): static
+    {
+        return new static(
+            $innerEvent->eventId,
+            $fireAt,
+            $innerEvent
+        );
+    }
 
-	public function getInnerEvent(): Event
-	{
-		$this->innerEvent->eventId = $this->eventId;
-		return $this->innerEvent;
-	}
+    public function getInnerEvent(): Event
+    {
+        $this->innerEvent->eventId = $this->eventId;
+        return $this->innerEvent;
+    }
 
-	public function __toString(): string
-	{
-		return sprintf("WithDelay(%s, %s)", $this->fireAt->format('Y-m-d H:i:s'), $this->innerEvent);
-	}
+    public function __toString(): string
+    {
+        return sprintf("WithDelay(%s, %s)", $this->fireAt->format('Y-m-d H:i:s'), $this->innerEvent);
+    }
 }

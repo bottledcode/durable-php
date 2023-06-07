@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -28,74 +29,74 @@ use ReflectionClass;
 
 readonly class Config
 {
-	public function __construct(
-		public int $currentPartition,
-		public RedisConfig|RethinkDbConfig $storageConfig,
-		public int $totalPartitions = 10,
-		public int $totalWorkers = 10,
-		public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
-		public string $partitionKeyPrefix = 'partition_',
-		public int $workerTimeoutSeconds = 600,
-		public int $workerGracePeriodSeconds = 60,
-	) {
-	}
+    public function __construct(
+        public int $currentPartition,
+        public RedisConfig|RethinkDbConfig $storageConfig,
+        public int $totalPartitions = 10,
+        public int $totalWorkers = 10,
+        public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
+        public string $partitionKeyPrefix = 'partition_',
+        public int $workerTimeoutSeconds = 600,
+        public int $workerGracePeriodSeconds = 60,
+    ) {
+    }
 
-	public static function fromArgs(array $args): self
-	{
-		$arr = [];
-		for ($i = 1, $iMax = count($args); $i < $iMax; $i += 2) {
-			$key = $args[$i];
-			$value = $args[$i + 1] ?? throw new InvalidArgumentException(
-				'Missing value for argument ' . $key
-			);
-			$key = str_replace('--', '', $key);
-			$key = explode('-', $key);
-			$key = array_map(ucfirst(...), $key);
-			$key = lcfirst(implode('', $key));
-			$arr[$key] = $value;
-		}
+    public static function fromArgs(array $args): self
+    {
+        $arr = [];
+        for ($i = 1, $iMax = count($args); $i < $iMax; $i += 2) {
+            $key = $args[$i];
+            $value = $args[$i + 1] ?? throw new InvalidArgumentException(
+                'Missing value for argument ' . $key
+            );
+            $key = str_replace('--', '', $key);
+            $key = explode('-', $key);
+            $key = array_map(ucfirst(...), $key);
+            $key = lcfirst(implode('', $key));
+            $arr[$key] = $value;
+        }
 
-		$db = $arr['db'] ?? null;
-		unset($arr['db']);
+        $db = $arr['db'] ?? null;
+        unset($arr['db']);
 
-		$allowedKeys = self::getAllowedKeys(
-			match ($db) {
-				'redis' => RedisConfig::class,
-				'rethinkdb' => RethinkDbConfig::class,
-				default => throw new InvalidArgumentException(
-					'Missing value for argument db (rethinkdb or redis)'
-				)
-			}
-		);
+        $allowedKeys = self::getAllowedKeys(
+            match ($db) {
+                'redis' => RedisConfig::class,
+                'rethinkdb' => RethinkDbConfig::class,
+                default => throw new InvalidArgumentException(
+                    'Missing value for argument db (rethinkdb or redis)'
+                )
+            }
+        );
 
-		$sub = [];
-		foreach ($allowedKeys as $key) {
-			$val = $arr[$key] ?? null;
-			if ($val !== null) {
-				$sub[$key] = $val;
-			}
-			unset($arr[$key]);
-		}
-		$arr['storageConfig'] = match ($db) {
-			'redis' => new RedisConfig(...$sub),
-			'rethinkdb' => new RethinkDbConfig(...$sub),
-			default => throw new InvalidArgumentException(
-				'Missing value for argument db (rethinkdb or redis)'
-			)
-		};
+        $sub = [];
+        foreach ($allowedKeys as $key) {
+            $val = $arr[$key] ?? null;
+            if ($val !== null) {
+                $sub[$key] = $val;
+            }
+            unset($arr[$key]);
+        }
+        $arr['storageConfig'] = match ($db) {
+            'redis' => new RedisConfig(...$sub),
+            'rethinkdb' => new RethinkDbConfig(...$sub),
+            default => throw new InvalidArgumentException(
+                'Missing value for argument db (rethinkdb or redis)'
+            )
+        };
 
-		return new self(...$arr);
-	}
+        return new self(...$arr);
+    }
 
-	public static function getAllowedKeys(string $class): array
-	{
-		$reflection = new ReflectionClass($class);
-		$constructor = $reflection->getConstructor();
-		$parameters = $constructor->getParameters();
-		$props = [];
-		foreach ($parameters as $parameter) {
-			$props[] = $parameter->getName();
-		}
-		return $props;
-	}
+    public static function getAllowedKeys(string $class): array
+    {
+        $reflection = new ReflectionClass($class);
+        $constructor = $reflection->getConstructor();
+        $parameters = $constructor->getParameters();
+        $props = [];
+        foreach ($parameters as $parameter) {
+            $props[] = $parameter->getName();
+        }
+        return $props;
+    }
 }

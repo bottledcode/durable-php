@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,33 +26,33 @@ namespace Bottledcode\DurablePhp\Events;
 
 class ScheduleTask extends Event
 {
-	public function __construct(
-		public string $eventId,
-		public string $name,
-		public string|null $version = null,
-		public array|null $input = null,
-	) {
-		parent::__construct($eventId);
-	}
+    public function __construct(
+        public string $eventId,
+        public string $name,
+        public string|null $version = null,
+        public array|null $input = null,
+    ) {
+        parent::__construct($eventId);
+    }
 
-	public static function fromOrchestrationContext(array $data): self
-	{
-		return new self('', $data['name'], input: $data['input']);
-	}
+    public static function fromOrchestrationContext(array $data): self
+    {
+        return new self('', $data['name'], input: $data['input']);
+    }
 
-	public static function forName(string $name, array $data): self
-	{
-		return new self('', $name, input: $data);
-	}
+    public static function forName(string $name, array $data): self
+    {
+        return new self('', $name, input: $data);
+    }
 
-	public function __toString(): string
-	{
-		return sprintf(
-			'ScheduleTask(%s, %s, %s, %s)',
-			$this->eventId,
-			$this->name,
-			$this->version,
-			json_encode($this->input),
-		);
-	}
+    public function __toString(): string
+    {
+        return sprintf(
+            'ScheduleTask(%s, %s, %s, %s)',
+            $this->eventId,
+            $this->name,
+            $this->version,
+            json_encode($this->input),
+        );
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -29,19 +30,19 @@ use Bottledcode\DurablePhp\Events\StateTargetInterface;
 
 trait PartitionCalculator
 {
-	public function calculateDestinationPartitionFor(Event $event, bool $local): int
-	{
-		while ($event instanceof HasInnerEventInterface) {
-			if ($event instanceof StateTargetInterface) {
-				$id = $event->getTarget();
-				$partition = $id->getPartitionKey($this->config->totalPartitions);
-				if ($partition !== null) {
-					return $partition;
-				}
-			}
-			$event = $event->getInnerEvent();
-		}
+    public function calculateDestinationPartitionFor(Event $event, bool $local): int
+    {
+        while ($event instanceof HasInnerEventInterface) {
+            if ($event instanceof StateTargetInterface) {
+                $id = $event->getTarget();
+                $partition = $id->getPartitionKey($this->config->totalPartitions);
+                if ($partition !== null) {
+                    return $partition;
+                }
+            }
+            $event = $event->getInnerEvent();
+        }
 
-		return $local ? $this->config->currentPartition : random_int(0, $this->config->totalPartitions - 1);
-	}
+        return $local ? $this->config->currentPartition : random_int(0, $this->config->totalPartitions - 1);
+    }
 }

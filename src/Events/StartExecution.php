@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,22 +28,22 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
 class StartExecution extends Event
 {
-	public function __construct(
-		public OrchestrationInstance|null $parentInstance,
-		public string $name,
-		public string $version,
-		public array $input,
-		public array $tags,
-		public string $correlation,
-		public \DateTimeImmutable $scheduledAt,
-		public int $generation,
-		public string $eventId,
-	) {
-		parent::__construct($eventId);
-	}
+    public function __construct(
+        public OrchestrationInstance|null $parentInstance,
+        public string $name,
+        public string $version,
+        public array $input,
+        public array $tags,
+        public string $correlation,
+        public \DateTimeImmutable $scheduledAt,
+        public int $generation,
+        public string $eventId,
+    ) {
+        parent::__construct($eventId);
+    }
 
-	public function __toString(): string
-	{
-		return sprintf('startExecution(%s)', $this->name);
-	}
+    public function __toString(): string
+    {
+        return sprintf('startExecution(%s)', $this->name);
+    }
 }

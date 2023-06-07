@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -28,30 +29,29 @@ use Ramsey\Uuid\UuidInterface;
 
 class WithActivity extends Event implements HasInnerEventInterface, StateTargetInterface
 {
+    public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
+    {
+        parent::__construct($eventId);
+    }
 
-	public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
-	{
-		parent::__construct($eventId);
-	}
+    public static function forEvent(UuidInterface $activityId, Event $innerEvent): Event
+    {
+        return new WithActivity('', StateId::fromActivityId($activityId), $innerEvent);
+    }
 
-	public static function forEvent(UuidInterface $activityId, Event $innerEvent): Event
-	{
-		return new WithActivity('', StateId::fromActivityId($activityId), $innerEvent);
-	}
+    public function getInnerEvent(): Event
+    {
+        $this->innerEvent->eventId = $this->eventId;
+        return $this->innerEvent;
+    }
 
-	public function getInnerEvent(): Event
-	{
-		$this->innerEvent->eventId = $this->eventId;
-		return $this->innerEvent;
-	}
+    public function getTarget(): StateId
+    {
+        return $this->target;
+    }
 
-	public function getTarget(): StateId
-	{
-		return $this->target;
-	}
-
-	public function __toString(): string
-	{
-		return sprintf("WithActivity(%s, %s)", $this->target, $this->innerEvent);
-	}
+    public function __toString(): string
+    {
+        return sprintf("WithActivity(%s, %s)", $this->target, $this->innerEvent);
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,6 +26,7 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Exceptions\LockException;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Status;
@@ -33,27 +35,48 @@ use Withinboredom\Time\Seconds;
 
 interface Source
 {
-	public static function connect(Config $config): static;
+    public static function connect(Config $config): static;
 
-	public function getPastEvents(): Generator;
+    public function getPastEvents(): Generator;
 
-	public function receiveEvents(): Generator;
+    public function receiveEvents(): Generator;
 
-	public function cleanHouse(): void;
+    public function cleanHouse(): void;
 
-	public function storeEvent(Event $event, bool $local): string;
+    public function storeEvent(Event $event, bool $local): string;
 
-	public function put(string $key, mixed $data, Seconds|null $ttl = null): void;
+    public function put(string $key, mixed $data, Seconds|null $ttl = null): void;
 
-	/**
-	 * @template T
-	 * @param string $key
-	 * @param class-string<T> $class
-	 * @return T
-	 */
-	public function get(string $key, string $class): mixed;
+    /**
+     * @template T
+     * @param string $key
+     * @param class-string<T> $class
+     * @return T
+     */
+    public function get(string $key, string $class): mixed;
 
-	public function ack(Event $event): void;
+    public function ack(Event $event): void;
 
-	public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null;
+    public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null;
+
+    /**
+     * Locks a group of targets to an owner.
+     *
+     * @param StateId $owner
+     * @param StateId ...$target
+     * @return Lock
+     * @throws LockException
+     */
+    public function lock(StateId $owner, StateId ...$target): Lock;
+
+    /**
+     * Unlocks a group of targets from an owner, if they're the owner.
+     *
+     * @param StateId|null $owner Unset this to forcibly unlock the targets.
+     * @param StateId ...$target
+     * @return void
+     */
+    public function unlock(StateId|null $owner, StateId ...$target): void;
+
+    public function isLocked(StateId|null $owner, StateId $target): bool;
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,19 +26,19 @@ namespace Bottledcode\DurablePhp\Events;
 
 class ExecutionTerminated extends Event
 {
-	public function __construct(
-		public string $eventId,
-		public string $input,
-	) {
-		parent::__construct($eventId);
-	}
+    public function __construct(
+        public string $eventId,
+        public string $input,
+    ) {
+        parent::__construct($eventId);
+    }
 
-	public function __toString(): string
-	{
-		return sprintf(
-			'ExecutionTerminated(%s, %s)',
-			$this->eventId,
-			$this->input,
-		);
-	}
+    public function __toString(): string
+    {
+        return sprintf(
+            'ExecutionTerminated(%s, %s)',
+            $this->eventId,
+            $this->input,
+        );
+    }
 }

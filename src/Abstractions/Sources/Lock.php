@@ -22,36 +22,19 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
-use Amp\Future;
+use Closure;
 
-/**
- * @template T
- */
-class DurableFuture
+final class Lock
 {
-    /**
-     * @param Future<T> $future
-     */
-    public function __construct(public readonly Future $future)
-    {
+    public function __construct(
+        private readonly Closure $unlock
+    ) {
     }
 
-    /**
-     * @return T
-     */
-    public function getResult(): mixed
+    public function unlock(): void
     {
-        if ($this->future->isComplete()) {
-            return $this->future->await();
-        }
-
-        throw new \LogicException('Future is not complete');
-    }
-
-    public function hasResult(): bool
-    {
-        return $this->future->isComplete();
+        ($this->unlock)();
     }
 }

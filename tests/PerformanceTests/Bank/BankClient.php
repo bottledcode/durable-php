@@ -22,6 +22,7 @@
  */
 
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
+use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\Tests\PerformanceTests\Bank\BankTransaction;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
@@ -32,13 +33,14 @@ $client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory
 
 $watch = new StopWatch();
 $watch->start();
-$instance = $client->startNew(BankTransaction::class, [random_int(1, 1000000)]);
-//$instance2 = $client->startNew(BankTransaction::class, [1]);
+$id = random_int(1, 1000000);
+$instance = $client->startNew(BankTransaction::class, [$id]);
+$instance2 = $client->startNew(BankTransaction::class, [$id]);
 $client->waitForCompletion($instance);
-//$client->waitForCompletion($instance2);
+$client->waitForCompletion($instance2);
 $watch->stop();
 
 var_dump($client->getStatus($instance));
-//var_dump($client->getStatus($instance2));
+var_dump($client->getStatus($instance2));
 
 Logger::log("Completed in %s seconds", number_format($watch->getSeconds(), 2));

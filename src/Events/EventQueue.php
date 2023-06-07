@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -31,138 +32,138 @@ use Withinboredom\Time\Seconds;
 
 class EventQueue
 {
-	/**
-	 * @var array<array-key, SplQueue<Event>>
-	 */
-	private array $queues = [];
-	private SplQueue $keys;
-	private array $usedKeys = [];
-	private int $size = 0;
+    /**
+     * @var array<array-key, SplQueue<Event>>
+     */
+    private array $queues = [];
+    private SplQueue $keys;
+    private array $usedKeys = [];
+    private int $size = 0;
 
-	private DeferredCancellation|null $cancellation = null;
+    private DeferredCancellation|null $cancellation = null;
 
-	public function __construct()
-	{
-		$this->keys = new SplQueue();
-	}
+    public function __construct()
+    {
+        $this->keys = new SplQueue();
+    }
 
-	public function setCancellation(DeferredCancellation $cancellation)
-	{
-		$this->cancellation = $cancellation;
-	}
+    public function setCancellation(DeferredCancellation $cancellation)
+    {
+        $this->cancellation = $cancellation;
+    }
 
-	public function hasKey(string $key): bool
-	{
-		return isset($this->queues[$key]);
-	}
+    public function hasKey(string $key): bool
+    {
+        return isset($this->queues[$key]);
+    }
 
-	public function getSize(): int
-	{
-		return $this->size;
-	}
+    public function getSize(): int
+    {
+        return $this->size;
+    }
 
-	public function getNext(array $requeueKeys): Event|null
-	{
-		if ($this->keys->isEmpty()) {
-			return null;
-		}
+    public function getNext(array $requeueKeys): Event|null
+    {
+        if ($this->keys->isEmpty()) {
+            return null;
+        }
 
-		// get the next key
-		$nextKey = $this->keys->dequeue();
+        // get the next key
+        $nextKey = $this->keys->dequeue();
 
-		// see if it is an allowed key
-		if (in_array($nextKey, $requeueKeys, true)) {
-			// if not, requeue it
-			$this->keys->enqueue($nextKey);
-			// we could keep checking, but we want to avoid an infinite loop
-			return null;
-		}
+        // see if it is an allowed key
+        if (in_array($nextKey, $requeueKeys, true)) {
+            // if not, requeue it
+            $this->keys->enqueue($nextKey);
+            // we could keep checking, but we want to avoid an infinite loop
+            return null;
+        }
 
-		// get the next event
-		$nextEvent = $this->queues[$nextKey]->dequeue();
+        // get the next event
+        $nextEvent = $this->queues[$nextKey]->dequeue();
 
-		// if the queue is empty, remove it
-		if ($this->queues[$nextKey]->isEmpty()) {
-			unset($this->queues[$nextKey]);
-			$this->removeKey($nextKey);
-		}
+        // if the queue is empty, remove it
+        if ($this->queues[$nextKey]->isEmpty()) {
+            unset($this->queues[$nextKey]);
+            $this->removeKey($nextKey);
+        }
 
-		$this->size--;
+        $this->size--;
 
-		// return the event
-		return $nextEvent;
-	}
+        // return the event
+        return $nextEvent;
+    }
 
-	public function enqueue(string $key, Event $event): void
-	{
-		$delay = $this->getDelay($event);
-		if ($delay->inSeconds() > 0) {
-			EventLoop::delay($delay->inSeconds(), function () use ($key, $event) {
-				$this->enqueue($key, $event);
-				if ($this->cancellation !== null) {
-					$this->cancellation?->cancel();
-				}
-			});
-			Logger::log("Enqueued event %s in %d seconds", $event, $delay->inSeconds());
-			return;
-		}
+    public function enqueue(string $key, Event $event): void
+    {
+        $delay = $this->getDelay($event);
+        if ($delay->inSeconds() > 0) {
+            EventLoop::delay($delay->inSeconds(), function () use ($key, $event) {
+                $this->enqueue($key, $event);
+                if ($this->cancellation !== null) {
+                    $this->cancellation?->cancel();
+                }
+            });
+            Logger::log("Enqueued event %s in %d seconds", $event, $delay->inSeconds());
+            return;
+        }
 
-		$this->addKey($key);
-		if (!isset($this->queues[$key])) {
-			$this->queues[$key] = new SplQueue();
-		}
-		$this->queues[$key]->enqueue($event);
-		Logger::log("Enqueued event %s [depth: %d]", $event, $this->queues[$key]->count());
-		$this->size++;
-	}
+        $this->addKey($key);
+        if (!isset($this->queues[$key])) {
+            $this->queues[$key] = new SplQueue();
+        }
+        $this->queues[$key]->enqueue($event);
+        Logger::log("Enqueued event %s [depth: %d]", $event, $this->queues[$key]->count());
+        $this->size++;
+    }
 
-	private function getDelay(Event $event): Seconds
-	{
-		while ($event instanceof HasInnerEventInterface) {
-			if ($event instanceof WithDelay) {
-				$at = $event->fireAt->getTimestamp();
-				$now = (new \DateTimeImmutable())->getTimestamp();
-				$seconds = $at - $now;
-				return new Seconds(max(0, $seconds));
-			}
+    private function getDelay(Event $event): Seconds
+    {
+        while ($event instanceof HasInnerEventInterface) {
+            if ($event instanceof WithDelay) {
+                $at = $event->fireAt->getTimestamp();
+                $now = (new \DateTimeImmutable())->getTimestamp();
+                $seconds = $at - $now;
+                return new Seconds(max(0, $seconds));
+            }
 
-			$event = $event->getInnerEvent();
-		}
+            $event = $event->getInnerEvent();
+        }
 
-		return new Seconds(0);
-	}
+        return new Seconds(0);
+    }
 
-	private function addKey(string $key): void
-	{
-		if (in_array($key, $this->usedKeys, true)) {
-			return;
-		}
-		@$this->usedKeys[$key]++;
-		$this->keys->enqueue($key);
-	}
+    private function addKey(string $key): void
+    {
+        if (in_array($key, $this->usedKeys, true)) {
+            return;
+        }
+        @$this->usedKeys[$key]++;
+        $this->keys->enqueue($key);
+    }
 
-	private function removeKey(string $key): void
-	{
-		if (!in_array($key, $this->usedKeys, true)) {
-			return;
-		}
-		--$this->usedKeys[$key];
-		if ($this->usedKeys[$key] === 0) {
-			assert(!isset($this->queues[$key]));
-			unset($this->usedKeys[$key]);
-		}
-	}
+    private function removeKey(string $key): void
+    {
+        if (!in_array($key, $this->usedKeys, true)) {
+            return;
+        }
+        --$this->usedKeys[$key];
+        if ($this->usedKeys[$key] === 0) {
+            assert(!isset($this->queues[$key]));
+            unset($this->usedKeys[$key]);
+        }
+    }
 
-	public function prefix(string $key, Event ...$event): void
-	{
-		$this->addKey($key);
-		if (!isset($this->queues[$key])) {
-			$this->queues[$key] = new SplQueue();
-		}
-		$event = array_reverse($event);
-		foreach ($event as $e) {
-			$this->queues[$key]->unshift($e);
-		}
-		$this->size += count($event);
-	}
+    public function prefix(string $key, Event ...$event): void
+    {
+        $this->addKey($key);
+        if (!isset($this->queues[$key])) {
+            $this->queues[$key] = new SplQueue();
+        }
+        $event = array_reverse($event);
+        foreach ($event as $e) {
+            $this->queues[$key]->unshift($e);
+        }
+        $this->size += count($event);
+    }
 }

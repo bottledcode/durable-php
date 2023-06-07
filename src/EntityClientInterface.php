@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,33 +28,32 @@ use Bottledcode\DurablePhp\State\EntityId;
 
 interface EntityClientInterface
 {
-	/**
-	 * Removes empty entities and releases orphaned locks
-	 *
-	 * @return void
-	 */
-	public function cleanEntityStorage(): void;
+    /**
+     * Removes empty entities and releases orphaned locks
+     *
+     * @return void
+     */
+    public function cleanEntityStorage(): void;
+/**
+     * Get a list of entities
+     *
+     * @return \Generator<EntityId>
+     */
+    public function listEntities(/* todo */): \Generator;
 
-	/**
-	 * Get a list of entities
-	 *
-	 * @return \Generator<EntityId>
-	 */
-	public function listEntities(/* todo */): \Generator;
-
-	/**
-	 * Signal an entity either now, or at some point in the future
-	 *
-	 * @param EntityId $entityId
-	 * @param string $operationName
-	 * @param array $input
-	 * @param \DateTimeImmutable|null $scheduledTime
-	 * @return void
-	 */
-	public function signalEntity(
-		EntityId $entityId,
-		string $operationName,
-		array $input = [],
-		\DateTimeImmutable $scheduledTime = null
-	): void;
+    /**
+     * Signal an entity either now, or at some point in the future
+     *
+     * @param EntityId $entityId
+     * @param string $operationName
+     * @param array $input
+     * @param \DateTimeImmutable|null $scheduledTime
+     * @return void
+     */
+    public function signalEntity(
+        EntityId $entityId,
+        string $operationName,
+        array $input = [],
+        \DateTimeImmutable $scheduledTime = null
+    ): void;
 }

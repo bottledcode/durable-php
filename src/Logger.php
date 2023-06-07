@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -31,31 +32,32 @@ use function Amp\ByteStream\getStdout;
 
 class Logger
 {
-	public static function log(string $message, ...$vars): void
-	{
-		$logger = self::init();
-		$caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
-		$output = sprintf(
-			"%s: " . $message . PHP_EOL, ...
-			[basename($caller['file'], '.php'), ...$vars]
-		);
-		$logger->info($output);
-	}
+    public static function log(string $message, ...$vars): void
+    {
+        $logger = self::init();
+        $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
+        $output = sprintf(
+            "%s: " . $message . PHP_EOL,
+            ...
+            [basename($caller['file'], '.php'), ...$vars]
+        );
+        $logger->info($output);
+    }
 
-	private static function init(): Monologger
-	{
-		static $logger = false;
+    private static function init(): Monologger
+    {
+        static $logger = false;
 
-		if ($logger) {
-			return $logger;
-		}
+        if ($logger) {
+            return $logger;
+        }
 
-		$handler = new StreamHandler(getStdout());
-		$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
+        $handler = new StreamHandler(getStdout());
+        $handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
 
-		$logger = new Monologger('main');
-		$logger->pushHandler($handler);
+        $logger = new Monologger('main');
+        $logger->pushHandler($handler);
 
-		return $logger;
-	}
+        return $logger;
+    }
 }

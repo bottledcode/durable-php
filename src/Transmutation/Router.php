@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -28,10 +29,10 @@ use Bottledcode\DurablePhp\State\ApplyStateInterface;
 
 trait Router
 {
-	public function transmutate(Event $event, ApplyStateInterface $to, Event $original): \Generator
-	{
-		$objectClass = basename(str_replace('\\', '/', get_class($event)));
+    public function transmutate(Event $event, ApplyStateInterface $to, Event $original): \Generator
+    {
+        $objectClass = basename(str_replace('\\', '/', get_class($event)));
 
-		yield from $to->{'apply' . $objectClass}($event, $original);
-	}
+        yield from $to->{'apply' . $objectClass}($event, $original);
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -42,112 +43,116 @@ use Bottledcode\DurablePhp\Transmutation\Router;
 
 class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 {
-	use Router;
+    use Router;
 
-	private Source $source;
+    private Source $source;
 
-	public function __construct(
-		private readonly Config $config,
-		private Event $event,
-		private readonly MonotonicClock $clock
-	) {
-	}
+    public function __construct(
+        private readonly Config $config,
+        private Event $event,
+        private readonly MonotonicClock $clock
+    ) {
+    }
 
-	public function run(Channel $channel, Cancellation $cancellation): mixed
-	{
-		$returnEvent = $this->event;
-		$this->source = SourceFactory::fromConfig($this->config);
-		$originalEvent = $this->event;
+    public function run(Channel $channel, Cancellation $cancellation): mixed
+    {
+        $returnEvent = $this->event;
+        $this->source = SourceFactory::fromConfig($this->config);
+        $originalEvent = $this->event;
 
-		Logger::log("EventDispatcher received event: %s", $this->event);
+        Logger::log("EventDispatcher received event: %s", $this->event);
 
-		/**
-		 * @var StateInterface&ApplyStateInterface[] $states
-		 */
-		$states = [];
-		while ($this->event instanceof HasInnerEventInterface) {
-			if ($this->event instanceof StateTargetInterface) {
-				$states[] = $this->getState($this->event->getTarget());
-			}
+        /**
+         * @var StateInterface&ApplyStateInterface[] $states
+         */
+        $states = [];
+        while ($this->event instanceof HasInnerEventInterface) {
+            if ($this->event instanceof StateTargetInterface) {
+                $states[] = $this->getState($this->event->getTarget());
+            }
 
-			$this->event = $this->event->getInnerEvent();
-		}
+            $this->event = $this->event->getInnerEvent();
+        }
 
-		gotNewEvent:
+        gotNewEvent:
 
-		foreach ($states as $state) {
-			if ($state->hasAppliedEvent($this->event)) {
-				$this->source->ack($this->event);
-				return $originalEvent;
-			}
+        foreach ($states as $state) {
+            if ($state->hasAppliedEvent($this->event)) {
+                $this->source->ack($this->event);
+                return $originalEvent;
+            }
 
-			foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
-				if ($eventOrCallable instanceof Event) {
-					$this->fire($eventOrCallable);
-				} elseif ($eventOrCallable instanceof \Closure) {
-					$eventOrCallable($this, $this->source, $this->clock);
-				}
-			}
+            foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
+                if ($eventOrCallable instanceof Event) {
+                    $this->fire($eventOrCallable);
+                } elseif ($eventOrCallable instanceof \Closure) {
+                    $eventOrCallable($this, $this->source, $this->clock);
+                }
+            }
 
-			$this->updateState($state);
-		}
+            $this->updateState($state);
+        }
 
-		$this->source->ack($originalEvent);
-		foreach ($states as $state) {
-			$state->ackedEvent($originalEvent);
-		}
-		Logger::log('EventDispatcherTask acked: %s', $originalEvent);
+        $this->source->ack($originalEvent);
+        foreach ($states as $state) {
+            $state->ackedEvent($originalEvent);
+        }
+        Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 
-		try {
-			if ($this->hasExtendedState($states)) {
-				$timeout = new TimeoutCancellation($this->config->workerTimeoutSeconds);
-				$this->event = $channel->receive($timeout);
-				unset($timeout);
-				$originalEvent = $this->event;
-				while ($this->event instanceof HasInnerEventInterface) {
-					$this->event = $this->event->getInnerEvent();
-				}
-				Logger::log('EventDispatcherTask received[channel]: %s', $originalEvent);
-				goto gotNewEvent;
-			}
-		} catch (CancelledException) {
-			Logger::log('EventDispatcherTask is cancelled');
-		} catch (\Throwable $e) {
-			Logger::log('EventDispatcherTask failed: %s', $e::class);
-		}
+        try {
+            if ($this->hasExtendedState($states)) {
+                $timeout = new TimeoutCancellation($this->config->workerTimeoutSeconds);
+                $this->event = $channel->receive($timeout);
+                unset($timeout);
+                $originalEvent = $this->event;
+                while ($this->event instanceof HasInnerEventInterface) {
+                    $this->event = $this->event->getInnerEvent();
+                }
+                Logger::log('EventDispatcherTask received[channel]: %s', $originalEvent);
+                goto gotNewEvent;
+            }
+        } catch (CancelledException) {
+            Logger::log('EventDispatcherTask is cancelled');
+        } catch (\Throwable $e) {
+            Logger::log('EventDispatcherTask failed: %s', $e::class);
+        }
 
-		return $returnEvent;
-	}
+        foreach ($states as $state) {
+            $state->onComplete($this->source);
+        }
 
-	public function getState(StateId $instance): ApplyStateInterface&StateInterface
-	{
-		$rawState = $this->source->get($instance, $instance->getStateType());
-		if (empty($rawState)) {
-			$type = $instance->getStateType();
-			$rawState = new $type($instance);
-		}
+        return $returnEvent;
+    }
 
-		return $rawState;
-	}
+    public function getState(StateId $instance): ApplyStateInterface&StateInterface
+    {
+        $rawState = $this->source->get($instance, $instance->getStateType());
+        if (empty($rawState)) {
+            $type = $instance->getStateType();
+            $rawState = new $type($instance);
+        }
 
-	public function fire(Event ...$events): array
-	{
-		$ids = [];
-		foreach ($events as $event) {
-			$ids[] = $this->source->storeEvent($event, false);
-		}
+        return $rawState;
+    }
 
-		return $ids;
-	}
+    public function fire(Event ...$events): array
+    {
+        $ids = [];
+        foreach ($events as $event) {
+            $ids[] = $this->source->storeEvent($event, false);
+        }
 
-	public function updateState(StateInterface $state): void
-	{
-		$this->source->put(StateId::fromState($state), $state);
-		$state->resetState();
-	}
+        return $ids;
+    }
 
-	private function hasExtendedState(array $states): bool
-	{
-		return ($states[0] ?? null) instanceof OrchestrationHistory || ($states[0] ?? null) instanceof EntityHistory;
-	}
+    public function updateState(StateInterface $state): void
+    {
+        $this->source->put(StateId::fromState($state), $state);
+        $state->resetState();
+    }
+
+    private function hasExtendedState(array $states): bool
+    {
+        return ($states[0] ?? null) instanceof OrchestrationHistory || ($states[0] ?? null) instanceof EntityHistory;
+    }
 }

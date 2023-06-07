@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -25,9 +26,9 @@ namespace Bottledcode\DurablePhp\Config;
 
 readonly class RedisConfig
 {
-	public function __construct(
-		public string $host = 'localhost',
-		public int $port = 6379,
-	) {
-	}
+    public function __construct(
+        public string $host = 'localhost',
+        public int $port = 6379,
+    ) {
+    }
 }

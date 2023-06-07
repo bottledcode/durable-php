@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -24,78 +25,74 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\State\EntityId;
+use Crell\Serde\Attributes\ClassNameTypeMap;
 
+#[ClassNameTypeMap('__entity_type')]
 interface EntityContextInterface
 {
-	/**
-	 * Delete the current entity.
-	 *
-	 * @return never
-	 */
-	public function delete(): never;
+    /**
+     * Delete the current entity.
+     *
+     * @return never
+     */
+    public function delete(): never;
+/**
+     * Get the input to the current operation.
+     *
+     * @template T
+     * @return T
+     */
+    public function getInput(): mixed;
+/**
+     * Get the current entity's state.
+     *
+     * @template T
+     * @return T
+     */
+    public function getState(): mixed;
+/**
+     * Return the given value from the current operation.
+     *
+     * @template T
+     * @param T $value
+     * @return never
+     */
+    public function return(mixed $value): never;
+/**
+     * Set the current state of the entity.
+     *
+     * @template T
+     * @param T $value
+     * @return void
+     */
+    public function setState(mixed $value): void;
 
-	/**
-	 * Get the input to the current operation.
-	 *
-	 * @template T
-	 * @return T
-	 */
-	public function getInput(): mixed;
-
-	/**
-	 * Get the current entity's state.
-	 *
-	 * @template T
-	 * @return T
-	 */
-	public function getState(): mixed;
-
-	/**
-	 * Return the given value from the current operation.
-	 *
-	 * @template T
-	 * @param T $value
-	 * @return never
-	 */
-	public function return(mixed $value): never;
-
-	/**
-	 * Set the current state of the entity.
-	 *
-	 * @template T
-	 * @param T $value
-	 * @return void
-	 */
-	public function setState(mixed $value): void;
-
-	/**
-	 * Signal another entity.
-	 *
-	 * @template T
-	 * @param EntityId $entityId
-	 * @param string $operation
-	 * @param array<T> $input
-	 * @param \DateTimeImmutable|null $scheduledTime
-	 * @return void
-	 */
-	public function signalEntity(
-		EntityId $entityId,
-		string $operation,
-		array $input = [],
-		\DateTimeImmutable|null $scheduledTime = null
-	): void;
-
-	/**
-	 * Get the current entity id.
-	 *
-	 * @return EntityId
-	 */
-	public function getId(): EntityId;
-
-	/**
-	 * Get the current operation.
-	 *
-	 * @return string
-	 */
-	public function getOperation(): string;
+    /**
+     * Signal another entity.
+     *
+     * @template T
+     * @param EntityId $entityId
+     * @param string $operation
+     * @param array<T> $input
+     * @param \DateTimeImmutable|null $scheduledTime
+     * @return void
+     */
+    public function signalEntity(
+        EntityId $entityId,
+        string $operation,
+        array $input = [],
+        \DateTimeImmutable|null $scheduledTime = null
+    ): void;
+/**
+     * Get the current entity id.
+     *
+     * @return EntityId
+     */
+    public function getId(): EntityId;
+/**
+     * Get the current operation.
+     *
+     * @return string
+     */
+    public function getOperation(): string;
 }

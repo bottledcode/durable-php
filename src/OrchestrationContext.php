@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -45,333 +46,343 @@ use Ramsey\Uuid\UuidInterface;
 
 final readonly class OrchestrationContext implements OrchestrationContextInterface
 {
-	public function __construct(
-		private OrchestrationInstance $id,
-		private OrchestrationHistory $history,
-		private EventDispatcherTask $taskController
-	) {
-		$this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
-	}
+    public function __construct(
+        private OrchestrationInstance $id,
+        private OrchestrationHistory $history,
+        private EventDispatcherTask $taskController
+    ) {
+        $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
+    }
 
-	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
-	{
-		$identity = sha1($name . print_r($args, true));
-		return $this->createFuture(
-			fn() => $this->taskController->fire(
-				AwaitResult::forEvent(
-					StateId::fromInstance($this->id),
-					WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName($name, $args))
-				)
-			)
-		);
-	}
+    public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
+    {
+        $identity = sha1($name . print_r($args, true));
+        return $this->createFuture(
+            fn() => $this->taskController->fire(
+                AwaitResult::forEvent(
+                    StateId::fromInstance($this->id),
+                    WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName($name, $args))
+                )
+            )
+        );
+    }
 
-	private function createFuture(
-		\Closure $onSent
-	): DurableFuture {
-		$identity = $this->history->historicalTaskResults->getIdentity();
-		if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
-			[$eventId] = $onSent();
-			$deferred = new DeferredFuture();
-			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
-			return new DurableFuture($deferred->getFuture());
-		}
+    private function createFuture(
+        \Closure $onSent
+    ): DurableFuture {
+        $identity = $this->history->historicalTaskResults->getIdentity();
+        if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
+            [$eventId] = $onSent();
+            $deferred = new DeferredFuture();
+            $this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
+            return new DurableFuture($deferred->getFuture());
+        }
 
-		$deferred = new DeferredFuture();
-		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-		return new DurableFuture($deferred->getFuture());
-	}
+        $deferred = new DeferredFuture();
+        $this->history->historicalTaskResults->trackIdentity($identity, $deferred);
+        return new DurableFuture($deferred->getFuture());
+    }
 
-	public function callSubOrchestrator(
-		string $name,
-		array $args = [],
-		?string $instanceId = null,
-		?RetryOptions $retryOptions = null
-	): DurableFuture {
-		throw new LogicException('Not implemented');
-	}
+    public function callSubOrchestrator(
+        string $name,
+        array $args = [],
+        ?string $instanceId = null,
+        ?RetryOptions $retryOptions = null
+    ): DurableFuture {
+        throw new LogicException('Not implemented');
+    }
 
-	public function continueAsNew(array $args = []): void
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function continueAsNew(array $args = []): void
+    {
+        throw new LogicException('Not implemented');
+    }
 
-	public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
-	{
-		$identity = sha1($fireAt->format('c'));
-		return $this->createFuture(
-			fn() => $this->taskController->fire(
-				WithOrchestration::forInstance(
-					StateId::fromInstance($this->id),
-					WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
-				)
-			)
-		);
-	}
+    public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
+    {
+        $identity = sha1($fireAt->format('c'));
+        return $this->createFuture(
+            fn() => $this->taskController->fire(
+                WithOrchestration::forInstance(
+                    StateId::fromInstance($this->id),
+                    WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
+                )
+            )
+        );
+    }
 
-	public function waitForExternalEvent(string $name): DurableFuture
-	{
-		$identity = sha1($name);
-		$deferred = new DeferredFuture();
-		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-		return new DurableFuture($deferred->getFuture());
-	}
+    public function waitForExternalEvent(string $name): DurableFuture
+    {
+        $identity = sha1($name);
+        $deferred = new DeferredFuture();
+        $this->history->historicalTaskResults->trackIdentity($identity, $deferred);
+        return new DurableFuture($deferred->getFuture());
+    }
 
-	public function getInput(): array
-	{
-		return $this->history->status->input;
-	}
+    public function getInput(): array
+    {
+        return $this->history->status->input;
+    }
 
-	public function newGuid(): UuidInterface
-	{
-		return Uuid::uuid7();
-	}
+    public function newGuid(): UuidInterface
+    {
+        return Uuid::uuid7();
+    }
 
-	public function setCustomStatus(string $customStatus): void
-	{
-		$this->history->status = $this->history->status->with(customStatus: $customStatus);
-	}
+    public function setCustomStatus(string $customStatus): void
+    {
+        $this->history->status = $this->history->status->with(customStatus: $customStatus);
+    }
 
-	public function waitAny(DurableFuture ...$tasks): DurableFuture
-	{
-		// track the awaited tasks
-		$completed = $this->history->historicalTaskResults->awaitingFutures(
-			...
-			array_map(static fn(DurableFuture $f) => $f->future, $tasks)
-		);
-		foreach ($completed as $task) {
-			if ($task->isComplete()) {
-				return new DurableFuture($task);
-			}
-		}
+    public function waitAny(DurableFuture ...$tasks): DurableFuture
+    {
+        // track the awaited tasks
+        $completed = $this->history->historicalTaskResults->awaitingFutures(
+            ...
+            array_map(static fn(DurableFuture $f) => $f->future, $tasks)
+        );
+        foreach ($completed as $task) {
+            if ($task->isComplete()) {
+                return new DurableFuture($task);
+            }
+        }
 
-		// there is no task that is already complete, so we need to unwind the stack
-		throw new Unwind();
-	}
+        // there is no task that is already complete, so we need to unwind the stack
+        throw new Unwind();
+    }
 
-	public function getCustomStatus(): string
-	{
-		return $this->history->status->customStatus;
-	}
+    public function getCustomStatus(): string
+    {
+        return $this->history->status->customStatus;
+    }
 
-	public function getCurrentId(): OrchestrationInstance
-	{
-		return $this->id;
-	}
+    public function getCurrentId(): OrchestrationInstance
+    {
+        return $this->id;
+    }
 
-	public function getParentId(): OrchestrationInstance|null
-	{
-		return $this->history->parentInstance ?? null;
-	}
+    public function getParentId(): OrchestrationInstance|null
+    {
+        return $this->history->parentInstance ?? null;
+    }
 
-	public function willContinueAsNew(): bool
-	{
-		throw new LogicException('Not implemented');
-	}
+    public function willContinueAsNew(): bool
+    {
+        throw new LogicException('Not implemented');
+    }
 
-	public function createInterval(
-		int $years = null,
-		int $months = null,
-		int $weeks = null,
-		int $days = null,
-		int $hours = null,
-		int $minutes = null,
-		int $seconds = null,
-		int $microseconds = null
-	): \DateInterval {
-		if (empty(
-		array_filter(
-			compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
-		)
-		)) {
-			throw new LogicException('At least one interval part must be specified');
-		}
+    public function createInterval(
+        int $years = null,
+        int $months = null,
+        int $weeks = null,
+        int $days = null,
+        int $hours = null,
+        int $minutes = null,
+        int $seconds = null,
+        int $microseconds = null
+    ): \DateInterval {
+        if (
+            empty(
+                array_filter(
+                    compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
+                )
+            )
+        ) {
+            throw new LogicException('At least one interval part must be specified');
+        }
 
-		$spec = 'P';
-		$spec .= $years ? $years . 'Y' : '';
-		$spec .= $months ? $months . 'M' : '';
+        $spec = 'P';
+        $spec .= $years ? $years . 'Y' : '';
+        $spec .= $months ? $months . 'M' : '';
 
-		$specDays = 0;
-		$specDays += $weeks ? $weeks * 7 : 0;
-		$specDays += $days ?? 0;
+        $specDays = 0;
+        $specDays += $weeks ? $weeks * 7 : 0;
+        $specDays += $days ?? 0;
 
-		$spec .= $specDays ? $specDays . 'D' : '';
-		if ($hours || $minutes || $seconds) {
-			$spec .= 'T';
-			$spec .= $hours ? $hours . 'H' : '';
-			$spec .= $minutes ? $minutes . 'M' : '';
-			$spec .= $seconds ? $seconds . 'S' : '';
-		}
+        $spec .= $specDays ? $specDays . 'D' : '';
+        if ($hours || $minutes || $seconds) {
+            $spec .= 'T';
+            $spec .= $hours ? $hours . 'H' : '';
+            $spec .= $minutes ? $minutes . 'M' : '';
+            $spec .= $seconds ? $seconds . 'S' : '';
+        }
 
-		if ($spec === 'P') {
-			$spec .= '0Y';
-		}
+        if ($spec === 'P') {
+            $spec .= '0Y';
+        }
 
-		$interval = new \DateInterval($spec);
-		$interval->f = ($microseconds ?? 0) / 1000000;
-		return $interval;
-	}
+        $interval = new \DateInterval($spec);
+        $interval->f = ($microseconds ?? 0) / 1000000;
+        return $interval;
+    }
 
-	public function getCurrentTime(): \DateTimeImmutable
-	{
-		return $this->history->historicalTaskResults->getCurrentTime();
-	}
+    public function getCurrentTime(): \DateTimeImmutable
+    {
+        return $this->history->historicalTaskResults->getCurrentTime();
+    }
 
-	public function isLocked(EntityId $entityId): bool
-	{
-		if ($this->isLockedOwned($entityId)) {
-			return true;
-		}
+    public function isLocked(EntityId $entityId): bool
+    {
+        if ($this->isLockedOwned($entityId)) {
+            return true;
+        }
 
-		// we have to query the entity to see if it is locked.
-		$state = $this->taskController->getState(StateId::fromEntityId($entityId));
-		if ($state instanceof EntityHistory) {
-			return $state->lock === StateId::fromInstance($this->id)->id;
-		}
+        // we have to query the entity to see if it is locked.
+        $state = $this->taskController->getState(StateId::fromEntityId($entityId));
+        if ($state instanceof EntityHistory) {
+            return $state->lock === StateId::fromInstance($this->id)->id;
+        }
 
-		throw new LogicException('Entity not found');
-	}
+        throw new LogicException('Entity not found');
+    }
 
-	public function isLockedOwned(EntityId $entityId): bool
-	{
-		$id = StateId::fromEntityId($entityId);
-		return $this->history->locks[$id->id] ?? false;
-	}
+    public function isLockedOwned(EntityId $entityId): bool
+    {
+        $id = StateId::fromEntityId($entityId);
+        return $this->history->locks[$id->id] ?? false;
+    }
 
-	public function lockEntity(EntityId ...$entityId): EntityLock
-	{
-		$instanceId = StateId::fromInstance($this->id);
-		$futures = [];
-		foreach ($entityId as $id) {
-			$id = StateId::fromEntityId($id);
-			$futures[] = $this->createFuture(function () use ($instanceId, $id) {
-				$this->history->locks[$id->id] = time();
-				return $this->taskController->fire(
-					AwaitResult::forEvent(
-						$instanceId,
-						WithEntity::forInstance($id, RaiseEvent::forLock($instanceId->id))
-					)
-				);
-			});
-		}
-		$this->waitAll(...$futures);
-		return new EntityLock(function () use ($instanceId, $entityId) {
-			$futures = [];
-			foreach ($entityId as $id) {
-				$id = StateId::fromEntityId($id);
-				$futures[] = $this->createFuture(function () use ($instanceId, $id) {
-					return $this->taskController->fire(
-						AwaitResult::forEvent(
-							$instanceId,
-							WithEntity::forInstance($id, RaiseEvent::forUnlock($instanceId->id))
-						)
-					);
-				});
-			}
+    public function lockEntity(EntityId ...$entityId): EntityLock
+    {
+        $instanceId = StateId::fromInstance($this->id);
+        $futures = [];
+        foreach ($entityId as $id) {
+            $id = StateId::fromEntityId($id);
+            $futures[] = $this->createFuture(function () use ($instanceId, $id) {
+                $this->history->locks[$id->id] = time();
+                return $this->taskController->fire(
+                    AwaitResult::forEvent(
+                        $instanceId,
+                        WithEntity::forInstance($id, RaiseEvent::forLock($instanceId->id))
+                    )
+                );
+            });
+        }
+        $this->waitAll(...$futures);
+        return new EntityLock(function () use ($instanceId, $entityId) {
+            $futures = [];
+            foreach ($entityId as $id) {
+                $id = StateId::fromEntityId($id);
+                $futures[] = $this->createFuture(function () use ($instanceId, $id) {
+                    return $this->taskController->fire(
+                        AwaitResult::forEvent(
+                            $instanceId,
+                            WithEntity::forInstance($id, RaiseEvent::forUnlock($instanceId->id))
+                        )
+                    );
+                });
+            }
 
-			$this->waitAll(...$futures);
-			foreach ($entityId as $id) {
-				$id = StateId::fromEntityId($id);
-				unset($this->history->locks[$id->id]);
-			}
-		});
-	}
+            $this->waitAll(...$futures);
+            foreach ($entityId as $id) {
+                $id = StateId::fromEntityId($id);
+                unset($this->history->locks[$id->id]);
+            }
+        });
+    }
 
-	public function waitAll(DurableFuture ...$tasks): DurableFuture
-	{
-		$completed = $this->history->historicalTaskResults->awaitingFutures(
-			...
-			array_map(static fn(DurableFuture $f) => $f->future, $tasks)
-		);
-		if (count($completed) === count($tasks)) {
-			return new DurableFuture(Future::complete(true));
-		}
+    public function waitAll(DurableFuture ...$tasks): DurableFuture
+    {
+        $completed = $this->history->historicalTaskResults->awaitingFutures(
+            ...
+            array_map(static fn(DurableFuture $f) => $f->future, $tasks)
+        );
+        if (count($completed) === count($tasks)) {
+            foreach ($completed as $complete) {
+                $complete->await();
+            }
+            return new DurableFuture(Future::complete(true));
+        }
 
-		// there is no task that is already complete, so we need to unwind the stack
-		throw new Unwind();
-	}
+        // there is no task that is already complete, so we need to unwind the stack
+        throw new Unwind();
+    }
 
-	/**
-	 * @template T
-	 * @param class-string<T> $className
-	 * @return T
-	 */
-	public function createEntityProxy(string $className, EntityId $entityId): object
-	{
-		$class = new \ReflectionClass($className);
-		if (!$class->isInterface()) {
-			throw new LogicException('Only interfaces can be proxied');
-		}
-		$methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
-		$proxies = [];
-		foreach ($methods as $method) {
-			$hasReturn = $method->hasReturnType();
-			$isVoid = $hasReturn && $method->getReturnType()?->getName() === 'void';
-			$proxies[$method->getName()] = compact('hasReturn', 'isVoid');
-		}
+    /**
+     * @template T
+     * @param class-string<T> $className
+     * @return T
+     */
+    public function createEntityProxy(string $className, EntityId $entityId): object
+    {
+        $class = new \ReflectionClass($className);
+        if (!$class->isInterface()) {
+            throw new LogicException('Only interfaces can be proxied');
+        }
+        $methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
+        $proxies = [];
+        foreach ($methods as $method) {
+            $hasReturn = $method->hasReturnType();
+            $isVoid = $hasReturn && $method->getReturnType()?->getName() === 'void';
+            $proxies[$method->getName()] = compact('hasReturn', 'isVoid');
+        }
 
-		return new class($this, $proxies, $entityId) {
-			public function __construct(
-				private OrchestrationContext $context,
-				private array $proxies,
-				private EntityId $id
-			) {
-			}
+        return new class ($this, $proxies, $entityId) {
+            public function __construct(
+                private OrchestrationContext $context,
+                private array $proxies,
+                private EntityId $id
+            ) {
+            }
 
-			public function __call(string $name, array $arguments)
-			{
-				$proxy = $this->proxies[$name] ?? throw new LogicException('Method not found');
-				if ($proxy['isVoid'] || !$proxy['hasReturn']) {
-					$this->context->signalEntity($this->id, $name, $arguments);
-					return null;
-				}
+            public function __call(string $name, array $arguments)
+            {
+                $proxy = $this->proxies[$name] ?? throw new LogicException('Method not found');
+                if (($proxy['isVoid'] || !$proxy['hasReturn']) && !$this->context->isLockedOwned($this->id)) {
+                    $this->context->signalEntity($this->id, $name, $arguments);
+                    return null;
+                }
 
-				return $this->context->waitOne($this->context->callEntity($this->id, $name, $arguments));
-			}
+                return $this->context->waitOne($this->context->callEntity($this->id, $name, $arguments));
+            }
 
-			public function __debugInfo(): ?array
-			{
-				return ['id' => $this->id];
-			}
-		};
-	}
+            public function __debugInfo(): ?array
+            {
+                return ['id' => $this->id];
+            }
+        };
+    }
 
-	public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
-	{
-		if ($this->isReplaying()) {
-			return;
-		}
+    public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
+    {
+        if ($this->isReplaying()) {
+            return;
+        }
 
-		$event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
-		$this->taskController->fire($event);
-	}
+        if ($this->isLockedOwned($entityId)) {
+            $this->callEntity($entityId, $operation, $args);
+            return;
+        }
 
-	public function isReplaying(): bool
-	{
-		return $this->history->historicalTaskResults->isReading();
-	}
+        $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
+        $this->taskController->fire($event);
+    }
 
-	public function waitOne(DurableFuture $task): mixed
-	{
-		$completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
-		if (count($completed) >= 1) {
-			return $completed[0]->await();
-		}
-		throw new Unwind();
-	}
+    public function isReplaying(): bool
+    {
+        return $this->history->historicalTaskResults->isReading();
+    }
 
-	public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
-	{
-		return $this->createFuture(
-			fn() => $this->taskController->fire(
-				AwaitResult::forEvent(
-					StateId::fromInstance($this->id),
-					WithEntity::forInstance(
-						StateId::fromEntityId($entityId),
-						RaiseEvent::forOperation($operation, $args)
-					)
-				)
-			)
-		);
-	}
+    public function waitOne(DurableFuture $task): mixed
+    {
+        $completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
+        if (count($completed) >= 1) {
+            return $completed[0]->await();
+        }
+        throw new Unwind();
+    }
+
+    public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
+    {
+        return $this->createFuture(
+            fn() => $this->taskController->fire(
+                AwaitResult::forEvent(
+                    StateId::fromInstance($this->id),
+                    WithEntity::forInstance(
+                        StateId::fromEntityId($entityId),
+                        RaiseEvent::forOperation($operation, $args)
+                    )
+                )
+            )
+        );
+    }
 }

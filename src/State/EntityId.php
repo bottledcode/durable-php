@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,12 +28,12 @@ use Stringable;
 
 readonly class EntityId implements Stringable
 {
-	public function __construct(public string $name, public string $id)
-	{
-	}
+    public function __construct(public string $name, public string $id)
+    {
+    }
 
-	public function __toString(): string
-	{
-		return $this->name . ':' . $this->id;
-	}
+    public function __toString(): string
+    {
+        return $this->name . ':' . $this->id;
+    }
 }

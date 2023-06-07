@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -46,157 +47,159 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 class Run
 {
-	private readonly Source $source;
+    private readonly Source $source;
 
-	public function __construct(private Config $config)
-	{
-		$this->source = SourceFactory::fromConfig($config);
-	}
+    public function __construct(private Config $config)
+    {
+        $this->source = SourceFactory::fromConfig($config);
+    }
 
-	public function __invoke(): void
-	{
-		$clock = MonotonicClock::current();
+    public function __invoke(): void
+    {
+        $clock = MonotonicClock::current();
 
-		$queue = new EventQueue();
-		/**
-		 * @var Execution[] $map
-		 */
-		$map = [];
+        $queue = new EventQueue();
+        /**
+         * @var Execution[] $map
+         */
+        $map = [];
 
-		/**
-		 * @var int[] $lastSent
-		 */
-		$lastSent = [];
+        /**
+         * @var int[] $lastSent
+         */
+        $lastSent = [];
 
-		$pool = $this->createPool($this->config);
-		foreach ($this->source->getPastEvents() as $event) {
-			if ($event === null) {
-				continue;
-			}
-			$key = $this->getEventKey($event);
-			$map[$key] = null;
-			$queue->enqueue($key, $event);
-		}
-		Logger::log('Replay completed');
+        $pool = $this->createPool($this->config);
+        foreach ($this->source->getPastEvents() as $event) {
+            if ($event === null) {
+                continue;
+            }
+            $key = $this->getEventKey($event);
+            $map[$key] = null;
+            $queue->enqueue($key, $event);
+        }
+        Logger::log('Replay completed');
 
-		$cancellation = new DeferredCancellation();
-		$queue->setCancellation($cancellation);
+        $cancellation = new DeferredCancellation();
+        $queue->setCancellation($cancellation);
 
-		$eventSource = async(function () use ($queue, &$cancellation) {
-			foreach ($this->source->receiveEvents() as $event) {
-				$queue->enqueue($this->getEventKey($event), $event);
-				if ($queue->getSize() === 1 && !$cancellation->isCancelled()) {
-					// if this is the first event, we need to wake up the main loop
-					// so that it can process the event
-					// this is because the main loop is waiting for an event to be
-					// added to the queue
-					$cancellation->cancel();
-				}
-			}
+        $eventSource = async(function () use ($queue, &$cancellation) {
+            foreach ($this->source->receiveEvents() as $event) {
+                $queue->enqueue($this->getEventKey($event), $event);
+                if ($queue->getSize() === 1 && !$cancellation->isCancelled()) {
+                    // if this is the first event, we need to wake up the main loop
+                    // so that it can process the event
+                    // this is because the main loop is waiting for an event to be
+                    // added to the queue
+                    $cancellation->cancel();
+                }
+            }
 
-			throw new \LogicException('The event source should never end');
-		});
+            throw new \LogicException('The event source should never end');
+        });
 
-		$timeout = $this->config->workerTimeoutSeconds - $this->config->workerGracePeriodSeconds;
+        $timeout = $this->config->workerTimeoutSeconds - $this->config->workerGracePeriodSeconds;
 
-		startOver:
-		// if there is a queue, we need to process it first
-		if ($queue->getSize() > 0) {
-			// attempt to get the next event from the queue
-			$event = $queue->getNext(
-				array_keys(
-					array_filter(
-						$lastSent, static fn($v) => time() - $v > $timeout
-					)
-				)
-			);
-			if ($event === null) {
-				// there currently are not any events that we can get from the queue
-				// so we need to wait for an event or a worker to finish
-				goto waitForEvents;
-			}
+        startOver:
+        // if there is a queue, we need to process it first
+        if ($queue->getSize() > 0) {
+            // attempt to get the next event from the queue
+            $event = $queue->getNext(
+                array_keys(
+                    array_filter(
+                        $lastSent,
+                        static fn($v) => time() - $v > $timeout
+                    )
+                )
+            );
+            if ($event === null) {
+                // there currently are not any events that we can get from the queue
+                // so we need to wait for an event or a worker to finish
+                goto waitForEvents;
+            }
 
-			$execution = $map[$this->getEventKey($event)] ?? null;
+            $execution = $map[$this->getEventKey($event)] ?? null;
 
-			if ($execution === null) {
-				// we have an event, so we need to dispatch it
-				$map[$this->getEventKey($event)] = $pool->submit(
-					new EventDispatcherTask($this->config, $event, $clock)
-				);
-			} else {
-				$execution->getChannel()->send($event);
-			}
-			$lastSent[$this->getEventKey($event)] = time();
+            if ($execution === null) {
+                // we have an event, so we need to dispatch it
+                $map[$this->getEventKey($event)] = $pool->submit(
+                    new EventDispatcherTask($this->config, $event, $clock)
+                );
+            } else {
+                $execution->getChannel()->send($event);
+            }
+            $lastSent[$this->getEventKey($event)] = time();
 
-			// process the queue
-			goto startOver;
-		}
+            // process the queue
+            goto startOver;
+        }
 
-		waitForEvents:
-		$futures = array_map(static fn(Execution $e) => $e->getFuture(), $map);
-		try {
-			try {
-				$event = awaitFirst([$eventSource, ...$futures], $cancellation->getCancellation());
-			} catch (CancelledException) {
-				$cancellation = new DeferredCancellation();
-				$queue->setCancellation($cancellation);
-				goto startOver;
-			}
+        waitForEvents:
+        $futures = array_map(static fn(Execution $e) => $e->getFuture(), $map);
+        try {
+            try {
+                $event = awaitFirst([$eventSource, ...$futures], $cancellation->getCancellation());
+            } catch (CancelledException) {
+                $cancellation = new DeferredCancellation();
+                $queue->setCancellation($cancellation);
+                goto startOver;
+            }
 
 
-			// handle the case where events were sent but there are still events
-			// in the channel
-			$execution = $map[$this->getEventKey($event)];
-			/*$prefix = [];
-			while (!$execution->getChannel()->isClosed()) {
-				try {
-					$prefix[] = $execution->getChannel()->receive(new TimeoutCancellation(1));
-				} catch (TimeoutException) {
-					Logger::log('Warning: waited for event to prefix!');
-				}
-			}
-			$queue->prefix($this->getEventKey($event), ...$prefix);*/
-			// now we can remove the execution from the map
-			unset($map[$this->getEventKey($event)]);
+            // handle the case where events were sent but there are still events
+            // in the channel
+            $execution = $map[$this->getEventKey($event)];
+            /*$prefix = [];
+            while (!$execution->getChannel()->isClosed()) {
+                try {
+                    $prefix[] = $execution->getChannel()->receive(new TimeoutCancellation(1));
+                } catch (TimeoutException) {
+                    Logger::log('Warning: waited for event to prefix!');
+                }
+            }
+            $queue->prefix($this->getEventKey($event), ...$prefix);*/
+            // now we can remove the execution from the map
+            unset($map[$this->getEventKey($event)]);
 
-			// process the queue
-			goto startOver;
-		} catch (\Throwable $e) {
-			Logger::log(
-				"An error occurred while waiting for an event to complete: %s\n%s",
-				$e->getMessage(),
-				$e->getTraceAsString()
-			);
-		}
-	}
+            // process the queue
+            goto startOver;
+        } catch (\Throwable $e) {
+            Logger::log(
+                "An error occurred while waiting for an event to complete: %s\n%s",
+                $e->getMessage(),
+                $e->getTraceAsString()
+            );
+        }
+    }
 
-	private function createPool(Config $config): ContextWorkerPool
-	{
-		$factory = new ContextWorkerFactory(
-			$config->bootstrapPath, new LoggingContextFactory(new DefaultContextFactory())
-		);
-		$pool = new ContextWorkerPool($config->totalWorkers, $factory);
-		workerPool($pool);
-		return $pool;
-	}
+    private function createPool(Config $config): ContextWorkerPool
+    {
+        $factory = new ContextWorkerFactory(
+            $config->bootstrapPath,
+            new LoggingContextFactory(new DefaultContextFactory())
+        );
+        $pool = new ContextWorkerPool($config->totalWorkers, $factory);
+        workerPool($pool);
+        return $pool;
+    }
 
-	private function getEventKey(Event $event): string
-	{
-		while ($event instanceof HasInnerEventInterface) {
-			if ($event instanceof StateTargetInterface) {
-				return $event->getTarget();
-			}
-			$event = $event->getInnerEvent();
-		}
+    private function getEventKey(Event $event): string
+    {
+        while ($event instanceof HasInnerEventInterface) {
+            if ($event instanceof StateTargetInterface) {
+                return $event->getTarget();
+            }
+            $event = $event->getInnerEvent();
+        }
 
-		return $event->eventId;
-	}
+        return $event->eventId;
+    }
 }
 
 (static function ($argv) {
-	$config = Config::fromArgs($argv);
-	$runner = new Run($config);
-	$runner();
+    $config = Config::fromArgs($argv);
+    $runner = new Run($config);
+    $runner();
 })(
-	$argv
+    $argv
 );
