@@ -110,11 +110,7 @@ class RethinkDbSource implements Source
 			/**
 			 * @var Event $actualEvent
 			 */
-			$actualEvent = Serializer::get()->deserialize(
-				$event['new_val']['event'],
-				'array',
-				$event['new_val']['type'],
-			);
+			$actualEvent = Serializer::deserialize($event['new_val']['event'], $event['new_val']['type']);
 			$actualEvent->eventId = $event['new_val']['id'];
 			yield $actualEvent;
 		}
@@ -132,7 +128,7 @@ class RethinkDbSource implements Source
 		$result = table($this->stateTable)->get($key)->run($this->connection);
 
 		if ($result) {
-			return Serializer::get()->deserialize($result['data'], 'array', $result['type']);
+			return Serializer::deserialize($result['data'], $result['type']);
 		}
 
 		return null;
@@ -147,7 +143,7 @@ class RethinkDbSource implements Source
 	{
 		$partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
 		$results = table($partition)->insert(
-			['event' => Serializer::get()->serialize($event, 'array'), 'id' => uuid(), 'type' => $event::class],
+			['event' => Serializer::serialize($event), 'id' => uuid(), 'type' => $event::class],
 			new TableInsertOptions(return_changes: true)
 		)->run($this->connection);
 		return $results['changes'][0]['new_val']['id'];
@@ -158,7 +154,7 @@ class RethinkDbSource implements Source
 		table($this->stateTable)->insert(
 			[
 				'id' => $key,
-				'data' => Serializer::get()->serialize($data, 'array'),
+				'data' => Serializer::serialize($data),
 				'etag' => $etag,
 				'ttl' => $ttl?->inSeconds(),
 				'type' => $data::class,
@@ -187,7 +183,7 @@ class RethinkDbSource implements Source
 			if ($rawStatus === null) {
 				continue;
 			}
-			$status = Serializer::get()->deserialize($rawStatus, 'array', Status::class);
+			$status = Serializer::deserialize($rawStatus, Status::class);
 			if (in_array($status->runtimeStatus, $expected, true)) {
 				return $status;
 			}

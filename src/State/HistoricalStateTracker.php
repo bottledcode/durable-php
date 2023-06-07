@@ -215,7 +215,7 @@ class HistoricalStateTracker
 			$previousResults = array_column($results ?? [], 'result');
 			foreach ($previousResults as $result) {
 				if (is_array($result)) {
-					$result = Serializer::get()->deserialize($result, 'array', Event::class);
+					$result = Serializer::deserialize($result, Event::class);
 				}
 				$this->waiters[$currentKey][] = ['result' => $result, 'identity' => $identity];
 			}
@@ -229,7 +229,7 @@ class HistoricalStateTracker
 
 		foreach ($results as $identity => $result) {
 			if (is_array($result)) {
-				$result = Serializer::get()->deserialize($result, 'array', Event::class);
+				$result = Serializer::deserialize($result, Event::class);
 			}
 
 			/**

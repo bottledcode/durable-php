@@ -56,7 +56,9 @@ class ActivityHistory extends AbstractHistory
 			}
 			$result = $task(...($event->input ?? []));
 			$now = MonotonicClock::current()->now();
-			$this->status = new Status($now, '', $event->input, $this->id, $now, $result, RuntimeStatus::Completed);
+			$this->status = new Status(
+				$now, '', $event->input, $this->id, $now, Serializer::serialize($result), RuntimeStatus::Completed
+			);
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
 					$id,
@@ -66,7 +68,13 @@ class ActivityHistory extends AbstractHistory
 		} catch (\Throwable $e) {
 			$now = MonotonicClock::current()->now();
 			$this->status = new Status(
-				$now, '', $event->input, $this->id, $now, ExternalException::fromException($e), RuntimeStatus::Failed
+				$now,
+				'',
+				$event->input,
+				$this->id,
+				$now,
+				Serializer::serialize(ExternalException::fromException($e)),
+				RuntimeStatus::Failed
 			);
 			foreach ($replyTo as $id) {
 				yield WithOrchestration::forInstance(
