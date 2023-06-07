@@ -55,24 +55,30 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
 	public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
 	{
-		if (!$this->history->historicalTaskResults->hasSentIdentity($identity = sha1($name . print_r($args, true)))) {
-			// this event has yet to be sent.
-			[$eventId] = $this->taskController->fire(
+		$identity = sha1($name . print_r($args, true));
+		return $this->createFuture(
+			fn() => $this->taskController->fire(
 				AwaitResult::forEvent(
 					StateId::fromInstance($this->id),
-					WithActivity::forEvent(Uuid::uuid7(), new ScheduleTask('', $name, 0, $args))
+					WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName($name, $args))
 				)
-			);
+			)
+		);
+	}
+
+	private function createFuture(
+		\Closure $onSent
+	): DurableFuture {
+		$identity = $this->history->historicalTaskResults->getIdentity();
+		if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
+			[$eventId] = $onSent();
 			$deferred = new DeferredFuture();
 			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
 			return new DurableFuture($deferred->getFuture());
 		}
 
-		// this event has already been sent, so we need to replay it
 		$deferred = new DeferredFuture();
-
 		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-
 		return new DurableFuture($deferred->getFuture());
 	}
 
@@ -92,22 +98,15 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
 	public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
 	{
-		if (!$this->history->historicalTaskResults->hasSentIdentity($identity = sha1($fireAt->format('c')))) {
-			// this event has yet to be sent.
-			[$eventId] = $this->taskController->fire(
-				new WithOrchestration(
-					'', StateId::fromInstance($this->id), new WithDelay('', $fireAt, new RaiseEvent('', $identity, []))
+		$identity = sha1($fireAt->format('c'));
+		return $this->createFuture(
+			fn() => $this->taskController->fire(
+				WithOrchestration::forInstance(
+					StateId::fromInstance($this->id),
+					WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
 				)
-			);
-			$deferred = new DeferredFuture();
-			$this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
-			return new DurableFuture($deferred->getFuture());
-		}
-
-		// this event has already been sent, so we need to replay it
-		$deferred = new DeferredFuture();
-		$this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-		return new DurableFuture($deferred->getFuture());
+			)
+		);
 	}
 
 	public function waitForExternalEvent(string $name): DurableFuture
@@ -158,11 +157,6 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 	public function getCurrentId(): OrchestrationInstance
 	{
 		return $this->id;
-	}
-
-	public function isReplaying(): bool
-	{
-		return $this->history->historicalTaskResults->isReading();
 	}
 
 	public function getParentId(): OrchestrationInstance|null
@@ -250,30 +244,31 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 		$futures = [];
 		foreach ($entityId as $id) {
 			$id = StateId::fromEntityId($id);
-			$event = AwaitResult::forEvent(
-				$instanceId,
-				WithEntity::forInstance($id, RaiseEvent::forLock($instanceId->id))
-			);
-			[$eventId] = $this->taskController->fire($event);
-			$future = new DeferredFuture();
-			$this->history->historicalTaskResults->sentEvent($eventId, $eventId, $future);
-			$futures[] = new DurableFuture($future->getFuture());
-			$this->history->locks[$id->id] = time();
+			$futures[] = $this->createFuture(function () use ($instanceId, $id) {
+				$this->history->locks[$id->id] = time();
+				return $this->taskController->fire(
+					AwaitResult::forEvent(
+						$instanceId,
+						WithEntity::forInstance($id, RaiseEvent::forLock($instanceId->id))
+					)
+				);
+			});
 		}
 		$this->waitAll(...$futures);
 		return new EntityLock(function () use ($instanceId, $entityId) {
 			$futures = [];
 			foreach ($entityId as $id) {
 				$id = StateId::fromEntityId($id);
-				$event = AwaitResult::forEvent(
-					$instanceId,
-					WithEntity::forInstance($id, RaiseEvent::forUnlock($instanceId->id))
-				);
-				[$eventId] = $this->taskController->fire($event);
-				$future = new DeferredFuture();
-				$this->history->historicalTaskResults->sentEvent($id->id . 'unlock', $eventId, $future);
-				$futures[] = new DurableFuture($future->getFuture());
+				$futures[] = $this->createFuture(function () use ($instanceId, $id) {
+					return $this->taskController->fire(
+						AwaitResult::forEvent(
+							$instanceId,
+							WithEntity::forInstance($id, RaiseEvent::forUnlock($instanceId->id))
+						)
+					);
+				});
 			}
+
 			$this->waitAll(...$futures);
 			foreach ($entityId as $id) {
 				$id = StateId::fromEntityId($id);
@@ -301,7 +296,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 	 * @param class-string<T> $className
 	 * @return T
 	 */
-	public function createEntityProxy(string $className, EntityId $id): object
+	public function createEntityProxy(string $className, EntityId $entityId): object
 	{
 		$class = new \ReflectionClass($className);
 		if (!$class->isInterface()) {
@@ -315,7 +310,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 			$proxies[$method->getName()] = compact('hasReturn', 'isVoid');
 		}
 
-		return new class($this, $proxies, $id) {
+		return new class($this, $proxies, $entityId) {
 			public function __construct(
 				private OrchestrationContext $context,
 				private array $proxies,
@@ -343,15 +338,23 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
 	public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
 	{
-		$entityId = StateId::fromEntityId($entityId);
-		$event = WithEntity::forInstance($entityId, RaiseEvent::forOperation($operation, $args));
+		if ($this->isReplaying()) {
+			return;
+		}
+
+		$event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
 		$this->taskController->fire($event);
+	}
+
+	public function isReplaying(): bool
+	{
+		return $this->history->historicalTaskResults->isReading();
 	}
 
 	public function waitOne(DurableFuture $task): mixed
 	{
 		$completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
-		if (count($completed) === 1) {
+		if (count($completed) >= 1) {
 			return $completed[0]->await();
 		}
 		throw new Unwind();
@@ -359,19 +362,16 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
 	public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
 	{
-		$entityId = StateId::fromEntityId($entityId);
-		$instanceId = StateId::fromInstance($this->id);
-		$event = AwaitResult::forEvent(
-			$instanceId,
-			WithEntity::forInstance($entityId, RaiseEvent::forOperation($operation, $args))
+		return $this->createFuture(
+			fn() => $this->taskController->fire(
+				AwaitResult::forEvent(
+					StateId::fromInstance($this->id),
+					WithEntity::forInstance(
+						StateId::fromEntityId($entityId),
+						RaiseEvent::forOperation($operation, $args)
+					)
+				)
+			)
 		);
-		$future = new DeferredFuture();
-		[$eventId] = $this->taskController->fire($event);
-		$this->history->historicalTaskResults->sentEvent(
-			sha1($operation . json_encode($args) . $entityId),
-			$eventId,
-			$future
-		);
-		return new DurableFuture($future->getFuture());
 	}
 }

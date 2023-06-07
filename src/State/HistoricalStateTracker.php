@@ -30,7 +30,6 @@ use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Crell\Serde\Attributes\Field;
-use Crell\Serde\SerdeCommon;
 use LogicException;
 
 class HistoricalStateTracker
@@ -40,6 +39,8 @@ class HistoricalStateTracker
 		private \WeakMap|null $eventSlots = null,
 		#[Field(exclude: true)]
 		private int|null $readKey = null,
+		#[Field(exclude: true)]
+		private int $identityKey = 0,
 		private array $waiters = [],
 		private array $results = [],
 		private array $currentTime = [],
@@ -68,6 +69,12 @@ class HistoricalStateTracker
 		return $this->eventSlots ??= new \WeakMap();
 	}
 
+	public function getIdentity(): string
+	{
+		$this->identityKey ??= 0;
+		return 'identity' . $this->identityKey++;
+	}
+
 	public function hasSentIdentity(string $identity): bool
 	{
 		return isset($this->results[$identity]);
@@ -82,6 +89,7 @@ class HistoricalStateTracker
 	{
 		$this->readKey = null;
 		$this->eventSlots = null;
+		$this->identityKey = 0;
 	}
 
 	/**
@@ -207,8 +215,7 @@ class HistoricalStateTracker
 			$previousResults = array_column($results ?? [], 'result');
 			foreach ($previousResults as $result) {
 				if (is_array($result)) {
-					$serde = new SerdeCommon();
-					$result = $serde->deserialize($result, 'array', Event::class);
+					$result = Serializer::get()->deserialize($result, 'array', Event::class);
 				}
 				$this->waiters[$currentKey][] = ['result' => $result, 'identity' => $identity];
 			}
@@ -222,8 +229,7 @@ class HistoricalStateTracker
 
 		foreach ($results as $identity => $result) {
 			if (is_array($result)) {
-				$serde = new SerdeCommon();
-				$result = $serde->deserialize($result, 'array', Event::class);
+				$result = Serializer::get()->deserialize($result, 'array', Event::class);
 			}
 
 			/**

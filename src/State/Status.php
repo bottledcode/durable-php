@@ -36,7 +36,7 @@ readonly class Status
 		public array $input,
 		public StateId $id,
 		public \DateTimeImmutable $lastUpdated,
-		public mixed $output,
+		public array $output,
 		public RuntimeStatus $runtimeStatus,
 	) {
 	}

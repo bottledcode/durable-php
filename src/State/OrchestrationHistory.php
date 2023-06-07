@@ -87,11 +87,11 @@ class OrchestrationHistory extends AbstractHistory
 		$this->now = $event->timestamp;
 		$this->name = $event->name;
 		$this->version = $event->version;
-		$this->tags = $event->tags;;
+		$this->tags = $event->tags;
 		$this->parentInstance = $event->parentInstance ?? null;
 		$this->history = [];
 		$this->historicalTaskResults = new HistoricalStateTracker();
-		$this->status = new Status($this->now, '', $event->input, $this->id, $this->now, null, RuntimeStatus::Pending);
+		$this->status = new Status($this->now, '', $event->input, $this->id, $this->now, [], RuntimeStatus::Pending);
 
 		yield StartOrchestration::forInstance($this->instance);
 
@@ -148,12 +148,15 @@ class OrchestrationHistory extends AbstractHistory
 				return;
 			}
 
-			$this->status = $this->status->with(runtimeStatus: RuntimeStatus::Completed, output: $result);
+			$this->status = $this->status->with(
+				runtimeStatus: RuntimeStatus::Completed,
+				output: Serializer::get()->serialize($result, 'array')
+			);
 			$completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
 		} catch (\Throwable $e) {
 			$this->status = $this->status->with(
 				runtimeStatus: RuntimeStatus::Failed,
-				output: ExternalException::fromException($e)
+				output: Serializer::get()->serialize(ExternalException::fromException($e), 'array')
 			);
 			$completion = TaskFailed::forTask(
 				StateId::fromInstance($this->instance),
