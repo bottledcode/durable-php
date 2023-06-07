@@ -150,13 +150,13 @@ class OrchestrationHistory extends AbstractHistory
 
 			$this->status = $this->status->with(
 				runtimeStatus: RuntimeStatus::Completed,
-				output: Serializer::get()->serialize($result, 'array')
+				output: Serializer::serialize($result),
 			);
 			$completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
 		} catch (\Throwable $e) {
 			$this->status = $this->status->with(
 				runtimeStatus: RuntimeStatus::Failed,
-				output: Serializer::get()->serialize(ExternalException::fromException($e), 'array')
+				output: Serializer::serialize(ExternalException::fromException($e)),
 			);
 			$completion = TaskFailed::forTask(
 				StateId::fromInstance($this->instance),

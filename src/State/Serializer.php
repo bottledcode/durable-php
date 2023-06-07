@@ -25,14 +25,55 @@ namespace Bottledcode\DurablePhp\State;
 
 use Crell\Serde\Serde;
 use Crell\Serde\SerdeCommon;
+use LogicException;
 
 abstract class Serializer
 {
 	private static mixed $serializer = null;
 
+	public static function serialize(mixed $value): array
+	{
+		if (is_object($value)) {
+			return self::get()->serialize($value, 'array');
+		}
+		if (is_array($value)) {
+			$result = [];
+			foreach ($value as $k => $v) {
+				$result[$k] = self::serialize($v);
+			}
+			return $result;
+		}
+		if (is_scalar($value) || $value === null) {
+			return compact('value');
+		}
+
+		throw new LogicException('Cannot serialize value of type ' . gettype($value));
+	}
+
 	public static function get(): Serde
 	{
 		return self::$serializer ??= new SerdeCommon();
+	}
+
+	/**
+	 * @template T
+	 * @param array $value
+	 * @param class-string $type
+	 * @return T
+	 */
+	public static function deserialize(array $value, string $type): mixed
+	{
+		if (array_key_exists('value', $value) && count($value) === 1 && (is_scalar(
+					$value['value']
+				) || $value['value'] === null)) {
+			return $value['value'];
+		}
+
+		if ($type === 'array') {
+			return $value;
+		}
+
+		return self::get()->deserialize($value, 'array', $type);
 	}
 
 	public static function set(Serde $serializer): void
