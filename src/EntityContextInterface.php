@@ -95,4 +95,6 @@ interface EntityContextInterface
      * @return string
      */
     public function getOperation(): string;
+
+    public function startNewOrchestration(string $orchestration, array $input = []): void;
 }

@@ -34,6 +34,7 @@ $client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory
 $watch = new StopWatch();
 $watch->start();
 $id = random_int(1, 1000000);
+//$id = 1;
 $instance = $client->startNew(BankTransaction::class, [$id]);
 $instance2 = $client->startNew(BankTransaction::class, [$id]);
 $client->waitForCompletion($instance);

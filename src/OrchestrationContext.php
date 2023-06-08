@@ -251,12 +251,18 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
         }
 
         return new EntityLock(function () use ($entityId) {
+            $events = [];
             foreach ($entityId as $entity) {
                 $id = StateId::fromEntityId($entity);
                 unset($this->history->locks[$id->id]);
-                $this->taskController->fire(
-                    WithEntity::forInstance($id, RaiseEvent::forUnlock('', StateId::fromInstance($this->id)->id, null))
-                );
+                $events[] =
+                    WithEntity::forInstance($id, RaiseEvent::forUnlock('', StateId::fromInstance($this->id)->id, null));
+            }
+            foreach($events as $event) {
+                foreach($entityId as $entity) {
+                    $event = WithLock::onEntity(StateId::fromInstance($this->id), StateId::fromEntityId($entity), $event);
+                }
+                $this->taskController->fire($event);
             }
         });
     }
