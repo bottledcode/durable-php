@@ -22,39 +22,34 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Abstractions\Sources;
+namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\Config\Config;
-use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\RuntimeStatus;
-use Bottledcode\DurablePhp\State\Status;
-use Generator;
-use Withinboredom\Time\Seconds;
 
-interface Source
+class WithLock extends Event implements HasInnerEventInterface
 {
-    public static function connect(Config $config): static;
+    public function __construct(
+        string $eventId,
+        public StateId $owner,
+        public StateId $target,
+        public Event $innerEvent
+    ) {
+        parent::__construct($eventId);
+    }
 
-    public function getPastEvents(): Generator;
+    public static function onEntity(StateId $owner, StateId $target, Event $innerEvent): self
+    {
+        return new self('', $owner, $target, $innerEvent);
+    }
 
-    public function receiveEvents(): Generator;
+    public function __toString(): string
+    {
+        return sprintf('WithLock(%s, %s, %s)', $this->owner, $this->target, $this->innerEvent);
+    }
 
-    public function cleanHouse(): void;
-
-    public function storeEvent(Event $event, bool $local): string;
-
-    public function put(string $key, mixed $data, Seconds|null $ttl = null): void;
-
-    /**
-     * @template T
-     * @param string $key
-     * @param class-string<T> $class
-     * @return T
-     */
-    public function get(string $key, string $class): mixed;
-
-    public function ack(Event $event): void;
-
-    public function watch(StateId $stateId, RuntimeStatus ...$expected): Status|null;
+    public function getInnerEvent(): Event
+    {
+        $this->innerEvent->eventId = $this->eventId;
+        return $this->innerEvent;
+    }
 }

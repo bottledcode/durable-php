@@ -26,7 +26,6 @@ namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\EventResult;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
@@ -34,22 +33,23 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Generator;
 
 interface ApplyStateInterface
 {
-    public function applyAwaitResult(AwaitResult $event, Event $original): \Generator;
+    public function applyAwaitResult(AwaitResult $event, Event $original): Generator;
 
-    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator;
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): Generator;
 
-    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator;
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): Generator;
 
-    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator;
+    public function applyScheduleTask(ScheduleTask $event, Event $original): Generator;
 
-    public function applyStartExecution(StartExecution $event, Event $original): \Generator;
+    public function applyStartExecution(StartExecution $event, Event $original): Generator;
 
-    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator;
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): Generator;
 
-    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator;
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): Generator;
 
-    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator;
+    public function applyTaskFailed(TaskFailed $event, Event $original): Generator;
 }

@@ -33,6 +33,7 @@ use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
+use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Bottledcode\DurablePhp\State\ApplyStateInterface;
 use Bottledcode\DurablePhp\State\EntityHistory;
@@ -45,7 +46,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 {
     use Router;
 
-    private Source $source;
+    public Source $source;
 
     public function __construct(
         private readonly Config $config,
@@ -84,6 +85,9 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
             foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
                 if ($eventOrCallable instanceof Event) {
+                    if ($eventOrCallable instanceof PoisonPill) {
+                        break;
+                    }
                     $this->fire($eventOrCallable);
                 } elseif ($eventOrCallable instanceof \Closure) {
                     $eventOrCallable($this, $this->source, $this->clock);

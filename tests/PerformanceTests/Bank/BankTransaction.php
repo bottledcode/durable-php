@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -28,32 +29,23 @@ use Bottledcode\DurablePhp\State\EntityId;
 
 class BankTransaction
 {
-	public function __invoke(OrchestrationContextInterface $context)
-	{
-		[$target] = $context->getInput();
-		$sourceId = "src$target";
-		$sourceEntity = new EntityId(Account::class, $sourceId);
-
-		$destinationId = "dst$target";
-		$destinationEntity = new EntityId(Account::class, $destinationId);
-
-		$transferAmount = 1000;
-
-		$sourceProxy = $context->createEntityProxy(AccountInterface::class, $sourceEntity);
-		$destinationProxy = $context->createEntityProxy(AccountInterface::class, $destinationEntity);
-
-		$forceSuccess = false;
-
-		$lock = $context->lockEntity($sourceEntity, $destinationEntity);
-
-		$sourceBalance = $sourceProxy->get();
-		$sourceProxy->add(-$transferAmount);
-		$destinationProxy->add($transferAmount);
-
-		$value = $sourceProxy->get();
-
-		$lock->unlock();
-
-		return $value;
-	}
+    public function __invoke(OrchestrationContextInterface $context)
+    {
+        [$target] = $context->getInput();
+        $sourceId = "src$target";
+        $sourceEntity = new EntityId(Account::class, $sourceId);
+        $destinationId = "dst$target";
+        $destinationEntity = new EntityId(Account::class, $destinationId);
+        $transferAmount = 1000;
+        $sourceProxy = $context->createEntityProxy(AccountInterface::class, $sourceEntity);
+        $destinationProxy = $context->createEntityProxy(AccountInterface::class, $destinationEntity);
+        $forceSuccess = false;
+        $lock = $context->lockEntity($sourceEntity, $destinationEntity);
+        $sourceBalance = $sourceProxy->get();
+        $sourceProxy->add(-$transferAmount);
+        $destinationProxy->add($transferAmount);
+        $value = $sourceProxy->get();
+        $lock->unlock();
+        return $value;
+    }
 }

@@ -25,11 +25,14 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\MonotonicClock;
+use Crell\fp\Evolvable;
 use Crell\Serde\Attributes\ClassNameTypeMap;
 
 #[ClassNameTypeMap(key: 'eventType')]
 abstract class Event implements \Stringable
 {
+    use Evolvable;
+
     public bool $isPlayed;
 
     public \DateTimeImmutable $timestamp;

@@ -26,8 +26,6 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\RaiseEvent;
-use Bottledcode\DurablePhp\Events\With;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
@@ -41,11 +39,8 @@ use r\Options\ChangesOptions;
 use r\Options\Durability;
 use r\Options\RunOptions;
 use r\Options\TableInsertOptions;
-use r\Options\UpdateOptions;
-use r\ValuedQuery\RVar;
 use Withinboredom\Time\Seconds;
 
-use function r\branch;
 use function r\connectAsync;
 use function r\dbCreate;
 use function r\row;
@@ -204,93 +199,15 @@ class RethinkDbSource implements Source
         return null;
     }
 
-
-    public function lock(StateId $owner, StateId ...$target): Lock
-    {
-        $ids = [];
-        $lockName = $owner->id . '_' . implode('_', array_map(fn(StateId $id) => $id->id, $target));
-        foreach ($target as $targetId) {
-            $datum = [
-                'owner' => $owner->id, 'target' => $targetId->id, 'id' => uuid($targetId->id), 'waiting' => [],
-            ];
-            $results = table('locks')->insert(
-                $datum,
-                new TableInsertOptions(
-                    durability: Durability::Hard,
-                    return_changes: true,
-                    conflict: fn(
-                        $id, RVar $oldDoc, RVar $newDoc
-                    ) => branch(
-                        $oldDoc('owner')->eq(null),
-                        $newDoc,
-                        $oldDoc->merge(['waiting' => $oldDoc('waiting')->append($newDoc('owner'))])
-                    )
-                )
-            )->run(
-                $this->connection
-            );
-            $success = $results['inserted'] === 1 || $results['changes'][0]['new_val']['owner'] === $owner->id;
-            if ($success) {
-                $ids[] = $datum;
-            }
-        }//end foreach
-
-        // notify participants that the lock has been acquired
-        foreach ($ids as $datum) {
-            $this->storeEvent(
-                With::id($owner, RaiseEvent::forLock($lockName, $datum['owner'], $datum['target'])),
-                true
-            );
-            $this->storeEvent(
-                With::id($datum['target'], RaiseEvent::forLock($lockName, $datum['owner'], $datum['target'])),
-                true
-            );
-        }
-
-        return new Lock(
-            function () use ($owner, $target) {
-                $this->unlock($owner, ...$target);
-            }
-        );
-    }
-
-
     public function storeEvent(Event $event, bool $local): string
     {
         $partition = 'partition_' . $this->calculateDestinationPartitionFor($event, $local);
         $results = table($partition)->insert(
             [
-                'event' => Serializer::serialize($event), 'id' => uuid(), 'type' => $event::class,
+                'event' => Serializer::serialize($event), 'id' => $event->eventId ?: uuid(), 'type' => $event::class,
             ],
             new TableInsertOptions(return_changes: true)
         )->run($this->connection);
         return $results['changes'][0]['new_val']['id'];
-    }
-
-
-    public function unlock(?StateId $owner, StateId ...$target): void
-    {
-        foreach ($target as $targetId) {
-            table('locks')->get(uuid($targetId->id))->update(
-                fn(RVar $doc) => branch(
-                    $doc('waiting')->count()->gt(0),
-                    [
-                        'waiting' => $doc('waiting')->skip(1), 'owner' => $doc('waiting')(0),
-                    ],
-                    ['owner' => null]
-                ),
-                new UpdateOptions(durability: Durability::Hard, return_changes: true)
-            )->run($this->connection);
-        }
-    }
-
-
-    public function isLocked(?StateId $owner, StateId $target): bool
-    {
-        $currentLock = table('locks')->get(uuid($target->id))->run($this->connection);
-        if ($currentLock === null || $currentLock['owner'] === null) {
-            return false;
-        }
-        return $owner === null || $currentLock['owner'] !== $owner->id;
     }
 }
