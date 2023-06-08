@@ -27,11 +27,13 @@ namespace Bottledcode\DurablePhp;
 use Amp\DeferredFuture;
 use Amp\Future;
 use Bottledcode\DurablePhp\Events\AwaitResult;
+use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\State\EntityHistory;
@@ -243,39 +245,18 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
     public function lockEntity(EntityId ...$entityId): EntityLock
     {
-        $instanceId = StateId::fromInstance($this->id);
-        $futures = [];
-        foreach ($entityId as $id) {
-            $id = StateId::fromEntityId($id);
-            $futures[] = $this->createFuture(function () use ($instanceId, $id) {
-                $this->history->locks[$id->id] = time();
-                return $this->taskController->fire(
-                    AwaitResult::forEvent(
-                        $instanceId,
-                        WithEntity::forInstance($id, RaiseEvent::forLock($instanceId->id))
-                    )
-                );
-            });
+        $stateId = array_map(static fn(EntityId $x) => StateId::fromEntityId($x)->id, $entityId);
+        foreach ($stateId as $id) {
+            $this->history->locks[$id] = true;
         }
-        $this->waitAll(...$futures);
-        return new EntityLock(function () use ($instanceId, $entityId) {
-            $futures = [];
-            foreach ($entityId as $id) {
-                $id = StateId::fromEntityId($id);
-                $futures[] = $this->createFuture(function () use ($instanceId, $id) {
-                    return $this->taskController->fire(
-                        AwaitResult::forEvent(
-                            $instanceId,
-                            WithEntity::forInstance($id, RaiseEvent::forUnlock($instanceId->id))
-                        )
-                    );
-                });
-            }
 
-            $this->waitAll(...$futures);
-            foreach ($entityId as $id) {
-                $id = StateId::fromEntityId($id);
+        return new EntityLock(function () use ($entityId) {
+            foreach ($entityId as $entity) {
+                $id = StateId::fromEntityId($entity);
                 unset($this->history->locks[$id->id]);
+                $this->taskController->fire(
+                    WithEntity::forInstance($id, RaiseEvent::forUnlock('', StateId::fromInstance($this->id)->id, null))
+                );
             }
         });
     }
@@ -373,10 +354,19 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
     public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
     {
+        $id = StateId::fromInstance($this->id);
+        $eventWrapper = fn(Event $event) => AwaitResult::forEvent($id, $event);
+
+        if ($this->isLockedOwned($entityId)) {
+            foreach (array_keys($this->history->locks) as $lock) {
+                $lockId = StateId::fromString($lock);
+                $eventWrapper = static fn(Event $event) => $eventWrapper(WithLock::onEntity($id, $lockId, $event));
+            }
+        }
+
         return $this->createFuture(
             fn() => $this->taskController->fire(
-                AwaitResult::forEvent(
-                    StateId::fromInstance($this->id),
+                $eventWrapper(
                     WithEntity::forInstance(
                         StateId::fromEntityId($entityId),
                         RaiseEvent::forOperation($operation, $args)

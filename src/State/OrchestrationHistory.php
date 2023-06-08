@@ -34,7 +34,6 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
-use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
@@ -43,6 +42,7 @@ use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
+use LogicException;
 
 class OrchestrationHistory extends AbstractHistory
 {
@@ -212,7 +212,23 @@ class OrchestrationHistory extends AbstractHistory
     {
         yield from $this->finalize($event);
 
-        $this->historicalTaskResults->receivedEvent($event);
+        switch ($event->eventName) {
+            case '__lock':
+                // we have received confirmation of a lock being acquired
+                if (($this->locks[$event->eventData['target']] ?? false) !== true) {
+                    return;
+                    throw new LogicException('Acquired lock that was not requested');
+                }
+                $this->locks[$event->eventData['target']] = time();
+                break;
+            case '__unlock':
+                // we have received confirmation of a lock being released
+                unset($this->locks[$event->eventData['target']]);
+                break;
+            default:
+                $this->historicalTaskResults->receivedEvent($event);
+                break;
+        }
 
         if ($this->isRunning()) {
             yield from $this->construct();
@@ -251,7 +267,7 @@ class OrchestrationHistory extends AbstractHistory
             $howLong = time() - $time;
             Logger::log("Releasing lock on $entity after $howLong seconds");
             $entityId = StateId::fromString($entity);
-            $source->storeEvent(WithEntity::forInstance($entityId, RaiseEvent::forUnlock($this->id)));
+            $source->unlock($this->id, true, $entityId);
         }
     }
 }
