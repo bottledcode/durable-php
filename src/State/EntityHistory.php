@@ -99,7 +99,7 @@ class EntityHistory extends AbstractHistory
                 break;
             case '__lock':
                 // dequeue events currently in the lock queue
-                foreach ($this->lockQueue[$this->lock]['events'] as $nextEvent) {
+                foreach ($this->lockQueue[$this->lock]['events'] ?? [] as $nextEvent) {
                     yield $nextEvent;
                 }
                 // reply to the lock request
@@ -130,7 +130,7 @@ class EntityHistory extends AbstractHistory
     {
         if ($this->isLocked($original)) {
             // queue the event
-            $this->lockQueue['_']['events'] = $original;
+            $this->lockQueue['_']['events'][] = $original;
             return true;
         }
         return false;
@@ -183,7 +183,7 @@ class EntityHistory extends AbstractHistory
             return;
         }
 
-        if ($this->lock === null && $original instanceof RaiseEvent && $original->eventName === '__lock' && $this->lockQueue[$original->eventData['owner']]['participating'] ?? false) {
+        if ($this->lock === null && $original instanceof RaiseEvent && $original->eventName === '__lock' && ($this->lockQueue[$original->eventData['owner']]['participating'] ?? false)) {
             // we are not locked, but we are being asked to lock by a peer in a lock
             $this->lock = $original->eventData['owner'];
 
@@ -213,7 +213,8 @@ class EntityHistory extends AbstractHistory
         $me = current(array_filter($participants, static fn($other) => $other->target->id === $self));
         if (empty($me)) {
             // we are not a participant in the lock, so we can ignore it
-            return;
+            $this->lockQueue['_']['events'][] = $refireEvent;
+            yield PoisonPill::digest();
         }
 
         // we are a participant in the lock, check to see if we already have the lock
@@ -222,7 +223,7 @@ class EntityHistory extends AbstractHistory
         if ($isParticipating && $hasLock) {
             // we already have a lock, but we need to validate that there are no new participants
             $storedParticipants = $this->lockQueue[$me->owner->id]['participants'] ?? [];
-            $newParticipants = array_filter($storedParticipants, static fn($other) => $other->target !== $self);
+            $newParticipants = array_filter($storedParticipants, static fn(string $other) => @$other->target !== $self);
             if (array_intersect($storedParticipants, $newParticipants) === $storedParticipants) {
                 // there are no new participants, are we the final destination?
                 return;

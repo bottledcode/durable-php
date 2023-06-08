@@ -42,7 +42,6 @@ use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
-use LogicException;
 
 class OrchestrationHistory extends AbstractHistory
 {
@@ -217,7 +216,6 @@ class OrchestrationHistory extends AbstractHistory
                 // we have received confirmation of a lock being acquired
                 if (($this->locks[$event->eventData['target']] ?? false) !== true) {
                     return;
-                    throw new LogicException('Acquired lock that was not requested');
                 }
                 $this->locks[$event->eventData['target']] = time();
                 break;
@@ -266,8 +264,7 @@ class OrchestrationHistory extends AbstractHistory
         foreach ($this->locks as $entity => $time) {
             $howLong = time() - $time;
             Logger::log("Releasing lock on $entity after $howLong seconds");
-            $entityId = StateId::fromString($entity);
-            $source->unlock($this->id, true, $entityId);
+            // todo: release locks...
         }
     }
 }
