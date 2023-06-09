@@ -31,26 +31,39 @@ class BankTransaction
 {
     public function __invoke(OrchestrationContextInterface $context)
     {
+        // get the seed for the bank id
         [$target] = $context->getInput();
+
+        // generate the source account
         $sourceId = "src$target";
         $sourceEntity = new EntityId(Account::class, $sourceId);
+
+        // generate the destination account
         $destinationId = "dst$target";
         $destinationEntity = new EntityId(Account::class, $destinationId);
         $feeId = "fee$target";
         $feeEntity = new EntityId(Account::class, $feeId);
+
+        // the amount to transfer
         $transferAmount = 1000;
         $fee = 5;
+
+        // generate proxies for the source and destination accounts
         $sourceProxy = $context->createEntityProxy(AccountInterface::class, $sourceEntity);
         $destinationProxy = $context->createEntityProxy(AccountInterface::class, $destinationEntity);
         $feeCollector = $context->createEntityProxy(AccountInterface::class, $feeEntity);
-        $forceSuccess = false;
-        $lock = $context->lockEntity($sourceEntity, $destinationEntity, $feeEntity);
-        //$sourceBalance = $sourceProxy->get();
-        $sourceProxy->add(-$transferAmount - $fee);
+
+        // enter critical section
+        $lock = $context->lockEntity($sourceEntity, $destinationEntity);
+
+        $sourceBalance = $sourceProxy->get();
+        $sourceProxy->add(-$transferAmount);
         $destinationProxy->add($transferAmount);
         $feeCollector->add($fee);
         $value = $sourceProxy->get();
         $feeBalance = $feeCollector->get();
+
+        // exit critical section
         $lock->unlock();
         return compact('value', 'feeBalance');
     }
