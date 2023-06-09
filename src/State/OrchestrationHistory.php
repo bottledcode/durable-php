@@ -42,6 +42,7 @@ use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
+use Crell\Serde\Attributes\SequenceField;
 
 class OrchestrationHistory extends AbstractHistory
 {
@@ -60,6 +61,11 @@ class OrchestrationHistory extends AbstractHistory
     public HistoricalStateTracker $historicalTaskResults;
 
     public array $history = [];
+
+    /**
+     * @var array<StateId>
+     */
+    #[SequenceField(StateId::class)]
     public array $locks = [];
     private bool $debugHistory = false;
     #[Field(exclude: true)]
@@ -151,22 +157,17 @@ class OrchestrationHistory extends AbstractHistory
             }
 
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Completed,
-                output: Serializer::serialize($result),
+                runtimeStatus: RuntimeStatus::Completed, output: Serializer::serialize($result),
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Failed,
-                output: Serializer::serialize(
+                runtimeStatus: RuntimeStatus::Failed, output: Serializer::serialize(
                     ExternalException::fromException($e)
                 ),
             );
             $completion = TaskFailed::forTask(
-                StateId::fromInstance($this->instance),
-                $e->getMessage(),
-                $e->getTraceAsString(),
-                $e::class
+                StateId::fromInstance($this->instance), $e->getMessage(), $e->getTraceAsString(), $e::class
             );
         }
 

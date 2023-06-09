@@ -208,6 +208,6 @@ class RethinkDbSource implements Source
             ],
             new TableInsertOptions(return_changes: true)
         )->run($this->connection);
-        return $results['changes'][0]['new_val']['id'];
+        return $results['changes'][0]['new_val']['id'] ?? $event->eventId;
     }
 }

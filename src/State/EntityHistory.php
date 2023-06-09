@@ -34,7 +34,6 @@ use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\With;
-use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
@@ -262,10 +261,5 @@ class EntityHistory extends AbstractHistory
     {
         // note locks are not released here, they are released when the __unlock event is received
         // an entity is not required to be running to be locked.
-    }
-
-    public function applyWithLock(WithLock $event, Event $original): Generator
-    {
-        // TODO: Implement applyWithLock() method.
     }
 }

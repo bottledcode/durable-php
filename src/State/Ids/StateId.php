@@ -42,11 +42,6 @@ readonly class StateId implements \Stringable
     {
     }
 
-    public static function fromString(string $id): self
-    {
-        return new self($id);
-    }
-
     public static function fromState(StateInterface $state): self
     {
         return match ($state::class) {
@@ -81,13 +76,20 @@ readonly class StateId implements \Stringable
         };
     }
 
+    public static function fromString(string $id): self
+    {
+        return new self($id);
+    }
+
     public function toOrchestrationInstance(): OrchestrationInstance
     {
         $parts = explode(':', $this->id, 3);
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to orchestration instance"),
             ['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
-            ['entity', $parts[1], $parts[2]] => throw new Exception("Cannot convert entity state to orchestration instance"),
+            ['entity', $parts[1], $parts[2]] => throw new Exception(
+                "Cannot convert entity state to orchestration instance"
+            ),
         };
     }
 
@@ -96,7 +98,9 @@ readonly class StateId implements \Stringable
         $parts = explode(':', $this->id, 3);
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to entity id"),
-            ['orchestration', $parts[1], $parts[2]] => throw new Exception("Cannot convert orchestration state to entity id"),
+            ['orchestration', $parts[1], $parts[2]] => throw new Exception(
+                "Cannot convert orchestration state to entity id"
+            ),
             ['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
         };
     }
@@ -140,6 +144,27 @@ readonly class StateId implements \Stringable
     public function isOrchestrationId(): bool
     {
         return str_starts_with($this->id, 'orchestration:');
+    }
+
+    public function __invoke(string|StateId|OrchestrationInstance|EntityId|UuidInterface $id): self
+    {
+        if (is_string($id)) {
+            return new self($id);
+        }
+        if ($id instanceof self) {
+            return $id;
+        }
+        if ($id instanceof OrchestrationInstance) {
+            return self::fromInstance($id);
+        }
+        if ($id instanceof EntityId) {
+            return self::fromEntityId($id);
+        }
+        if ($id instanceof UuidInterface) {
+            return self::fromActivityId($id);
+        }
+
+        throw new \RuntimeException("Cannot convert {$id} to StateId");
     }
 
     public function __toString(): string

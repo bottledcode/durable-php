@@ -30,7 +30,8 @@ use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\LockParticipant;
 use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
-use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\With;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Generator;
@@ -38,22 +39,143 @@ use Generator;
 class LockStateMachine
 {
     public function __construct(
-        private StateId $myId,
-        private LockStateEnum $state = LockStateEnum::ProcessEvents,
+        private StateId $myId, private LockStateEnum $state = LockStateEnum::ProcessEvents,
         private array $lockQueue = [],
     ) {
     }
 
-    private function hasParticipants(Event $event): WithLock|null
+    public function process(Event $event): Generator
+    {
+        $lock = $this->getLock($event);
+        $innerEvent = $this->getInnerEvent($event);
+        $owner = null;
+        $sender = $this->getReplyTo($event);
+        if ($lock) {
+            $owner = $this->getOwner($lock);
+        }
+
+        restart:
+        switch ($this->state) {
+            case LockStateEnum::ProcessEvents:
+                if (!$lock) {
+                    // there is nothing to lock, so we can just process the event
+                    return;
+                }
+                // we have a lock, so we need to decide whether to enqueue the event or process it
+                // so, first, are we already participating in the lock?
+                $queue = $this->lockQueue[$owner->id] ?? null;
+                if ($queue === null) {
+                    // we are not participating, so change state
+                    $this->state = empty($lock->participants) ? LockStateEnum::Enqueue : LockStateEnum::Participants;
+                    goto restart;
+                }
+                // add it to the queue
+                /** @noinspection SuspiciousAssignmentsInspection */
+                $this->state = LockStateEnum::Enqueue;
+                goto restart;
+            case LockStateEnum::Participants:
+                // create a lock queue for ourselves
+                assert($lock !== null);
+                $next = $this->getNextParticipant($lock);
+                $prev = $this->getPreviousParticipant($lock);
+                $this->lockQueue[$owner->id] = [
+                    'events' => [], 'next' => $next,
+                    'previous' => $prev ?? $owner, 'sent' => $next === null,
+                    'received' => $next === null, 'lockId' => $lock->eventId,
+                ];
+                $this->state = LockStateEnum::Enqueue;
+                goto restart;
+            case LockStateEnum::Enqueue:
+                assert($owner !== null);
+                if (!$this->isNotification($innerEvent)) {
+                    $this->lockQueue[$owner->id]['events'][] = $event;
+                }
+                $this->state = LockStateEnum::Notify;
+                goto restart;
+            case LockStateEnum::Notify:
+                assert($sender !== null);
+                // is the current event a notification?
+                if ($raisedEvent = $this->isNotification($innerEvent)) {
+                    if ($sender->origin->id === ($this->lockQueue[$owner->id]['next']->id ?? null)) {
+                        // yes, so track it as a received notification
+                        $this->lockQueue[$owner->id]['received'] = true;
+                    }
+                }
+
+                if (!($this->lockQueue[$owner->id]['sent'] ?? null)) {
+                    // we need to send a command to lock the entity
+                    $next = $this->lockQueue[$owner->id]['next'] ?? null;
+                    if ($next !== null) {
+                        yield AwaitResult::forEvent(
+                            $this->myId, With::id(
+                            $next,
+                            WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), ...$lock->participants)
+                        )
+                        );
+                    }
+                    $this->lockQueue[$owner->id]['sent'] = true;
+                }
+
+                // have we received a notification?
+                if ($this->lockQueue[$owner->id]['received'] ?? null) {
+                    // yes, so we can now take a lock
+                    $this->state = LockStateEnum::ProcessLocked;
+                    // replay locked events
+                    foreach ($this->lockQueue[$owner->id]['events'] as $lockedEvent) {
+                        yield $lockedEvent;
+                    }
+                    // clear the queue
+                    $this->lockQueue[$owner->id]['events'] = [];
+                    // set the lock
+                    $this->lockQueue['current'] = $owner->id;
+
+                    // tell the previous participant to lock
+                    $prev = $this->lockQueue[$owner->id]['previous'] ?? null;
+                    if ($prev && $prev->isOrchestrationId()) {
+                        yield With::id($prev, TaskCompleted::forId($this->lockQueue[$owner->id]['lockId'], true));
+                    } else {
+                        yield AwaitResult::forEvent(
+                            $this->myId, WithLock::onEntity(
+                            $owner,
+                            With::id($this->lockQueue[$owner->id]['previous'], RaiseEvent::forLockNotification($owner))
+                        )
+                        );
+                    }
+
+                    yield PoisonPill::digest();
+                    break;
+                }
+
+                // we need to wait for the remainder to lock
+                $this->state = LockStateEnum::ProcessEvents;
+                yield PoisonPill::digest();
+                break;
+            case LockStateEnum::ProcessLocked:
+                if ($lock === null || $owner->id !== $this->lockQueue['current']) {
+                    $this->lockQueue['_']['events'][] = $event;
+                    yield PoisonPill::digest();
+                }
+
+                // if this is an unlock event, then we need to unlock
+                if ($innerEvent instanceof RaiseEvent && $innerEvent->eventName === '__unlock') {
+                    $this->lockQueue['current'] = null;
+                    $this->state = LockStateEnum::ProcessEvents;
+                    foreach ($this->lockQueue['_']['events'] ?? [] as $lockedEvent) {
+                        yield $lockedEvent;
+                    }
+                    unset($this->lockQueue[$owner->id]);
+                    yield PoisonPill::digest();
+                }
+
+                return;
+        }
+    }
+
+    private function getLock(Event $event): withLock|null
     {
         while ($event instanceof HasInnerEventInterface) {
             if ($event instanceof WithLock) {
-                foreach ($event->participants as $participant) {
-                    if ($participant->participant->id === $this->myId->id) {
-                        return $event;
-                    }
-                }
-                return null;
+                return $event;
             }
             $event = $event->getInnerEvent();
         }
@@ -68,20 +190,6 @@ class LockStateMachine
         return $event;
     }
 
-    private function getOwner(WithLock $event): StateId
-    {
-        return $event->participants[0]->owner;
-    }
-
-    private function isNotification(Event $event): RaiseEvent|null
-    {
-        if ($event instanceof RaiseEvent && $event->eventName === '__lock_notification') {
-            return $event;
-        }
-
-        return null;
-    }
-
     private function getReplyTo(Event $event): AwaitResult|null
     {
         while ($event instanceof HasInnerEventInterface) {
@@ -93,145 +201,39 @@ class LockStateMachine
         return null;
     }
 
-    public function process(Event $event): Generator
+    private function getOwner(WithLock $event): StateId
     {
-        $participants = $this->hasParticipants($event);
-        $innerEvent = $this->getInnerEvent($event);
-        $owner = null;
-        $sender = $this->getReplyTo($event);
-        if ($participants) {
-            $owner = $this->getOwner($participants);
+        return $event->owner;
+    }
+
+    private function getNextParticipant(WithLock $lock): StateId|null
+    {
+        $participants = $lock->participants;
+        foreach ($participants as $idx => $participant) {
+            if ($participant->id === $this->myId->id) {
+                return $participants[$idx + 1] ?? null;
+            }
+        }
+        return null;
+    }
+
+    private function getPreviousParticipant(WithLock $lock): StateId|null
+    {
+        $participants = $lock->participants;
+        foreach ($participants as $idx => $participant) {
+            if ($participant->id === $this->myId->id) {
+                return $participants[$idx - 1] ?? null;
+            }
+        }
+        return null;
+    }
+
+    private function isNotification(Event $event): RaiseEvent|null
+    {
+        if ($event instanceof RaiseEvent && $event->eventName === '__lock_notification') {
+            return $event;
         }
 
-        restart:
-        switch ($this->state) {
-            case LockStateEnum::ProcessEvents:
-                if (!$participants) {
-                    // there is nothing to lock, so we can just process the event
-                    return;
-                }
-                // we have participants, so we need to decide whether to enqueue the event or process it
-                // so, first, are we already participating in the lock?
-                $queue = $this->lockQueue[$owner->id] ?? null;
-                if ($queue === null) {
-                    // we are not participating, so change state
-                    $this->state = LockStateEnum::Participants;
-                    goto restart;
-                }
-                // add it to the queue
-                /** @noinspection SuspiciousAssignmentsInspection */
-                $this->state = LockStateEnum::Enqueue;
-                goto restart;
-            case LockStateEnum::Enque:
-                assert($owner !== null);
-                // determine if it is a notification???
-
-                // add it to the queue
-                $this->lockQueue[$owner->id]['events'][] = $event;
-                $this->state = LockStateEnum::ProcessEvents;
-                yield PoisonPill::digest();
-                break;
-            case LockStateEnum::Participants:
-                // create a lock queue for ourselves
-                assert($participants !== null);
-                $this->lockQueue[$owner->id] = [
-                    'events' => [], 'participants' => array_map(
-                        static fn(LockParticipant $participant) => [
-                            'id' => $participant->participant->id, 'locked' => null
-                        ],
-                        $participants->participants
-                    ),
-                ];
-                $this->lockQueue[$owner->id]['participants'] = array_combine(
-                    array_column($this->lockQueue[$owner->id]['participants'], 'id'),
-                    array_column($this->lockQueue[$owner->id]['participants'], 'locked')
-                );
-                $this->state = LockStateEnum::Enqueue;
-                goto restart;
-            case LockStateEnum::Enqueue:
-                assert($owner !== null);
-                if (!$this->isNotification($innerEvent)) {
-                    $this->lockQueue[$owner->id]['events'][] = $event;
-                }
-                $this->state = LockStateEnum::Notify;
-                goto restart;
-            case LockStateEnum::Notify:
-                assert($sender !== null);
-                // is the current event a notification?
-                if ($raisedEvent = $this->isNotification($innerEvent)) {
-                    // yes, so track it as a received notification
-                    $this->lockQueue[$owner->id]['participants'][$sender->getReplyTo()->id] = true;
-                }
-
-                $allReceived = true;
-                // find other participants that we haven't received a notification for yet
-                foreach ($this->lockQueue[$owner->id]['participants'] as $id => $status) {
-                    // null === nothing done yet
-                    // false === not yet received
-                    // true === received
-                    if ($status === false || $status === null) {
-                        $allReceived = false;
-                    }
-                    if ($status === null) {
-                        if ($id === $this->myId->id) {
-                            $this->lockQueue[$owner->id]['participants'][$id] = true;
-                            continue;
-                        }
-
-                        $this->lockQueue[$owner->id]['participants'][$id] = false;
-                        yield AwaitResult::forEvent(
-                            $this->myId,
-                            WithEntity::forInstance(
-                                StateId::fromString($id),
-                                WithLock::onEntity(
-                                    $owner,
-                                    RaiseEvent::forLockNotification($owner->id),
-                                    ...array_map(static fn(LockParticipant $p) => $p->participant, $participants->participants)
-                                )
-                            )
-                        );
-                    }
-                }
-
-                // have we received notifications from all participants?
-                if ($allReceived) {
-                    // we can now take a lock
-                    $this->state = LockStateEnum::ProcessLocked;
-                    // replay locked events
-                    foreach ($this->lockQueue[$owner->id]['events'] as $lockedEvent) {
-                        yield $lockedEvent;
-                    }
-                    // clear the queue
-                    $this->lockQueue[$owner->id]['events'] = [];
-
-                    // set the current lock
-                    $this->lockQueue['current'] = $owner->id;
-                    yield PoisonPill::digest();
-                    break;
-                }
-
-                // we need to wait for the remainder to lock
-                $this->state = LockStateEnum::ProcessEvents;
-                yield PoisonPill::digest();
-                break;
-            case LockStateEnum::ProcessLocked:
-                if ($participants === null || $owner->id !== $this->lockQueue['current']) {
-                    // the event is not part of the lock, save it for later
-                    $this->lockQueue[$owner?->id ?? '_']['events'][] = $event;
-                }
-
-                // if this is an unlock event, then we need to unlock
-                if ($innerEvent instanceof RaiseEvent && $innerEvent->eventName === '__unlock') {
-                    $this->lockQueue['current'] = null;
-                    $this->state = LockStateEnum::ProcessEvents;
-                    foreach ($this->lockQueue['_']['events'] as $lockedEvent) {
-                        yield $lockedEvent;
-                    }
-                    unset($this->lockQueue[$owner->id]);
-                    yield PoisonPill::digest();
-                }
-
-                return;
-        }
+        return null;
     }
 }
