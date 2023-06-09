@@ -31,12 +31,14 @@ class WithLock extends Event implements HasInnerEventInterface
 {
     /**
      * @param string $eventId
-     * @param array<LockParticipant> $participants
+     * @param StateId $owner
+     * @param array<StateId> $participants
      * @param Event $innerEvent
      */
     public function __construct(
         string $eventId,
-        #[SequenceField(LockParticipant::class)]
+        public StateId $owner,
+        #[SequenceField(StateId::class)]
         public array $participants,
         public Event $innerEvent,
     ) {
@@ -45,11 +47,7 @@ class WithLock extends Event implements HasInnerEventInterface
 
     public static function onEntity(StateId $owner, Event $innerEvent, StateId ...$targets): self
     {
-        $participants = [];
-        foreach ($targets as $target) {
-            $participants[] = new LockParticipant($owner, $target);
-        }
-        return new self('', $participants, $innerEvent);
+        return new self('', $owner, $targets, $innerEvent);
     }
 
     public function __toString(): string

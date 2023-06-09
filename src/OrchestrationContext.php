@@ -41,16 +41,18 @@ use Bottledcode\DurablePhp\State\EntityLock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\State\RuntimeStatus;
 use LogicException;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
-final readonly class OrchestrationContext implements OrchestrationContextInterface
+final class OrchestrationContext implements OrchestrationContextInterface
 {
+    private int $guidCounter = 0;
+
     public function __construct(
-        private OrchestrationInstance $id,
-        private OrchestrationHistory $history,
-        private EventDispatcherTask $taskController
+        private readonly OrchestrationInstance $id, private readonly OrchestrationHistory $history,
+        private readonly EventDispatcherTask $taskController
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
     }
@@ -85,10 +87,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
     }
 
     public function callSubOrchestrator(
-        string $name,
-        array $args = [],
-        ?string $instanceId = null,
-        ?RetryOptions $retryOptions = null
+        string $name, array $args = [], ?string $instanceId = null, ?RetryOptions $retryOptions = null
     ): DurableFuture {
         throw new LogicException('Not implemented');
     }
@@ -104,8 +103,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
         return $this->createFuture(
             fn() => $this->taskController->fire(
                 WithOrchestration::forInstance(
-                    StateId::fromInstance($this->id),
-                    WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
+                    StateId::fromInstance($this->id), WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
                 )
             )
         );
@@ -126,7 +124,10 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
     public function newGuid(): UuidInterface
     {
-        return Uuid::uuid7();
+        $hash = md5(sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++));
+        $hash = base_convert($hash, 16, 8);
+        $hash = substr($hash, 0, 16);
+        return Uuid::uuid8($hash);
     }
 
     public function setCustomStatus(string $customStatus): void
@@ -168,26 +169,18 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
     public function willContinueAsNew(): bool
     {
-        throw new LogicException('Not implemented');
+        return $this->history->status->runtimeStatus === RuntimeStatus::ContinuedAsNew;
     }
 
     public function createInterval(
-        int $years = null,
-        int $months = null,
-        int $weeks = null,
-        int $days = null,
-        int $hours = null,
-        int $minutes = null,
-        int $seconds = null,
-        int $microseconds = null
+        int $years = null, int $months = null, int $weeks = null, int $days = null, int $hours = null,
+        int $minutes = null, int $seconds = null, int $microseconds = null
     ): \DateInterval {
-        if (
-            empty(
-                array_filter(
-                    compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
-                )
-            )
-        ) {
+        if (empty(
+        array_filter(
+            compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
+        )
+        )) {
             throw new LogicException('At least one interval part must be specified');
         }
 
@@ -239,36 +232,58 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
     public function isLockedOwned(EntityId $entityId): bool
     {
         $id = StateId::fromEntityId($entityId);
-        return $this->history->locks[$id->id] ?? false;
+        return in_array($id->id, array_map(static fn($x) => $x->id, $this->history->locks ?? []), true);
     }
 
     public function lockEntity(EntityId ...$entityId): EntityLock
     {
-        $stateId = array_map(static fn(EntityId $x) => StateId::fromEntityId($x)->id, $entityId);
-        foreach ($stateId as $id) {
-            $this->history->locks[$id] = true;
+        if (!empty($this->history->locks ?? []) && !$this->isReplaying()) {
+            throw new LogicException('Cannot lock an entity while holding locks');
         }
 
-        return new EntityLock(function () use ($entityId) {
-            $events = [];
-            foreach ($entityId as $entity) {
-                $id = StateId::fromEntityId($entity);
-                unset($this->history->locks[$id->id]);
-                $events[] =
-                    WithEntity::forInstance($id, RaiseEvent::forUnlock('', StateId::fromInstance($this->id)->id, null));
-            }
-            foreach ($events as $event) {
-                $event = WithLock::onEntity(StateId::fromInstance($this->id), $event, ...$entityId);
-                $this->taskController->fire($event);
+        // create a deterministic order of locks
+        $entityId = array_map(static fn(EntityId $x) => StateId::fromEntityId($x), $entityId);
+        sort($entityId);
+
+        $owner = StateId::fromInstance($this->id);
+        $event = AwaitResult::forEvent(
+            $owner, WithEntity::forInstance(current($entityId), RaiseEvent::forLockNotification($owner->id))
+        );
+        $future =
+            $this->createFuture(fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)));
+        $this->waitOne($future);
+
+        $this->history->locks = $entityId;
+
+        return new EntityLock(function () use ($owner) {
+            foreach ($this->history->locks as $lock) {
+                $this->taskController->fire(
+                    WithLock::onEntity(
+                        $owner, WithEntity::forInstance($lock, RaiseEvent::forUnlock($owner->id, null, null))
+                    )
+                );
             }
         });
+    }
+
+    public function isReplaying(): bool
+    {
+        return $this->history->historicalTaskResults->isReading();
+    }
+
+    public function waitOne(DurableFuture $task): mixed
+    {
+        $completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
+        if (count($completed) >= 1) {
+            return $completed[0]->await();
+        }
+        throw new Unwind();
     }
 
     public function waitAll(DurableFuture ...$tasks): DurableFuture
     {
         $completed = $this->history->historicalTaskResults->awaitingFutures(
-            ...
-            array_map(static fn(DurableFuture $f) => $f->future, $tasks)
+            ...array_map(static fn(DurableFuture $f) => $f->future, $tasks)
         );
         if (count($completed) === count($tasks)) {
             foreach ($completed as $complete) {
@@ -302,9 +317,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
         return new class ($this, $proxies, $entityId) {
             public function __construct(
-                private OrchestrationContext $context,
-                private array $proxies,
-                private EntityId $id
+                private OrchestrationContext $context, private array $proxies, private EntityId $id
             ) {
             }
 
@@ -326,33 +339,6 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
         };
     }
 
-    public function isReplaying(): bool
-    {
-        return $this->history->historicalTaskResults->isReading();
-    }
-
-    public function waitOne(DurableFuture $task): mixed
-    {
-        $completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
-        if (count($completed) >= 1) {
-            return $completed[0]->await();
-        }
-        throw new Unwind();
-    }
-
-    public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
-    {
-        $id = StateId::fromInstance($this->id);
-
-        $event = AwaitResult::forEvent($id, WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args)));
-        if ($this->isLockedOwned($entityId)) {
-            $participants = array_map(static fn(string $x) => StateId::fromString($x), array_keys($this->history->locks));
-            $event = WithLock::onEntity($id, $event, ...$participants);
-        }
-
-        return $this->createFuture(fn() => $this->taskController->fire($event));
-    }
-
     public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
     {
         if ($this->isReplaying()) {
@@ -362,10 +348,23 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
 
         $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
         if ($this->isLockedOwned($entityId)) {
-            $participants = array_map(static fn(string $x) => StateId::fromString($x), array_keys($this->history->locks));
-            $event = WithLock::onEntity($id, $event, ...$participants);
+            $event = WithLock::onEntity($id, $event);
         }
 
         $this->taskController->fire($event);
+    }
+
+    public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
+    {
+        $id = StateId::fromInstance($this->id);
+
+        $event = AwaitResult::forEvent(
+            $id, WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args))
+        );
+        if ($this->isLockedOwned($entityId)) {
+            $event = WithLock::onEntity($id, $event);
+        }
+
+        return $this->createFuture(fn() => $this->taskController->fire($event));
     }
 }

@@ -54,9 +54,9 @@ class BankTransaction
         $feeCollector = $context->createEntityProxy(AccountInterface::class, $feeEntity);
 
         // enter critical section
-        $lock = $context->lockEntity($sourceEntity, $destinationEntity);
+        $lock = $context->lockEntity($sourceEntity, $destinationEntity, $feeEntity);
 
-        $sourceBalance = $sourceProxy->get();
+        //$sourceBalance = $sourceProxy->get();
         $sourceProxy->add(-$transferAmount);
         $destinationProxy->add($transferAmount);
         $feeCollector->add($fee);

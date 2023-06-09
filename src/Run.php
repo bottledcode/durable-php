@@ -88,6 +88,7 @@ class Run
         $eventSource = async(function () use ($queue, &$cancellation) {
             foreach ($this->source->receiveEvents() as $event) {
                 $queue->enqueue($this->getEventKey($event), $event);
+                Logger::event('Received event: ' . $event);
                 if ($queue->getSize() === 1 && !$cancellation->isCancelled()) {
                     // if this is the first event, we need to wake up the main loop
                     // so that it can process the event

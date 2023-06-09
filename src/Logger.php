@@ -26,7 +26,10 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Log\ConsoleFormatter;
 use Amp\Log\StreamHandler;
+use Monolog\Level;
 use Monolog\Logger as Monologger;
+use Monolog\Processor\MemoryPeakUsageProcessor;
+use Monolog\Processor\ProcessIdProcessor;
 
 use function Amp\ByteStream\getStdout;
 
@@ -37,11 +40,10 @@ class Logger
         $logger = self::init();
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
         $output = sprintf(
-            "%s: " . $message . PHP_EOL,
-            ...
+            "%s: " . $message . PHP_EOL, ...
             [basename($caller['file'], '.php'), ...$vars]
         );
-        $logger->info($output);
+        $logger->debug($output);
     }
 
     private static function init(): Monologger
@@ -54,10 +56,35 @@ class Logger
 
         $handler = new StreamHandler(getStdout());
         $handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
+        $handler->pushProcessor(new MemoryPeakUsageProcessor(true, true));
+        $handler->pushProcessor(new ProcessIdProcessor());
+        $handler->setLevel(Level::Info);
 
         $logger = new Monologger('main');
         $logger->pushHandler($handler);
 
+
         return $logger;
+    }
+
+    public static function event(string $message, ...$vars): void
+    {
+        static $counter = 0;
+        static $time = 0;
+        static $lastTime = 0;
+        $time = $time === 0 ? microtime(true) : $time;
+
+        $elapsed = microtime(true) - $time;
+
+        // calculate the time since the last event
+        if(time() - $lastTime > 4) {
+            $lastTime = time();
+            $elapsed = microtime(true) - $time;
+            $time = microtime(true);
+            $counter = 0;
+        }
+
+        $logger = self::init();
+        $logger->info(sprintf($message, $vars), ['total' => ++$counter, 'elapsed' => $elapsed, 'eps' => $counter / $elapsed]);
     }
 }
