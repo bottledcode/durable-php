@@ -36,16 +36,22 @@ class BankTransaction
         $sourceEntity = new EntityId(Account::class, $sourceId);
         $destinationId = "dst$target";
         $destinationEntity = new EntityId(Account::class, $destinationId);
+        $feeId = "fee$target";
+        $feeEntity = new EntityId(Account::class, $feeId);
         $transferAmount = 1000;
+        $fee = 5;
         $sourceProxy = $context->createEntityProxy(AccountInterface::class, $sourceEntity);
         $destinationProxy = $context->createEntityProxy(AccountInterface::class, $destinationEntity);
+        $feeCollector = $context->createEntityProxy(AccountInterface::class, $feeEntity);
         $forceSuccess = false;
-        $lock = $context->lockEntity($sourceEntity, $destinationEntity);
-        $sourceBalance = $sourceProxy->get();
-        $sourceProxy->add(-$transferAmount);
+        $lock = $context->lockEntity($sourceEntity, $destinationEntity, $feeEntity);
+        //$sourceBalance = $sourceProxy->get();
+        $sourceProxy->add(-$transferAmount - $fee);
         $destinationProxy->add($transferAmount);
+        $feeCollector->add($fee);
         $value = $sourceProxy->get();
+        $feeBalance = $feeCollector->get();
         $lock->unlock();
-        return $value;
+        return compact('value', 'feeBalance');
     }
 }

@@ -30,12 +30,10 @@ use Bottledcode\DurablePhp\EntityContextInterface;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\With;
-use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
@@ -53,7 +51,7 @@ class EntityHistory extends AbstractHistory
     public string|null $lock;
     private bool $debugHistory = false;
     private EntityState|null $state = null;
-    private array $lockQueue = [];
+    private LockStateMachine $lockQueue;
 
     public function __construct(public StateId $id)
     {
@@ -156,6 +154,8 @@ class EntityHistory extends AbstractHistory
             return;
         }
 
+        $this->lockQueue ??= new LockStateMachine($this->id);
+
         $this->name = $this->id->toEntityId()->name;
         $now = MonotonicClock::current()->now();
         $this->status = new Status($now, '', [], $this->id, $now, [], RuntimeStatus::Running);
@@ -168,124 +168,9 @@ class EntityHistory extends AbstractHistory
 
     private function participateInLock(Event $original): Generator
     {
-        $this->lock ??= null;
-        $participants = [];
-        $refireEvent = $original;
-        while ($original instanceof HasInnerEventInterface) {
-            if ($original instanceof WithLock) {
-                $participants[] = $original;
-            }
-            $original = $original->getInnerEvent();
-        }
+        $this->init();
 
-        if ($this->lock && $original instanceof RaiseEvent && $original->eventName === '__lock' && $original->eventData['owner'] === $this->lock) {
-            // this is a magic lock request...
-            return;
-        }
-
-        if ($this->lock === null && $original instanceof RaiseEvent && $original->eventName === '__lock' && ($this->lockQueue[$original->eventData['owner']]['participating'] ?? false)) {
-            // we are not locked, but we are being asked to lock by a peer in a lock
-            $this->lock = $original->eventData['owner'];
-
-            // we are officially locked!
-            foreach ($this->lockQueue[$this->lock]['events'] as $nextEvent) {
-                yield $nextEvent;
-            }
-            $this->lockQueue[$this->lock]['events'] = [];
-
-            // that's all folks!
-            yield PoisonPill::digest();
-        }
-
-        // todo: handle other magic lock requests?
-
-        // if we aren't locked and this event isn't requesting a lock, we can continue
-        if ($this->lock === null && empty($participants)) {
-            return;
-        }
-
-        // if we are a target of a lock, we need to participate in the lock
-        $self = $this->id->id;
-
-        /**
-         * @var WithLock|false $me
-         */
-        $me = current(array_filter($participants, static fn($other) => $other->target->id === $self));
-        if (empty($me)) {
-            // we are not a participant in the lock, so we can ignore it
-            $this->lockQueue['_']['events'][] = $refireEvent;
-            yield PoisonPill::digest();
-        }
-
-        // we are a participant in the lock, check to see if we already have the lock
-        $isParticipating = $this->lockQueue[$me->owner->id]['participating'] ?? false;
-        $hasLock = ($this->lock ?? null) === $me->owner->id;
-        if ($isParticipating && $hasLock) {
-            // we already have a lock, but we need to validate that there are no new participants
-            $storedParticipants = $this->lockQueue[$me->owner->id]['participants'] ?? [];
-            $newParticipants = array_filter($storedParticipants, static fn(string $other) => @$other->target !== $self);
-            if (array_intersect($storedParticipants, $newParticipants) === $storedParticipants) {
-                // there are no new participants, are we the final destination?
-                return;
-            }
-            // there are new participants, so we need to wait
-        }
-
-        if ($isParticipating && !$hasLock) {
-            // we are participating, but we don't have the lock, so this needs to wait
-            $this->lockQueue[$me->owner->id]['events'][] = $refireEvent;
-            yield PoisonPill::digest();
-        }
-
-        // we are not participating in the lock yet or there are new participants in the lock
-
-        // are we the final participant, then queue it?
-        if (count($participants) === 1) {
-            if ($this->queueIfLocked($refireEvent)) {
-                yield PoisonPill::digest();
-            }
-
-            // we can now lock the entity
-            $this->lock = $me->owner->id;
-            $this->lockQueue[$me->owner->id]['participating'] = true;
-            $this->lockQueue[$me->owner->id]['participants'] = array_map(
-                static fn(WithLock $lock) => $lock->target->id,
-                $participants
-            );
-            return;
-        }
-
-        // we have multiple participants, we need to queue this event until we have the lock
-        $this->lockQueue[$me->owner->id]['events'][] = $refireEvent;
-        $this->lockQueue[$me->owner->id]['participating'] = true;
-        $this->lockQueue[$me->owner->id]['participants'] = array_map(
-            static fn(WithLock $lock) => $lock->target->id,
-            $participants
-        );
-
-        // now send the event to the next participant
-        /**
-         * @var WithLock $participant
-         */
-        $participant = next($participants);
-
-        $fire = AwaitResult::forEvent(
-            $this->id,
-            WithEntity::forInstance(
-                $participant->target,
-                WithLock::onEntity(
-                    $participant->owner,
-                    $participant->target,
-                    RaiseEvent::forLock('please', $me->owner->id, $me->target->id)
-                )
-            )
-        );
-
-        while (($participant = next($participants)) !== false) {
-            $fire = WithLock::onEntity($participant->owner, $participant->target, $fire);
-        }
-        yield $fire;
-        yield PoisonPill::digest();
+        yield from $this->lockQueue->process($original);
     }
 
     private function execute(Event $original, string $operation, array $input): Generator

@@ -262,8 +262,8 @@ class OrchestrationHistory extends AbstractHistory
     public function onComplete(Source $source): void
     {
         foreach ($this->locks as $entity => $time) {
-            $howLong = time() - $time;
-            Logger::log("Releasing lock on $entity after $howLong seconds");
+            //$howLong = time() - $time;
+            //Logger::log("Releasing lock on $entity after $howLong seconds");
             // todo: release locks...
         }
     }

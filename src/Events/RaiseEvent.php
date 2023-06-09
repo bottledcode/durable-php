@@ -36,9 +36,14 @@ class RaiseEvent extends Event
         return new static('', '__signal', ['input' => $input, 'operation' => $operation]);
     }
 
-    public static function forLock(string $name, ?string $owner, ?string $target): static
+    public static function forLock(string $owner): static
     {
-        return new static('', '__lock', ['name' => $name, 'owner' => $owner, 'target' => $target]);
+        return new static('', '__lock', ['owner' => $owner]);
+    }
+
+    public static function forLockNotification(string $owner): static
+    {
+        return new static('', '__lock_notification', ['owner' => $owner]);
     }
 
     public static function forUnlock(string $name, ?string $owner, ?string $target): static

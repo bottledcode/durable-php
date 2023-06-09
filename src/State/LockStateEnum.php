@@ -22,44 +22,47 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\Serde\Attributes\SequenceField;
-
-class WithLock extends Event implements HasInnerEventInterface
+enum LockStateEnum
 {
     /**
-     * @param string $eventId
-     * @param array<LockParticipant> $participants
-     * @param Event $innerEvent
+     * The lock is not held by anyone.
      */
-    public function __construct(
-        string $eventId,
-        #[SequenceField(LockParticipant::class)]
-        public array $participants,
-        public Event $innerEvent,
-    ) {
-        parent::__construct($eventId);
-    }
+    case ProcessEvents;
 
-    public static function onEntity(StateId $owner, Event $innerEvent, StateId ...$targets): self
-    {
-        $participants = [];
-        foreach ($targets as $target) {
-            $participants[] = new LockParticipant($owner, $target);
-        }
-        return new self('', $participants, $innerEvent);
-    }
+    /**
+     * A request with lock participants has been received
+     */
+    case Participants;
 
-    public function __toString(): string
-    {
-        return sprintf('WithLock(%d, %s)', count($this->participants), $this->innerEvent);
-    }
+    /**
+     * Notify next participant
+     */
+    case Notify;
 
-    public function getInnerEvent(): Event
-    {
-        $this->innerEvent->eventId = $this->eventId;
-        return $this->innerEvent;
-    }
+    /**
+     * Receive a lock notification
+     */
+    case Notification;
+
+    /**
+     * Enqueue locked events
+     */
+    case Enqueue;
+
+    /**
+     * Enqueue locked events
+     */
+    case Enque;
+
+    /**
+     * Process locked events
+     */
+    case ProcessLocked;
+
+    /**
+     * Enqueue other events
+     */
+    case QUnlocked;
 }

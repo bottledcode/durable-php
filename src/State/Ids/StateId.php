@@ -30,10 +30,12 @@ use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\StateInterface;
+use Crell\Serde\Attributes\ClassNameTypeMap;
 use Exception;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
+#[ClassNameTypeMap('__type')]
 readonly class StateId implements \Stringable
 {
     public function __construct(public string $id)

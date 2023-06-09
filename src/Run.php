@@ -30,6 +30,7 @@ use Amp\Parallel\Context\DefaultContextFactory;
 use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\Execution;
+use Amp\Parallel\Worker\TaskFailureError;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
@@ -38,6 +39,7 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\EventQueue;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
+use Throwable;
 
 use function Amp\async;
 use function Amp\Future\awaitFirst;
@@ -104,14 +106,7 @@ class Run
         // if there is a queue, we need to process it first
         if ($queue->getSize() > 0) {
             // attempt to get the next event from the queue
-            $event = $queue->getNext(
-                array_keys(
-                    array_filter(
-                        $lastSent,
-                        static fn($v) => time() - $v > $timeout
-                    )
-                )
-            );
+            $event = $queue->getNext([]);
             if ($event === null) {
                 // there currently are not any events that we can get from the queue
                 // so we need to wait for an event or a worker to finish
@@ -143,6 +138,19 @@ class Run
                 $cancellation = new DeferredCancellation();
                 $queue->setCancellation($cancellation);
                 goto startOver;
+            } catch (TaskFailureError $e) {
+                // a worker failed ... we can retry the event, maybe.
+                // but first, we need to remove the execution from the map
+                foreach ($map as $key => $execution) {
+                    if ($execution->getFuture()->isComplete()) {
+                        unset($map[$key]);
+                    }
+                }
+                Logger::log('A worker failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            } catch (Throwable $e) {
+                // shit hit the fan in a worker.
+                var_dump(get_class($e));
+                throw $e;
             }
 
 
@@ -163,7 +171,7 @@ class Run
 
             // process the queue
             goto startOver;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Logger::log(
                 "An error occurred while waiting for an event to complete: %s\n%s",
                 $e->getMessage(),

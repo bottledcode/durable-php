@@ -27,7 +27,6 @@ namespace Bottledcode\DurablePhp;
 use Amp\DeferredFuture;
 use Amp\Future;
 use Bottledcode\DurablePhp\Events\AwaitResult;
-use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\WithActivity;
@@ -258,10 +257,8 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
                 $events[] =
                     WithEntity::forInstance($id, RaiseEvent::forUnlock('', StateId::fromInstance($this->id)->id, null));
             }
-            foreach($events as $event) {
-                foreach($entityId as $entity) {
-                    $event = WithLock::onEntity(StateId::fromInstance($this->id), StateId::fromEntityId($entity), $event);
-                }
+            foreach ($events as $event) {
+                $event = WithLock::onEntity(StateId::fromInstance($this->id), $event, ...$entityId);
                 $this->taskController->fire($event);
             }
         });
@@ -314,7 +311,7 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
             public function __call(string $name, array $arguments)
             {
                 $proxy = $this->proxies[$name] ?? throw new LogicException('Method not found');
-                if (($proxy['isVoid'] || !$proxy['hasReturn']) && !$this->context->isLockedOwned($this->id)) {
+                if (($proxy['isVoid'] || !$proxy['hasReturn'])) {
                     $this->context->signalEntity($this->id, $name, $arguments);
                     return null;
                 }
@@ -327,21 +324,6 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
                 return ['id' => $this->id];
             }
         };
-    }
-
-    public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
-    {
-        if ($this->isReplaying()) {
-            return;
-        }
-
-        if ($this->isLockedOwned($entityId)) {
-            $this->callEntity($entityId, $operation, $args);
-            return;
-        }
-
-        $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
-        $this->taskController->fire($event);
     }
 
     public function isReplaying(): bool
@@ -361,24 +343,29 @@ final readonly class OrchestrationContext implements OrchestrationContextInterfa
     public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
     {
         $id = StateId::fromInstance($this->id);
-        $eventWrapper = fn(Event $event) => AwaitResult::forEvent($id, $event);
 
+        $event = AwaitResult::forEvent($id, WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args)));
         if ($this->isLockedOwned($entityId)) {
-            foreach (array_keys($this->history->locks) as $lock) {
-                $lockId = StateId::fromString($lock);
-                $eventWrapper = static fn(Event $event) => $eventWrapper(WithLock::onEntity($id, $lockId, $event));
-            }
+            $participants = array_map(static fn(string $x) => StateId::fromString($x), array_keys($this->history->locks));
+            $event = WithLock::onEntity($id, $event, ...$participants);
         }
 
-        return $this->createFuture(
-            fn() => $this->taskController->fire(
-                $eventWrapper(
-                    WithEntity::forInstance(
-                        StateId::fromEntityId($entityId),
-                        RaiseEvent::forOperation($operation, $args)
-                    )
-                )
-            )
-        );
+        return $this->createFuture(fn() => $this->taskController->fire($event));
+    }
+
+    public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
+    {
+        if ($this->isReplaying()) {
+            return;
+        }
+        $id = StateId::fromInstance($this->id);
+
+        $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
+        if ($this->isLockedOwned($entityId)) {
+            $participants = array_map(static fn(string $x) => StateId::fromString($x), array_keys($this->history->locks));
+            $event = WithLock::onEntity($id, $event, ...$participants);
+        }
+
+        $this->taskController->fire($event);
     }
 }
