@@ -105,4 +105,9 @@ class EntityContext implements EntityContextInterface
     {
         return $this->operation;
     }
+
+    public function startNewOrchestration(string $orchestration, array $input = []): void
+    {
+        // TODO: Implement startNewOrchestration() method.
+    }
 }

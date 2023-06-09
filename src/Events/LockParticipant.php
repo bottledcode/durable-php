@@ -25,41 +25,10 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\Serde\Attributes\SequenceField;
 
-class WithLock extends Event implements HasInnerEventInterface
+readonly class LockParticipant
 {
-    /**
-     * @param string $eventId
-     * @param array<LockParticipant> $participants
-     * @param Event $innerEvent
-     */
-    public function __construct(
-        string $eventId,
-        #[SequenceField(LockParticipant::class)]
-        public array $participants,
-        public Event $innerEvent,
-    ) {
-        parent::__construct($eventId);
-    }
-
-    public static function onEntity(StateId $owner, Event $innerEvent, StateId ...$targets): self
+    public function __construct(public StateId $owner, public StateId $participant)
     {
-        $participants = [];
-        foreach ($targets as $target) {
-            $participants[] = new LockParticipant($owner, $target);
-        }
-        return new self('', $participants, $innerEvent);
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('WithLock(%d, %s)', count($this->participants), $this->innerEvent);
-    }
-
-    public function getInnerEvent(): Event
-    {
-        $this->innerEvent->eventId = $this->eventId;
-        return $this->innerEvent;
     }
 }
