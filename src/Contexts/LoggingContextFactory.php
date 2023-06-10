@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp\Contexts;
 use Amp\Cancellation;
 use Amp\Parallel\Context\Context;
 use Amp\Parallel\Context\ContextFactory;
+use Amp\Parallel\Context\ProcessContext;
 
 use function Amp\async;
 use function Amp\ByteStream\getStderr;
@@ -43,8 +44,10 @@ class LoggingContextFactory implements ContextFactory
     {
         $process = $this->other->start($script, $cancellation);
 
-        async(pipe(...), $process->getStdout(), getStdout())->ignore();
-        async(pipe(...), $process->getStderr(), getStderr())->ignore();
+        if ($process instanceof ProcessContext) {
+            async(pipe(...), $process->getStdout(), getStdout())->ignore();
+            async(pipe(...), $process->getStderr(), getStderr())->ignore();
+        }
 
         return $process;
     }

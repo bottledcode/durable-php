@@ -118,7 +118,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         } catch (CancelledException) {
             Logger::log('EventDispatcherTask is cancelled');
         } catch (\Throwable $e) {
-            Logger::log('EventDispatcherTask failed: %s', $e::class);
+            Logger::error('EventDispatcherTask failed: %s', $e::class);
         }
 
         foreach ($states as $state) {

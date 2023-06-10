@@ -27,7 +27,6 @@ namespace Bottledcode\DurablePhp\State;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\LockParticipant;
 use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;

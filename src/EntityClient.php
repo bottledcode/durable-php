@@ -66,6 +66,6 @@ class EntityClient implements EntityClientInterface
             WithDelay::forEvent($scheduledTime, $event);
         }
 
-        $this->source->storeEvent($event);
+        $this->source->storeEvent($event, false);
     }
 }

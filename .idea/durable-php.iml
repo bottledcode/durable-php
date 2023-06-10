@@ -6,11 +6,6 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="Bottledcode\DurablePhp\" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" packagePrefix="Bottledcode\DurablePhp\Tests\" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/serializable-closure" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/php-di/invoker" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/php-di/php-di" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/psr/container" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/spatie/php-cloneable" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/brick/math" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/collection" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/uuid" />
@@ -40,7 +35,6 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/league/uri-interfaces" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/revolt/event-loop" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/bottledcode/php-rql" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/pleonasm/bloom-filter" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/amphp/log" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/monolog/monolog" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/psr/log" />

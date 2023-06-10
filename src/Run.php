@@ -42,6 +42,7 @@ use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Throwable;
 
 use function Amp\async;
+use function Amp\delay;
 use function Amp\Future\awaitFirst;
 use function Amp\Parallel\Worker\workerPool;
 
@@ -85,16 +86,31 @@ class Run
         $cancellation = new DeferredCancellation();
         $queue->setCancellation($cancellation);
 
-        $eventSource = async(function () use ($queue, &$cancellation) {
+        $eventSource = async(function () use ($queue, &$cancellation, &$map, $pool) {
+            $batch = $this->config->totalWorkers;
             foreach ($this->source->receiveEvents() as $event) {
                 $queue->enqueue($this->getEventKey($event), $event);
                 Logger::event('Received event: ' . $event);
+                Logger::always(
+                    'Queue size[%d] complete[%d] idle[%d/%d]', $queue->getSize(), count(
+                        array_filter(array_map(static fn(Execution $e) => $e->getFuture()->isComplete(), $map ?? []))
+                    ),
+                    $pool->getIdleWorkerCount(),
+                    $pool->getWorkerCount()
+                );
                 if ($queue->getSize() === 1 && !$cancellation->isCancelled()) {
                     // if this is the first event, we need to wake up the main loop
                     // so that it can process the event
                     // this is because the main loop is waiting for an event to be
                     // added to the queue
                     $cancellation->cancel();
+                }
+                if($batch-- <= 0) {
+                    $batch = $this->config->totalWorkers;
+                    delay(0);
+                }
+                if($cancellation->isCancelled()) {
+                    delay(0);
                 }
             }
 
@@ -103,12 +119,20 @@ class Run
 
         $timeout = $this->config->workerTimeoutSeconds - $this->config->workerGracePeriodSeconds;
 
+        $removeExecution = function (Execution $execution) use (&$map) {
+            $first = count($map);
+            $map = array_filter($map ?? [], static fn(Execution $e) => $e !== $execution);
+            $second = count($map);
+            Logger::always('Removed execution? %s', $first !== $second ? 'true' : 'false');
+        };
+
         startOver:
         // if there is a queue, we need to process it first
         if ($queue->getSize() > 0) {
             // attempt to get the next event from the queue
             $event = $queue->getNext([]);
             if ($event === null) {
+                Logger::always('No event in queue');
                 // there currently are not any events that we can get from the queue
                 // so we need to wait for an event or a worker to finish
                 goto waitForEvents;
@@ -121,7 +145,9 @@ class Run
                 $map[$this->getEventKey($event)] = $pool->submit(
                     new EventDispatcherTask($this->config, $event, $clock)
                 );
+                Logger::always('New Execution');
             } else {
+                Logger::always('Reusing execution');
                 $execution->getChannel()->send($event);
             }
             $lastSent[$this->getEventKey($event)] = time();
@@ -131,13 +157,17 @@ class Run
         }
 
         waitForEvents:
-        $futures = array_map(static fn(Execution $e) => $e->getFuture(), $map);
+        $futures = array_map(static fn(Execution $e) => $e->getFuture()->finally(fn() => $removeExecution($e)), $map);
         try {
             try {
                 $event = awaitFirst([$eventSource, ...$futures], $cancellation->getCancellation());
+                unset($map[$this->getEventKey($event)]);
+                Logger::always('Deleted execution? %s', isset($map[$this->getEventKey($event)]) ? 'true' : 'false');
+                goto startOver;
             } catch (CancelledException) {
                 $cancellation = new DeferredCancellation();
                 $queue->setCancellation($cancellation);
+                Logger::always('Cancelled');
                 goto startOver;
             } catch (TaskFailureError $e) {
                 // a worker failed ... we can retry the event, maybe.
@@ -147,7 +177,7 @@ class Run
                         unset($map[$key]);
                     }
                 }
-                Logger::log('A worker failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                Logger::error('A worker failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             } catch (Throwable $e) {
                 // shit hit the fan in a worker.
                 var_dump(get_class($e));
@@ -157,7 +187,7 @@ class Run
 
             // handle the case where events were sent but there are still events
             // in the channel
-            $execution = $map[$this->getEventKey($event)];
+            //$execution = $map[$this->getEventKey($event)];
             /*$prefix = [];
             while (!$execution->getChannel()->isClosed()) {
                 try {
@@ -168,14 +198,12 @@ class Run
             }
             $queue->prefix($this->getEventKey($event), ...$prefix);*/
             // now we can remove the execution from the map
-            unset($map[$this->getEventKey($event)]);
 
             // process the queue
             goto startOver;
         } catch (Throwable $e) {
-            Logger::log(
-                "An error occurred while waiting for an event to complete: %s\n%s",
-                $e->getMessage(),
+            Logger::error(
+                "An error occurred while waiting for an event to complete: %s\n%s", $e->getMessage(),
                 $e->getTraceAsString()
             );
         }
@@ -184,8 +212,7 @@ class Run
     private function createPool(Config $config): ContextWorkerPool
     {
         $factory = new ContextWorkerFactory(
-            $config->bootstrapPath,
-            new LoggingContextFactory(new DefaultContextFactory())
+            $config->bootstrapPath, new LoggingContextFactory(new DefaultContextFactory())
         );
         $pool = new ContextWorkerPool($config->totalWorkers, $factory);
         workerPool($pool);

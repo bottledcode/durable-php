@@ -102,7 +102,10 @@ class EntityHistory extends AbstractHistory
                 // reply to the lock request
                 $reply = $this->getReplyTo($original);
                 foreach ($reply as $nextEvent) {
-                    yield With::id($nextEvent, RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target']));
+                    yield With::id(
+                        $nextEvent,
+                        RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target'])
+                    );
                 }
                 break;
             case '__unlock':
@@ -123,28 +126,11 @@ class EntityHistory extends AbstractHistory
         yield from $this->finalize($event);
     }
 
-    private function queueIfLocked(Event $original): bool
+    private function participateInLock(Event $original): Generator
     {
-        if ($this->isLocked($original)) {
-            // queue the event
-            $this->lockQueue['_']['events'][] = $original;
-            return true;
-        }
-        return false;
-    }
+        $this->init();
 
-    private function isLocked(Event $original): bool
-    {
-        if (($this->lock ?? null) === null) {
-            return false;
-        }
-        while ($original instanceof HasInnerEventInterface) {
-            if (($original instanceof AwaitResult) && $original->origin->id === $this->lock) {
-                return false;
-            }
-            $original = $original->getInnerEvent();
-        }
-        return true;
+        yield from $this->lockQueue->process($original);
     }
 
     public function init(): void
@@ -154,6 +140,8 @@ class EntityHistory extends AbstractHistory
         }
 
         $this->lockQueue ??= new LockStateMachine($this->id);
+        $this->state ??= new class extends EntityState {
+        };
 
         $this->name = $this->id->toEntityId()->name;
         $now = MonotonicClock::current()->now();
@@ -163,13 +151,6 @@ class EntityHistory extends AbstractHistory
             $reflection = new ReflectionClass($this->name);
             $this->state = $reflection->newInstanceWithoutConstructor();
         }
-    }
-
-    private function participateInLock(Event $original): Generator
-    {
-        $this->init();
-
-        yield from $this->lockQueue->process($original);
     }
 
     private function execute(Event $original, string $operation, array $input): Generator
@@ -182,13 +163,7 @@ class EntityHistory extends AbstractHistory
         };
 
         $context = new EntityContext(
-            $this->id->toEntityId(),
-            $operation,
-            $input,
-            $this->state,
-            $this,
-            $taskDispatcher,
-            $replyTo,
+            $this->id->toEntityId(), $operation, $input, $this->state, $this, $taskDispatcher, $replyTo,
             $original->eventId
         );
 
@@ -237,6 +212,30 @@ class EntityHistory extends AbstractHistory
         $this->init();
 
         yield from $this->finalize($event);
+    }
+
+    private function queueIfLocked(Event $original): bool
+    {
+        if ($this->isLocked($original)) {
+            // queue the event
+            $this->lockQueue['_']['events'][] = $original;
+            return true;
+        }
+        return false;
+    }
+
+    private function isLocked(Event $original): bool
+    {
+        if (($this->lock ?? null) === null) {
+            return false;
+        }
+        while ($original instanceof HasInnerEventInterface) {
+            if (($original instanceof AwaitResult) && $original->origin->id === $this->lock) {
+                return false;
+            }
+            $original = $original->getInnerEvent();
+        }
+        return true;
     }
 
     public function applyTaskFailed(TaskFailed $event, Event $original): \Generator

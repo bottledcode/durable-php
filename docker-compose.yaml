@@ -1,9 +1,10 @@
 version: "3.9"
 services:
-  redis:
-    image: redis
+  rethinkdb:
+    image: rethinkdb:latest
     ports:
-      - "0.0.0.0:6379:6379"
+      - "0.0.0.0:28015:28015"
+      - "0.0.0.0:8080:8080"
   dev:
     build: .
     command: sleep 1000000000
@@ -12,4 +13,73 @@ services:
     working_dir: /app
     user: "1000:1000"
     depends_on:
-      - redis
+      - rethinkdb
+  runner1:
+    build: .
+    image: test
+    command:
+      - '--db'
+      - 'rethinkdb'
+      - '--total-partitions'
+      - '3'
+      - '--current-partition'
+      - '0'
+      - '--total-workers'
+      - '512'
+      - '--host'
+      - 'rethinkdb'
+      - --worker-timeout-seconds
+      - '1'
+      - --worker-grace-period-seconds
+      - '0'
+    environment:
+      AMP_LOG_COLOR: '1'
+    depends_on:
+      - rethinkdb
+    restart: always
+  runner2:
+    restart: always
+    build: .
+    image: test
+    command:
+      - '--db'
+      - 'rethinkdb'
+      - '--total-partitions'
+      - '3'
+      - '--current-partition'
+      - '1'
+      - '--total-workers'
+      - '512'
+      - '--host'
+      - 'rethinkdb'
+      - --worker-timeout-seconds
+      - '1'
+      - --worker-grace-period-seconds
+      - '0'
+    environment:
+      AMP_LOG_COLOR: '1'
+    depends_on:
+      - rethinkdb
+  runner3:
+    restart: always
+    build: .
+    image: test
+    command:
+      - '--db'
+      - 'rethinkdb'
+      - '--total-partitions'
+      - '3'
+      - '--current-partition'
+      - '2'
+      - '--total-workers'
+      - '512'
+      - '--host'
+      - 'rethinkdb'
+      - --worker-timeout-seconds
+      - '1'
+      - --worker-grace-period-seconds
+      - '0'
+    environment:
+      AMP_LOG_COLOR: '1'
+    depends_on:
+      - rethinkdb
