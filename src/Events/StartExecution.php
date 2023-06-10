@@ -29,17 +29,17 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 class StartExecution extends Event
 {
     public function __construct(
-        public OrchestrationInstance|null $parentInstance,
-        public string $name,
-        public string $version,
-        public array $input,
-        public array $tags,
-        public string $correlation,
-        public \DateTimeImmutable $scheduledAt,
-        public int $generation,
-        public string $eventId,
+        public OrchestrationInstance|null $parentInstance, public string $name, public string $version,
+        public array $input, public array $tags, public string $correlation, public \DateTimeImmutable $scheduledAt,
+        public int $generation, public string $eventId,
     ) {
         parent::__construct($eventId);
+    }
+
+    public static function asParent(
+        OrchestrationInstance $instance, array $input, array $tags, \DateTimeImmutable $at = new \DateTimeImmutable()
+    ): self {
+        return new self(null, $instance->instanceId, 0, $input, $tags, '', $at, 0, '');
     }
 
     public function __toString(): string

@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
@@ -33,19 +34,17 @@ use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Crell\Serde\Attributes\ClassSettings;
+use Ramsey\Uuid\Uuid;
 
 #[ClassSettings(includeFieldsByDefault: false)]
 class EntityContext implements EntityContextInterface
 {
     public function __construct(
-        private readonly EntityId $id,
-        private readonly string $operation,
-        private readonly mixed $input,
-        private mixed $state,
-        private readonly EntityHistory $history,
-        private readonly EventDispatcherTask $eventDispatcher,
-        private readonly array $caller,
+        private readonly EntityId $id, private readonly string $operation, private readonly mixed $input,
+        private mixed $state, private readonly EntityHistory $history,
+        private readonly EventDispatcherTask $eventDispatcher, private readonly array $caller,
         private readonly string $requestingId,
     ) {
     }
@@ -69,7 +68,9 @@ class EntityContext implements EntityContextInterface
     public function return(mixed $value): never
     {
         foreach ($this->caller as $caller) {
-            $this->eventDispatcher->fire(WithOrchestration::forInstance($caller, TaskCompleted::forId($this->requestingId, $value)));
+            $this->eventDispatcher->fire(
+                WithOrchestration::forInstance($caller, TaskCompleted::forId($this->requestingId, $value))
+            );
         }
         throw new Unwind('return');
     }
@@ -81,14 +82,10 @@ class EntityContext implements EntityContextInterface
     }
 
     public function signalEntity(
-        EntityId $entityId,
-        string $operation,
-        array $input = [],
-        ?\DateTimeImmutable $scheduledTime = null
+        EntityId $entityId, string $operation, array $input = [], ?\DateTimeImmutable $scheduledTime = null
     ): void {
         $event = WithEntity::forInstance(
-            StateId::fromEntityId($entityId),
-            RaiseEvent::forOperation($operation, $input)
+            StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $input)
         );
         if ($scheduledTime) {
             $event = WithDelay::forEvent($scheduledTime, $event);
@@ -106,8 +103,17 @@ class EntityContext implements EntityContextInterface
         return $this->operation;
     }
 
-    public function startNewOrchestration(string $orchestration, array $input = []): void
+    public function startNewOrchestration(string $orchestration, array $input = [], string|null $id = null): void
     {
-        // TODO: Implement startNewOrchestration() method.
+        if ($id === null) {
+            $id = Uuid::uuid7()->toString();
+        }
+
+        $instance = StateId::fromInstance(new OrchestrationInstance($orchestration, $id));
+        $this->eventDispatcher->fire(
+            WithOrchestration::forInstance(
+                $instance, StartExecution::asParent($instance->toOrchestrationInstance(), $input, [])
+            )
+        );
     }
 }

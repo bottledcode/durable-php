@@ -36,6 +36,6 @@ class HelloSequence {
             $context->callActivity(SayHello::class, ['Seoul']),
         ];
 
-        return $context->waitAll(...$outputs);
+        return $context->waitAll(...$outputs)->getResult();
     }
 }

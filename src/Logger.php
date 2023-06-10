@@ -46,6 +46,26 @@ class Logger
         $logger->debug($output);
     }
 
+    public static function always(string $message, ...$vars): void {
+        $logger = self::init();
+        $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
+        $output = sprintf(
+            "%s: " . $message . PHP_EOL, ...
+            [basename($caller['file'], '.php'), ...$vars]
+        );
+        $logger->alert($output);
+    }
+
+    public static function error(string $message, ...$vars): void {
+        $logger = self::init();
+        $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
+        $output = sprintf(
+            "%s: " . $message . PHP_EOL, ...
+            [basename($caller['file'], '.php'), ...$vars]
+        );
+        $logger->error($output);
+    }
+
     private static function init(): Monologger
     {
         static $logger = false;
@@ -74,15 +94,15 @@ class Logger
         static $lastTime = 0;
         $time = $time === 0 ? microtime(true) : $time;
 
-        $elapsed = microtime(true) - $time;
+        $elapsed = max(microtime(true) - $time, 1);
 
         // calculate the time since the last event
-        if(time() - $lastTime > 4) {
+        /*if(time() - $lastTime > 4) {
             $lastTime = time();
             $elapsed = microtime(true) - $time;
             $time = microtime(true);
             $counter = 0;
-        }
+        }*/
 
         $logger = self::init();
         $logger->info(sprintf($message, $vars), ['total' => ++$counter, 'elapsed' => $elapsed, 'eps' => $counter / $elapsed]);
