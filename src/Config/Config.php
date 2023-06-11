@@ -32,8 +32,8 @@ readonly class Config
     public function __construct(
         public int $currentPartition,
         public RedisConfig|RethinkDbConfig $storageConfig,
-        public int $totalPartitions = 10,
-        public int $totalWorkers = 25,
+        public int $totalPartitions = 1,
+        public int $totalWorkers = 200,
         public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
         public string $partitionKeyPrefix = 'partition_',
         public int $workerTimeoutSeconds = 10,

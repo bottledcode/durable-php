@@ -30,11 +30,11 @@ use Bottledcode\DurablePhp\Config\RethinkDbConfig;
 
 class SourceFactory
 {
-    public static function fromConfig(Config $config): Source
+    public static function fromConfig(Config $config, bool $asyncSupport = true): Source
     {
         return match ($config->storageConfig::class) {
-            RedisConfig::class => RedisSource::connect($config),
-            RethinkDbConfig::class => RethinkDbSource::connect($config)
+            RedisConfig::class => RedisSource::connect($config, $asyncSupport),
+            RethinkDbConfig::class => RethinkDbSource::connect($config, $asyncSupport),
         };
     }
 }

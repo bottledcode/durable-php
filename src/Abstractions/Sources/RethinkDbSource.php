@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
@@ -37,10 +38,12 @@ use r\ConnectionOptions;
 use r\Exceptions\RqlDriverError;
 use r\Options\ChangesOptions;
 use r\Options\Durability;
+use r\Options\ReadMode;
 use r\Options\RunOptions;
 use r\Options\TableInsertOptions;
 use Withinboredom\Time\Seconds;
 
+use function r\connect;
 use function r\connectAsync;
 use function r\dbCreate;
 use function r\row;
@@ -57,25 +60,28 @@ class RethinkDbSource implements Source
 
 
     private function __construct(
-        private readonly Connection $connection,
-        private readonly Config $config,
-        private readonly string $partitionTable,
-        private readonly string $stateTable
+        private readonly Connection $connection, private readonly Config $config,
+        private readonly string $partitionTable, private readonly string $stateTable
     ) {
     }
 
-
-    public static function connect(Config $config): static
+    public static function connect(Config $config, bool $asyncSupport): static
     {
-        $conn = connectAsync(
-            new ConnectionOptions(
-                $config->storageConfig->host,
-                $config->storageConfig->port,
-                $config->storageConfig->database,
-                ($config->storageConfig->username ?? 'admin'),
-                ($config->storageConfig->password ?? '')
-            )
-        );
+        if ($asyncSupport) {
+            $conn = connectAsync(
+                new ConnectionOptions(
+                    $config->storageConfig->host, $config->storageConfig->port, $config->storageConfig->database,
+                    ($config->storageConfig->username ?? 'admin'), ($config->storageConfig->password ?? '')
+                )
+            );
+        } else {
+            $conn = connect(
+                new ConnectionOptions(
+                    $config->storageConfig->host, $config->storageConfig->port, $config->storageConfig->database,
+                    ($config->storageConfig->username ?? 'admin'), ($config->storageConfig->password ?? '')
+                )
+            );
+        }
 
         try {
             try {
@@ -96,6 +102,10 @@ class RethinkDbSource implements Source
         return new self($conn, $config, 'partition_' . $config->currentPartition, 'state');
     }
 
+    public function close(): void
+    {
+        $this->connection->close(false);
+    }
 
     public function getPastEvents(): Generator
     {
@@ -107,11 +117,9 @@ class RethinkDbSource implements Source
     {
         $events = table($this->partitionTable)->changes(
             new ChangesOptions(
-                squash: true,
-                include_initial: true,
-                include_types: true
+                include_initial: true, include_types: true, changefeed_queue_size: 5000
             )
-        )->run($this->connection);
+        )->filter(row('type')->ne('remove'))->run($this->connection, new RunOptions(ReadMode::Outdated));
 
         foreach ($events as $event) {
             if ($event['type'] === 'remove') {
@@ -119,6 +127,7 @@ class RethinkDbSource implements Source
             }
 
             if (empty($event['new_val'])) {
+                Logger::always('Ignoring: %s', print_r($event, true));
                 continue;
             }
 
@@ -127,6 +136,8 @@ class RethinkDbSource implements Source
              */
             $actualEvent = Serializer::deserialize($event['new_val']['event'], $event['new_val']['type']);
             $actualEvent->eventId = $event['new_val']['id'];
+            Logger::always('r: ' . $actualEvent->eventId);
+            Logger::log('Received event ' . $actualEvent->eventId . ' from partition ' . $this->config->currentPartition);
             yield $actualEvent;
         }
     }
@@ -137,14 +148,22 @@ class RethinkDbSource implements Source
     }
 
 
-    public function put(string $key, mixed $data, ?Seconds $ttl = null, ?string $etag = null): void
+    public function put(string $key, mixed $data, ?Seconds $ttl = null, ?int $etag = null): void
     {
+        if ($etag && ($data['etag'] ?? false)) {
+            $check = apcu_cas($key . '-etag', $etag, $data['etag']);
+            if (!$check) {
+                throw new \LogicException('Etag mismatch -- another process has updated the state');
+            }
+        }
+
+        apcu_store($key, $data, (int)($ttl?->inSeconds() ?? $this->config->workerTimeoutSeconds));
+
         table($this->stateTable)->insert(
             [
                 'id' => $key, 'data' => Serializer::serialize($data), 'etag' => $etag, 'ttl' => $ttl?->inSeconds(),
                 'type' => $data::class,
-            ],
-            new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
+            ], new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
         )->run($this->connection, new RunOptions());
     }
 
@@ -152,8 +171,7 @@ class RethinkDbSource implements Source
     public function ack(Event $event): void
     {
         table($this->partitionTable)->get($event->eventId)->delete()->run(
-            $this->connection,
-            new RunOptions(noreply: true)
+            $this->connection, new RunOptions()
         );
     }
 
@@ -167,6 +185,11 @@ class RethinkDbSource implements Source
      */
     public function get(string $key, string $class): mixed
     {
+        $state = apcu_fetch($key, $success);
+        if ($success) {
+            return $state;
+        }
+
         $result = table($this->stateTable)->get($key)->run($this->connection);
 
         if ($result) {
@@ -205,8 +228,7 @@ class RethinkDbSource implements Source
         $results = table($partition)->insert(
             [
                 'event' => Serializer::serialize($event), 'id' => $event->eventId ?: uuid(), 'type' => $event::class,
-            ],
-            new TableInsertOptions(return_changes: true)
+            ], new TableInsertOptions(return_changes: true)
         )->run($this->connection);
         return $results['changes'][0]['new_val']['id'] ?? $event->eventId;
     }

@@ -25,7 +25,9 @@
     "ramsey/uuid": "^4.7.4",
     "withinboredom/time": "^2.1",
     "crell/serde": "^0.6.0",
-    "amphp/log": "v2.0.0-beta.2"
+    "amphp/log": "v2.0.0-beta.2",
+    "ext-pcntl": "*",
+    "ext-apcu": "*"
   },
   "replace": {
     "symfony/polyfill-php80": "*",
