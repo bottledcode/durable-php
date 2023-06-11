@@ -49,10 +49,82 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
     public Source $source;
 
     public function __construct(
-        private readonly Config $config,
-        private Event $event,
-        private readonly MonotonicClock $clock
+        private readonly Config $config, private Event $event, private readonly MonotonicClock $clock
     ) {
+    }
+
+    public function runOnce(): void
+    {
+        $this->source = SourceFactory::fromConfig($this->config);
+        $originalEvent = $this->event;
+
+        $states = [];
+        while ($this->event instanceof HasInnerEventInterface) {
+            if ($this->event instanceof StateTargetInterface) {
+                $states[] = $this->getState($this->event->getTarget());
+            }
+
+            $this->event = $this->event->getInnerEvent();
+        }
+
+        foreach ($states as $state) {
+            if ($state->hasAppliedEvent($this->event)) {
+                $this->source->ack($this->event);
+                return;
+            }
+
+            foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
+                if ($eventOrCallable instanceof Event) {
+                    if ($eventOrCallable instanceof PoisonPill) {
+                        break;
+                    }
+                    $this->fire($eventOrCallable);
+                } elseif ($eventOrCallable instanceof \Closure) {
+                    $eventOrCallable($this, $this->source, $this->clock);
+                }
+            }
+
+            $this->updateState($state);
+        }
+
+        $this->source->ack($originalEvent);
+        foreach ($states as $state) {
+            $state->ackedEvent($originalEvent);
+        }
+        Logger::log('EventDispatcherTask acked: %s', $originalEvent);
+
+        foreach ($states as $state) {
+            //$state->onComplete($this->source);
+        }
+
+        $this->source->close();
+    }
+
+    public function getState(StateId $instance): ApplyStateInterface&StateInterface
+    {
+        $rawState = $this->source->get($instance, $instance->getStateType());
+        if (empty($rawState)) {
+            $type = $instance->getStateType();
+            $rawState = new $type($instance);
+        }
+
+        return $rawState;
+    }
+
+    public function fire(Event ...$events): array
+    {
+        $ids = [];
+        foreach ($events as $event) {
+            $ids[] = $this->source->storeEvent($event, false);
+        }
+
+        return $ids;
+    }
+
+    public function updateState(StateInterface $state): void
+    {
+        $this->source->put(StateId::fromState($state), $state);
+        $state->resetState();
     }
 
     public function run(Channel $channel, Cancellation $cancellation): mixed
@@ -126,33 +198,6 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         }
 
         return $returnEvent;
-    }
-
-    public function getState(StateId $instance): ApplyStateInterface&StateInterface
-    {
-        $rawState = $this->source->get($instance, $instance->getStateType());
-        if (empty($rawState)) {
-            $type = $instance->getStateType();
-            $rawState = new $type($instance);
-        }
-
-        return $rawState;
-    }
-
-    public function fire(Event ...$events): array
-    {
-        $ids = [];
-        foreach ($events as $event) {
-            $ids[] = $this->source->storeEvent($event, false);
-        }
-
-        return $ids;
-    }
-
-    public function updateState(StateInterface $state): void
-    {
-        $this->source->put(StateId::fromState($state), $state);
-        $state->resetState();
     }
 
     private function hasExtendedState(array $states): bool

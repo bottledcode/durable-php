@@ -34,7 +34,9 @@ use Withinboredom\Time\Seconds;
 
 interface Source
 {
-    public static function connect(Config $config): static;
+    public static function connect(Config $config, bool $asyncSupport): static;
+
+    public function close(): void;
 
     public function getPastEvents(): Generator;
 
@@ -44,7 +46,7 @@ interface Source
 
     public function storeEvent(Event $event, bool $local): string;
 
-    public function put(string $key, mixed $data, Seconds|null $ttl = null): void;
+    public function put(string $key, mixed $data, Seconds|null $ttl = null, ?int $etag = null): void;
 
     /**
      * @template T
