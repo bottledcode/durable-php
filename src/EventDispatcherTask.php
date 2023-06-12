@@ -25,9 +25,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\Cancellation;
-use Amp\CancelledException;
 use Amp\Sync\Channel;
-use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
 use Bottledcode\DurablePhp\Config\Config;
@@ -49,7 +47,9 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
     public Source $source;
 
     public function __construct(
-        private readonly Config $config, private Event $event, private readonly MonotonicClock $clock
+        private readonly Config $config,
+        private Event $event,
+        private readonly MonotonicClock $clock
     ) {
     }
 
@@ -91,7 +91,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         foreach ($states as $state) {
             $state->ackedEvent($originalEvent);
         }
-        Logger::log('EventDispatcherTask acked: %s', $originalEvent);
+        //Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 
         foreach ($states as $state) {
             //$state->onComplete($this->source);
@@ -115,6 +115,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
     {
         $ids = [];
         foreach ($events as $event) {
+            //Logger::log('EventDispatcherTask fired: %s', $event);
             $ids[] = $this->source->storeEvent($event, false);
         }
 
@@ -123,8 +124,8 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
     public function updateState(StateInterface $state): void
     {
-        $this->source->put(StateId::fromState($state), $state);
         $state->resetState();
+        $this->source->put(StateId::fromState($state), $state);
     }
 
     public function run(Channel $channel, Cancellation $cancellation): mixed
@@ -133,7 +134,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         $this->source = SourceFactory::fromConfig($this->config);
         $originalEvent = $this->event;
 
-        Logger::log("EventDispatcher received event: %s", $this->event);
+        //Logger::log("EventDispatcher received event: %s", $this->event);
 
         /**
          * @var StateInterface&ApplyStateInterface[] $states
@@ -161,6 +162,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
                         break;
                     }
                     $this->fire($eventOrCallable);
+                    Logger::log('EventDispatcherTask fired: %s', $eventOrCallable);
                 } elseif ($eventOrCallable instanceof \Closure) {
                     $eventOrCallable($this, $this->source, $this->clock);
                 }
@@ -172,9 +174,12 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         $this->source->ack($originalEvent);
         foreach ($states as $state) {
             $state->ackedEvent($originalEvent);
+            $state->onComplete($this->source);
         }
-        Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 
+        //$this->source->close();
+        //Logger::log('EventDispatcherTask acked: %s', $originalEvent);
+/*
         try {
             if ($this->hasExtendedState($states)) {
                 $timeout = new TimeoutCancellation($this->config->workerTimeoutSeconds);
@@ -188,7 +193,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
                 goto gotNewEvent;
             }
         } catch (CancelledException) {
-            Logger::log('EventDispatcherTask is cancelled');
+            Logger::error('EventDispatcherTask is cancelled');
         } catch (\Throwable $e) {
             Logger::error('EventDispatcherTask failed: %s', $e::class);
         }
@@ -196,7 +201,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         foreach ($states as $state) {
             $state->onComplete($this->source);
         }
-
+*/
         return $returnEvent;
     }
 

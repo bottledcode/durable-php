@@ -91,7 +91,7 @@ class OrchestrationHistory extends AbstractHistory
             return;
         }
 
-        Logger::log("Applying StartExecution event to OrchestrationHistory");
+        //Logger::log("Applying StartExecution event to OrchestrationHistory");
         $this->now = $event->timestamp;
         $this->name = $event->name;
         $this->version = $event->version;
@@ -157,17 +157,22 @@ class OrchestrationHistory extends AbstractHistory
             }
 
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Completed, output: Serializer::serialize($result),
+                runtimeStatus: RuntimeStatus::Completed,
+                output: Serializer::serialize($result),
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Failed, output: Serializer::serialize(
+                runtimeStatus: RuntimeStatus::Failed,
+                output: Serializer::serialize(
                     ExternalException::fromException($e)
                 ),
             );
             $completion = TaskFailed::forTask(
-                StateId::fromInstance($this->instance), $e->getMessage(), $e->getTraceAsString(), $e::class
+                StateId::fromInstance($this->instance),
+                $e->getMessage(),
+                $e->getTraceAsString(),
+                $e::class
             );
         }
 
