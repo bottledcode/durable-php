@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -40,15 +41,17 @@ $actors = new EntityClient($config, SourceFactory::fromConfig($config));
 
 $watch = new StopWatch();
 $watch->start();
-$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 1;
-$numberLaunchers = 200;
+$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 200;
+$numberLaunchers = 50;
 for ($i = 0; $i < $numberLaunchers; $i++) {
     $actors->signalEntity(
-        new EntityId(LauncherEntity::class, $i), 'launch',
-        ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch]);
+        new EntityId(LauncherEntity::class, $i),
+        'launch',
+        ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch]
+    );
 }
 
-for($i = 0; $i < $numberLaunchers * $numberToLaunch; $i++) {
+for ($i = 0; $i < $numberLaunchers * $numberToLaunch; $i++) {
     Logger::always("Waiting for %d", $i);
     $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $i));
 }

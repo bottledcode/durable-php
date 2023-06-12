@@ -18,7 +18,7 @@
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
-    "amphp/parallel": "^v2.2.1",
+    "amphp/parallel": "^v2",
     "bottledcode/php-rql": "dev-master",
     "nesbot/carbon": "^2.66",
     "php": ">=8.2",
@@ -27,7 +27,8 @@
     "crell/serde": "^0.6.0",
     "amphp/log": "v2.0.0-beta.2",
     "ext-pcntl": "*",
-    "ext-apcu": "*"
+    "ext-apcu": "*",
+    "ext-posix": "*"
   },
   "replace": {
     "symfony/polyfill-php80": "*",
@@ -46,5 +47,11 @@
     "allow-plugins": {
       "dealerdirect/phpcodesniffer-composer-installer": true
     }
-  }
+  },
+  "repositories": [
+    {
+      "type": "github",
+      "url": "https://github.com/withinboredom/byte-stream"
+    }
+  ]
 }

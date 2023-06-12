@@ -40,61 +40,70 @@ class Logger
         $logger = self::init();
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
         $output = sprintf(
-            "%s: " . $message . PHP_EOL, ...
+            "%s: " . $message . PHP_EOL,
+            ...
             [basename($caller['file'], '.php'), ...$vars]
         );
         $logger->debug($output);
     }
 
-    public static function always(string $message, ...$vars): void {
+    public static function always(string $message, ...$vars): void
+    {
         $logger = self::init();
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
         $output = sprintf(
-            "%s: " . $message . PHP_EOL, ...
+            "%s: " . $message . PHP_EOL,
+            ...
             [basename($caller['file'], '.php'), ...$vars]
         );
-        $logger->alert($output);
+        $logger->alert($output, ['e/s' => number_format(self::$counter / self::$elapsed, 2), 'est' => number_format((self::$counter / self::$elapsed) * 3, 2)]);
     }
 
-    public static function error(string $message, ...$vars): void {
+    public static $lastTime = 0;
+
+    public static function error(string $message, ...$vars): void
+    {
         $logger = self::init();
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
         $output = sprintf(
-            "%s: " . $message . PHP_EOL, ...
+            "%s: " . $message . PHP_EOL,
+            ...
             [basename($caller['file'], '.php'), ...$vars]
         );
         $logger->error($output);
     }
 
+    private static Monologger|null $logger = null;
+
     private static function init(): Monologger
     {
-        static $logger = false;
-
-        if ($logger) {
-            return $logger;
+        if (self::$logger) {
+            return self::$logger;
         }
 
         $handler = new StreamHandler(getStdout());
+        //$handler = new StreamHandler(STDOUT);
         $handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
         $handler->pushProcessor(new MemoryPeakUsageProcessor(true, true));
         $handler->pushProcessor(new ProcessIdProcessor());
-        $handler->setLevel(Level::Info);
+        $handler->setLevel(Level::Error);
 
         $logger = new Monologger('main');
         $logger->pushHandler($handler);
 
 
-        return $logger;
+        return self::$logger = $logger;
     }
+
+    private static int $elapsed = 1;
+    private static int $counter = 0;
 
     public static function event(string $message, ...$vars): void
     {
-        static $counter = 0;
         static $time = 0;
-        static $lastTime = 0;
         $time = $time === 0 ? microtime(true) : $time;
 
-        $elapsed = max(microtime(true) - $time, 1);
+        self::$elapsed = max(microtime(true) - $time, 1);
 
         // calculate the time since the last event
         /*if(time() - $lastTime > 4) {
@@ -105,6 +114,14 @@ class Logger
         }*/
 
         $logger = self::init();
-        $logger->info(sprintf($message, $vars), ['total' => ++$counter, 'elapsed' => $elapsed, 'eps' => $counter / $elapsed]);
+        $logger->info(
+            sprintf($message, ...$vars),
+            ['total' => ++self::$counter, 'elapsed' => self::$elapsed, 'eps' => self::$counter / self::$elapsed]
+        );
+    }
+
+    public static function reset()
+    {
+        self::$logger = null;
     }
 }

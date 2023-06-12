@@ -1,8 +1,8 @@
-FROM php:8-cli AS base
+FROM php:8-zts AS base
 
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/bin/
 
-RUN install-php-extensions ev pcntl apcu @composer && \
+RUN install-php-extensions ev pcntl apcu parallel @composer && \
     mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 COPY composer.json composer.lock /app/
@@ -18,7 +18,7 @@ COPY . /app
 #    chown -R app:app /app && \
 #    adduser app sudo
 
-ENTRYPOINT [ "php", "-d", "opcache.enable_cli=1", "-d", "opcache.jit_buffer_size=50M", "-d", "opcache.jit=tracing", "src/RunFork.php" ]
+ENTRYPOINT [ "php", "-d", "opcache.enable_cli=1", "-d", "opcache.jit_buffer_size=50M", "-d", "opcache.jit=tracing", "src/Run.php" ]
 
 FROM base as prod
 

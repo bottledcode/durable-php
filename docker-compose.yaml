@@ -1,10 +1,10 @@
 version: "3.9"
 services:
   rethinkdb:
-    image: rethinkdb:latest
+    image: rethinkdb:2.4.2
     ports:
       - "0.0.0.0:28015:28015"
-      - "0.0.0.0:8080:8080"
+      - "0.0.0.0:8070:8080"
   dev:
     build: .
     command: sleep 1000000000
@@ -25,18 +25,20 @@ services:
       - '--current-partition'
       - '0'
       - '--total-workers'
-      - '512'
+      - '32'
       - '--host'
       - 'rethinkdb'
       - --worker-timeout-seconds
-      - '1'
+      - '60'
       - --worker-grace-period-seconds
-      - '0'
+      - '10'
     environment:
       AMP_LOG_COLOR: '1'
     depends_on:
       - rethinkdb
     restart: always
+    cap_add:
+      - SYS_ADMIN
   runner2:
     restart: always
     build: .
@@ -49,17 +51,19 @@ services:
       - '--current-partition'
       - '1'
       - '--total-workers'
-      - '512'
+      - '32'
       - '--host'
       - 'rethinkdb'
       - --worker-timeout-seconds
-      - '1'
+      - '60'
       - --worker-grace-period-seconds
-      - '0'
+      - '10'
     environment:
       AMP_LOG_COLOR: '1'
     depends_on:
       - rethinkdb
+    cap_add:
+      - SYS_ADMIN
   runner3:
     restart: always
     build: .
@@ -72,14 +76,16 @@ services:
       - '--current-partition'
       - '2'
       - '--total-workers'
-      - '512'
+      - '32'
       - '--host'
       - 'rethinkdb'
       - --worker-timeout-seconds
-      - '1'
+      - '60'
       - --worker-grace-period-seconds
-      - '0'
+      - '10'
     environment:
       AMP_LOG_COLOR: '1'
+    cap_add:
+      - SYS_ADMIN
     depends_on:
       - rethinkdb
