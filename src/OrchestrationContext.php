@@ -300,8 +300,12 @@ final class OrchestrationContext implements OrchestrationContextInterface
      * @param class-string<T> $className
      * @return T
      */
-    public function createEntityProxy(string $className, EntityId $entityId): object
+    public function createEntityProxy(string $className, EntityId|null $entityId = null): object
     {
+        if($entityId === null) {
+            $entityId = new EntityId($className, $this->newGuid());
+        }
+
         $class = new \ReflectionClass($className);
         if (!$class->isInterface()) {
             throw new LogicException('Only interfaces can be proxied');
