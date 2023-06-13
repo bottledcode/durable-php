@@ -134,6 +134,10 @@ class Run
             );
         });
 
+        if ($this->config->currentPartition === 0) {
+            new Monitor($this->config);
+        }
+
         MonotonicClock::current();
 
         $this->queue = new EventQueue();

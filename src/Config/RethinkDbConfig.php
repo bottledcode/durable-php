@@ -32,6 +32,7 @@ readonly class RethinkDbConfig
         public string|null $username = null,
         public string|null $password = null,
         public string $database = 'durablephp',
+        public int $changefeedBufferSize = 50000,
     ) {
     }
 }

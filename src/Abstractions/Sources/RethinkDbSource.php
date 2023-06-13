@@ -40,6 +40,7 @@ use r\Exceptions\RqlDriverError;
 use r\Options\ChangesOptions;
 use r\Options\Durability;
 use r\Options\RunOptions;
+use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
 use Withinboredom\Time\Seconds;
 
@@ -98,8 +99,11 @@ class RethinkDbSource implements Source
                 // database already exists
             }
 
-            tableCreate('partition_' . $config->currentPartition)->run($conn);
-            tableCreate('state')->run($conn);
+            tableCreate('partition_' . $config->currentPartition, new TableCreateOptions(
+                primaryKey: 'id',
+                durability: Durability::Soft
+            ))->run($conn);
+            tableCreate('state', new TableCreateOptions(durability: Durability::Soft))->run($conn);
             tableCreate('locks')->run($conn);
             table('locks')->indexCreate('lock', [row('owner'), row('target')])->run($conn);
             table('locks')->indexWait('lock')->run($conn);
@@ -127,7 +131,7 @@ class RethinkDbSource implements Source
             new ChangesOptions(
                 include_initial: true,
                 include_types: true,
-                changefeed_queue_size: 50000
+                changefeed_queue_size: $this->config->storageConfig->changefeedBufferSize
             )
         )->filter(row('type')->ne('remove'))->run($this->connection, new RunOptions());
 
