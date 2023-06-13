@@ -130,6 +130,11 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
     public function run(Channel $channel, Cancellation $cancellation): mixed
     {
+        //$mem = memory_get_usage(true) / 1024 / 1024;
+        //if ($mem > $this->config->maximumMemoryPerWorker) {
+        //    die();
+        //}
+
         $returnEvent = $this->event;
         $this->source = SourceFactory::fromConfig($this->config);
         $originalEvent = $this->event;
@@ -177,7 +182,6 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             $state->onComplete($this->source);
         }
 
-        //$this->source->close();
         //Logger::log('EventDispatcherTask acked: %s', $originalEvent);
 /*
         try {

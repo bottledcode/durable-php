@@ -60,6 +60,8 @@ class Run
 
     private ContextWorkerPool $pool;
 
+    private int $totalLaunches = 0;
+
     public function __construct(private Config $config)
     {
         $this->source = SourceFactory::fromConfig($config);
@@ -88,6 +90,7 @@ class Run
                     $execution = $this->map[$key] = $this->pool->submit(new EventDispatcherTask($this->config, $next, MonotonicClock::current()));
                     $execution->getFuture()->map(function (Event $event) use ($key) {
                         Logger::event('Event processed: %s', $event);
+                        $this->totalLaunches++;
                         while (true) {
                             try {
                                 $prepend = $this->map[$key]->getChannel()->receive();
@@ -96,8 +99,9 @@ class Run
                                 break;
                             }
                         }
-                    })->catch(function (Throwable $e) {
+                    })->catch(function (Throwable $e) use ($next, $key) {
                         Logger::error('Error in event dispatcher: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                        //$this->queue->prefix($key, $next);
                     })->finally(function () use ($key) {
                         unset($this->map[$key]);
                         if (isset($this->map[$key])) {
@@ -105,13 +109,28 @@ class Run
                         }
                         $this->processQueue();
                     });
+
+                    //if (++$this->totalLaunches % 3000 === 0 && $this->totalLaunches > 0) {
+                        //$this->migratePool($this->config->workerTimeoutSeconds * 3);
+                    //}
                 } else {
-                    $execution->getChannel()->send($next);
+                    $this->queue->prefix($key, $next);
                 }
             }
         } finally {
             $lock->release();
         }
+    }
+
+    public function migratePool(float $wait = 0): void
+    {
+        $oldPool = $this->pool;
+        $this->pool = $this->createPool($this->config);
+        async(function () use (&$oldPool, $wait) {
+            delay($wait);
+            $oldPool->shutdown();
+            unset($oldPool);
+        });
     }
 
     public function __invoke(): void
@@ -121,9 +140,7 @@ class Run
             Logger::always(
                 'Queue size[%d] complete[%d] idle[%d/%d/%d]',
                 $this->queue->getSize(),
-                count(
-                    array_filter(array_map(static fn(Execution $e) => $e->getFuture()->isComplete(), $this->map ?? []))
-                ),
+                $this->totalLaunches,
                 $this->pool->getIdleWorkerCount(),
                 $this->pool->getWorkerCount(),
                 $this->pool->getLimit()
@@ -148,9 +165,11 @@ class Run
         async(function () {
             foreach ($this->source->receiveEvents() as $event) {
                 $this->queue->enqueue($this->getEventKey($event), $event);
+                Logger::log('Received and queued: %s', $event->eventId);
                 $this->processQueue();
-                Logger::log('Waiting for next event');
-                delay(0);
+                //while ($this->queue->getSize() > 1000) {
+                //    delay(0.2);
+                //}
             }
 
             throw new \LogicException('The event source should never end');
