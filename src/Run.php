@@ -28,7 +28,6 @@ use Amp\Parallel\Context\DefaultContextFactory;
 use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\Execution;
-use Amp\Sync\ChannelException;
 use Amp\Sync\LocalMutex;
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
@@ -91,14 +90,6 @@ class Run
                     $execution->getFuture()->map(function (Event $event) use ($key) {
                         Logger::event('Event processed: %s', $event);
                         $this->totalLaunches++;
-                        while (true) {
-                            try {
-                                $prepend = $this->map[$key]->getChannel()->receive();
-                                $this->queue->prefix($key, $prepend);
-                            } catch (ChannelException) {
-                                break;
-                            }
-                        }
                     })->catch(function (Throwable $e) use ($next, $key) {
                         Logger::error('Error in event dispatcher: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
                         //$this->queue->prefix($key, $next);
@@ -109,10 +100,6 @@ class Run
                         }
                         $this->processQueue();
                     });
-
-                    //if (++$this->totalLaunches % 3000 === 0 && $this->totalLaunches > 0) {
-                        //$this->migratePool($this->config->workerTimeoutSeconds * 3);
-                    //}
                 } else {
                     $this->queue->prefix($key, $next);
                 }
@@ -167,9 +154,9 @@ class Run
                 $this->queue->enqueue($this->getEventKey($event), $event);
                 Logger::log('Received and queued: %s', $event->eventId);
                 $this->processQueue();
-                //while ($this->queue->getSize() > 1000) {
-                //    delay(0.2);
-                //}
+                while ($this->queue->getSize() > 1000) {
+                    delay(0.2);
+                }
             }
 
             throw new \LogicException('The event source should never end');

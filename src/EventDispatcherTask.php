@@ -39,6 +39,7 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
+use Revolt\EventLoop;
 
 class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 {
@@ -153,8 +154,6 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             $this->event = $this->event->getInnerEvent();
         }
 
-        gotNewEvent:
-
         foreach ($states as $state) {
             if ($state->hasAppliedEvent($this->event)) {
                 $this->source->ack($this->event);
@@ -182,7 +181,12 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             $state->onComplete($this->source);
         }
 
-        //Logger::log('EventDispatcherTask acked: %s', $originalEvent);
+        try {
+            $this->source->close();
+        } catch (\Throwable) {
+        }
+
+        Logger::log('Source closed');
 /*
         try {
             if ($this->hasExtendedState($states)) {
