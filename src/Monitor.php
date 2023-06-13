@@ -6,11 +6,11 @@ use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
-use r\AmpConnection;
 use r\Connection;
 use r\ConnectionOptions;
 use Revolt\EventLoop;
 
+use function r\connectAsync;
 use function r\db;
 use function r\row;
 use function r\table;
@@ -23,13 +23,15 @@ class Monitor
 
     public function __construct(private Config $config)
     {
-        $this->connection = new AmpConnection(new ConnectionOptions(
-            $this->config->storageConfig->host,
-            $this->config->storageConfig->port,
-            user: $this->config->storageConfig->username ?? 'admin',
-            password: $this->config->storageConfig->password ?? '',
-            db: 'rethinkdb'
-        ));
+        $this->connection = connectAsync(
+            new ConnectionOptions(
+                $config->storageConfig->host,
+                $config->storageConfig->port,
+                'rethinkdb',
+                ($config->storageConfig->username ?? 'admin'),
+                ($config->storageConfig->password ?? '')
+            )
+        );
 
         EventLoop::repeat(5, $this->monitor(...));
     }

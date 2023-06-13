@@ -135,7 +135,7 @@ class Run
         });
 
         if ($this->config->currentPartition === 0) {
-            new Monitor($this->config);
+            //new Monitor($this->config);
         }
 
         MonotonicClock::current();

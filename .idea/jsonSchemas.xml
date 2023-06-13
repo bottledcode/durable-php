@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JsonSchemaMappingsProjectConfiguration">
+    <state>
+      <map>
+        <entry key="kubeconfig Schema">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="kubeconfig Schema" />
+              <option name="relativePathToSchema" value="jar://$APPLICATION_PLUGINS_DIR$/clouds-kubernetes/lib/clouds-kubernetes.jar!/api-spec/common/kubeconfig-schema.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="example-pod.yaml" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+      </map>
+    </state>
+  </component>
+</project>
