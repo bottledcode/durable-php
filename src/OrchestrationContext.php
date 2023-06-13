@@ -59,7 +59,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
     {
-        $identity = sha1($name . print_r($args, true));
         return $this->createFuture(
             fn() => $this->taskController->fire(
                 AwaitResult::forEvent(

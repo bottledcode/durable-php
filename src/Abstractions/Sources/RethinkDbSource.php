@@ -127,7 +127,7 @@ class RethinkDbSource implements Source
             new ChangesOptions(
                 include_initial: true,
                 include_types: true,
-                changefeed_queue_size: 5000
+                changefeed_queue_size: 50000
             )
         )->filter(row('type')->ne('remove'))->run($this->connection, new RunOptions());
 
