@@ -218,5 +218,5 @@ interface OrchestrationContextInterface
      * @param class-string<T> $className
      * @return T
      */
-    public function createEntityProxy(string $className, EntityId $entityId): object;
+    public function createEntityProxy(string $className, EntityId|null $entityId = null): object;
 }
