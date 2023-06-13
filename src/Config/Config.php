@@ -38,6 +38,7 @@ readonly class Config
         public string $partitionKeyPrefix = 'partition_',
         public int $workerTimeoutSeconds = 10,
         public int $workerGracePeriodSeconds = 1,
+        public int $maximumMemoryPerWorker = 32,
     ) {
     }
 
