@@ -59,8 +59,6 @@ class Logger
         $logger->alert($output, ['e/s' => number_format(self::$counter / self::$elapsed, 2), 'est' => number_format((self::$counter / self::$elapsed) * 3, 2)]);
     }
 
-    public static $lastTime = 0;
-
     public static function error(string $message, ...$vars): void
     {
         $logger = self::init();

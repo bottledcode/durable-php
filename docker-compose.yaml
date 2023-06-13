@@ -32,6 +32,8 @@ services:
       - '60'
       - --worker-grace-period-seconds
       - '10'
+      - --changefeed-buffer-size
+      - '250000'
     environment:
       AMP_LOG_COLOR: '1'
     depends_on:
@@ -58,6 +60,8 @@ services:
       - '60'
       - --worker-grace-period-seconds
       - '10'
+      - --changefeed-buffer-size
+      - '250000'
     environment:
       AMP_LOG_COLOR: '1'
     depends_on:
@@ -83,6 +87,8 @@ services:
       - '60'
       - --worker-grace-period-seconds
       - '10'
+      - --changefeed-buffer-size
+      - '250000'
     environment:
       AMP_LOG_COLOR: '1'
     cap_add:
