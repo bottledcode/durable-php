@@ -39,13 +39,15 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
-use Revolt\EventLoop;
+use Ramsey\Uuid\Uuid;
 
 class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 {
     use Router;
 
     public Source $source;
+
+    private array $batch = [];
 
     public function __construct(
         private readonly Config $config,
@@ -57,6 +59,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
     public function runOnce(): void
     {
         $this->source = SourceFactory::fromConfig($this->config);
+        $this->source->workerStartup();
         $originalEvent = $this->event;
 
         $states = [];
@@ -88,6 +91,10 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             $this->updateState($state);
         }
 
+        foreach($this->batch as $f) {
+            $this->source->storeEvent($f);
+        }
+
         $this->source->ack($originalEvent);
         foreach ($states as $state) {
             $state->ackedEvent($originalEvent);
@@ -117,7 +124,8 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         $ids = [];
         foreach ($events as $event) {
             //Logger::log('EventDispatcherTask fired: %s', $event);
-            $ids[] = $this->source->storeEvent($event, false);
+            $ids[] = $event->eventId = empty($event->eventId) ? Uuid::uuid7()->toString() : $event->eventId;
+            $this->batch[] = $event;
         }
 
         return $ids;
@@ -138,6 +146,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
 
         $returnEvent = $this->event;
         $this->source = SourceFactory::fromConfig($this->config);
+        $this->source->workerStartup();
         $originalEvent = $this->event;
 
         //Logger::log("EventDispatcher received event: %s", $this->event);
@@ -173,6 +182,10 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             }
 
             $this->updateState($state);
+        }
+
+        foreach($this->batch as $f) {
+            $this->source->storeEvent($f, false);
         }
 
         $this->source->ack($originalEvent);

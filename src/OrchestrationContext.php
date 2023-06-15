@@ -49,12 +49,14 @@ use Ramsey\Uuid\UuidInterface;
 final class OrchestrationContext implements OrchestrationContextInterface
 {
     private int $guidCounter = 0;
+    private \WeakMap $futures;
 
     public function __construct(
         private readonly OrchestrationInstance $id, private readonly OrchestrationHistory $history,
         private readonly EventDispatcherTask $taskController
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
+        $this->futures = new \WeakMap();
     }
 
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
@@ -70,19 +72,24 @@ final class OrchestrationContext implements OrchestrationContextInterface
     }
 
     private function createFuture(
-        \Closure $onSent
+        \Closure $onSent,
+        string $identity = null
     ): DurableFuture {
-        $identity = $this->history->historicalTaskResults->getIdentity();
+        $identity ??= $this->history->historicalTaskResults->getIdentity();
         if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
             [$eventId] = $onSent();
             $deferred = new DeferredFuture();
             $this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
-            return new DurableFuture($deferred->getFuture());
+            $future = new DurableFuture($deferred->getFuture());
+            $this->futures[$deferred->getFuture()] = $future;
+            return $future;
         }
 
         $deferred = new DeferredFuture();
         $this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-        return new DurableFuture($deferred->getFuture());
+        $future = new DurableFuture($deferred->getFuture());
+        $this->futures[$deferred->getFuture()] = $future;
+        return $future;
     }
 
     public function callSubOrchestrator(
@@ -104,7 +111,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 WithOrchestration::forInstance(
                     StateId::fromInstance($this->id), WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
                 )
-            )
+            ),
+            $identity
         );
     }
 
@@ -143,7 +151,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         );
         foreach ($completed as $task) {
             if ($task->isComplete()) {
-                return new DurableFuture($task);
+                return $this->futures[$task];
             }
         }
 

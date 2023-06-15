@@ -252,4 +252,9 @@ class RethinkDbSource implements Source
         )->run($this->connection);
         return $results['changes'][0]['new_val']['id'] ?? $event->eventId;
     }
+
+    public function workerStartup(): void
+    {
+        // TODO: Implement workerStartup() method.
+    }
 }

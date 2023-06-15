@@ -40,9 +40,15 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
     public Status|null $status = null;
+
     public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
     {
         yield null;
+    }
+
+    public function getStatus(): Status
+    {
+        return $this->status;
     }
 
     public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator

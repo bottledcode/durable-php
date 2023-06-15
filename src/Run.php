@@ -148,10 +148,11 @@ class Run
                 continue;
             }
             $key = $this->getEventKey($event);
-            $this->map[$key] = null;
             $this->queue->enqueue($key, $event);
         }
         Logger::log('Replay completed');
+
+        $this->processQueue();
 
         async(function () {
             foreach ($this->source->receiveEvents() as $event) {
@@ -189,7 +190,9 @@ class Run
 
         return $event->eventId;
     }
-}(static function ($argv) {
+}
+
+(static function ($argv) {
     $config = Config::fromArgs($argv);
     $runner = new Run($config);
     $runner();

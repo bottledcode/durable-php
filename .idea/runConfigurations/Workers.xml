@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Workers" type="PhpLocalRunConfigurationType" factoryName="PHP Console" path="$PROJECT_DIR$/src/Run.php" scriptParameters="--db rethinkdb --current-partition 0 --total-partitions 1">
-    <CommandLine parameters="-d xdebug.client_host=192.168.50.90" workingDirectory="$PROJECT_DIR$">
+  <configuration default="false" name="Workers" type="PhpLocalRunConfigurationType" factoryName="PHP Console" path="$PROJECT_DIR$/src/Run.php" scriptParameters="--db WAL --current-partition 0 --total-partitions 1 --file /tmp/dp.dat">
+    <CommandLine parameters="-d xdebug.client_host=192.168.50.206" workingDirectory="$PROJECT_DIR$">
       <envs>
         <env name="PHP_IDE_CONFIG" value="serverName=runner" />
         <env name="XDEBUG_CONFIG" value="&quot;client_host=192.168.50.207&quot;" />

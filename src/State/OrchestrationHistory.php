@@ -37,7 +37,6 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
-use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -252,7 +251,8 @@ class OrchestrationHistory extends AbstractHistory
 
     public function hasAppliedEvent(Event $event): bool
     {
-        return array_key_exists($event->eventId, $this->history);
+        $has = array_key_exists($event->eventId, $this->history);
+        return $has;
     }
 
     public function resetState(): void

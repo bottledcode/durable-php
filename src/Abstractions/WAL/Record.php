@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,25 +21,17 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State;
+namespace Bottledcode\DurablePhp\Abstractions\WAL;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\fp\Evolvable;
 
-readonly class Status
+readonly class Record implements \Stringable
 {
-    use Evolvable;
+    public function __construct(public string $id, public string $data, public RecordType $type)
+    {
+    }
 
-
-
-    public function __construct(
-        public \DateTimeImmutable $createdAt,
-        public string $customStatus,
-        public array $input,
-        public StateId $id,
-        public \DateTimeImmutable $lastUpdated,
-        public array|null $output,
-        public RuntimeStatus $runtimeStatus,
-    ) {
+    public function __toString(): string
+    {
+        return pack('NNC', strlen($this->id), strlen($this->data), $this->type->value) . $this->id . $this->data;
     }
 }
