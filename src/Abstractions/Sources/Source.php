@@ -46,6 +46,8 @@ interface Source
 
     public function storeEvent(Event $event, bool $local): string;
 
+    public function workerStartup(): void;
+
     public function put(string $key, mixed $data, Seconds|null $ttl = null, ?int $etag = null): void;
 
     /**

@@ -28,7 +28,8 @@
     "amphp/log": "v2.0.0-beta.2",
     "ext-pcntl": "*",
     "ext-apcu": "*",
-    "ext-posix": "*"
+    "ext-posix": "*",
+    "amphp/file": "^3.0"
   },
   "replace": {
     "symfony/polyfill-php80": "*",

@@ -37,6 +37,8 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
+    private bool $hasExecuted = false;
+
     public function __construct(private StateId $id)
     {
         $this->activityId = $id->toActivityId();
@@ -44,6 +46,10 @@ class ActivityHistory extends AbstractHistory
 
     public function hasAppliedEvent(Event $event): bool
     {
+        if($this->hasExecuted) {
+            return true;
+        }
+        $this->hasExecuted = true;
         return false;
     }
 

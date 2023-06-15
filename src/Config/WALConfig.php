@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,25 +21,11 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State;
+namespace Bottledcode\DurablePhp\Config;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\fp\Evolvable;
-
-readonly class Status
+readonly class WALConfig
 {
-    use Evolvable;
-
-
-
-    public function __construct(
-        public \DateTimeImmutable $createdAt,
-        public string $customStatus,
-        public array $input,
-        public StateId $id,
-        public \DateTimeImmutable $lastUpdated,
-        public array|null $output,
-        public RuntimeStatus $runtimeStatus,
-    ) {
+    public function __construct(public string $file, public int $pageSizeBytes = 4096)
+    {
     }
 }

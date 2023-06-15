@@ -41,7 +41,7 @@ $actors = new EntityClient($config, SourceFactory::fromConfig($config));
 
 $watch = new StopWatch();
 $watch->start();
-$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 200;
+$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 20;
 $numberLaunchers = 50;
 for ($i = 0; $i < $numberLaunchers; $i++) {
     $actors->signalEntity(

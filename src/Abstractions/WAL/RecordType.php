@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,25 +21,10 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State;
+namespace Bottledcode\DurablePhp\Abstractions\WAL;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\fp\Evolvable;
-
-readonly class Status
-{
-    use Evolvable;
-
-
-
-    public function __construct(
-        public \DateTimeImmutable $createdAt,
-        public string $customStatus,
-        public array $input,
-        public StateId $id,
-        public \DateTimeImmutable $lastUpdated,
-        public array|null $output,
-        public RuntimeStatus $runtimeStatus,
-    ) {
-    }
+enum RecordType: int {
+    case First = 1;
+    case Middle = 2;
+    case Last = 3;
 }

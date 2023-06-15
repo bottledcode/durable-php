@@ -31,7 +31,7 @@ readonly class Config
 {
     public function __construct(
         public int $currentPartition,
-        public RedisConfig|RethinkDbConfig $storageConfig,
+        public RedisConfig|RethinkDbConfig|WALConfig $storageConfig,
         public int $totalPartitions = 1,
         public int $totalWorkers = 3,
         public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
@@ -64,6 +64,7 @@ readonly class Config
             match ($db) {
                 'redis' => RedisConfig::class,
                 'rethinkdb' => RethinkDbConfig::class,
+                'WAL' => WALConfig::class,
                 default => throw new InvalidArgumentException(
                     'Missing value for argument db (rethinkdb or redis)'
                 )
@@ -81,6 +82,7 @@ readonly class Config
         $arr['storageConfig'] = match ($db) {
             'redis' => new RedisConfig(...$sub),
             'rethinkdb' => new RethinkDbConfig(...$sub),
+            'WAL' => new WALConfig(...$sub),
             default => throw new InvalidArgumentException(
                 'Missing value for argument db (rethinkdb or redis)'
             )

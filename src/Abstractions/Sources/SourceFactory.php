@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp\Abstractions\Sources;
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Config\RedisConfig;
 use Bottledcode\DurablePhp\Config\RethinkDbConfig;
+use Bottledcode\DurablePhp\Config\WALConfig;
 
 class SourceFactory
 {
@@ -35,6 +36,7 @@ class SourceFactory
         return match ($config->storageConfig::class) {
             RedisConfig::class => RedisSource::connect($config, $asyncSupport),
             RethinkDbConfig::class => RethinkDbSource::connect($config, $asyncSupport),
+            WALConfig::class => LocalWAL::connect($config, $asyncSupport),
         };
     }
 }
