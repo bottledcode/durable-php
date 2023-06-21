@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
@@ -39,7 +40,7 @@ class ActivityHistory extends AbstractHistory
     public string $activityId;
     private bool $hasExecuted = false;
 
-    public function __construct(private StateId $id)
+    public function __construct(private StateId $id, private Config $config)
     {
         $this->activityId = $id->toActivityId();
     }
@@ -58,7 +59,9 @@ class ActivityHistory extends AbstractHistory
         $task = $event->name;
         $replyTo = $this->getReplyTo($original);
         try {
-            if (class_exists($task)) {
+            if($this->config->factory) {
+                $task = ($this->config->factory)($task);
+            } elseif (class_exists($task)) {
                 $task = new $task();
             }
             $result = $task(...($event->input ?? []));

@@ -113,7 +113,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         $rawState = $this->source->get($instance, $instance->getStateType());
         if (empty($rawState)) {
             $type = $instance->getStateType();
-            $rawState = new $type($instance);
+            $rawState = new $type($instance, $this);
         }
 
         return $rawState;

@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,27 +21,29 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+namespace Bottledcode\DurablePhp\Abstractions\FASTER;
 
-class HelloSequence
+interface Epoch
 {
-    public function __invoke(OrchestrationContextInterface $context): void
-    {
-        $name = $context->getInput()['name'];
-        $context->setCustomStatus("Saying hello to {$name}!");
-        $hello = $context->callActivity('strlen', [$name]);
-        $wait = $context->createTimer($context->getCurrentTime()->add($context->createInterval(seconds: 5)));
-        $winner = $context->waitAny($hello, $wait);
+    public function acquire(): int;
 
-        if ($winner === $hello) {
-            $context->setCustomStatus("hello {$name}!");
-        } elseif ($winner === $wait) {
-            $context->setCustomStatus('timeout!');
-        }
+    public function bumpCurrentEpoch(\Closure|null $action = null): int;
 
-        $context->getCurrentTime();
+    public function release(): void;
 
-        $context->waitAll($context->waitForExternalEvent('event'));
-        $context->setCustomStatus('all done');
-    }
+    public function startup(): void;
+
+    public function shutdown(): void;
+
+    public function mark(int $markerIndex, int $version): void;
+
+    public function thisInstanceProtected(): bool;
+
+    public function protectAndDrain(): void;
+
+    public function suspend(): void;
+
+    public function resume(): void;
+
+    public function checkIsComplete(int $markerId, int $version): bool;
 }

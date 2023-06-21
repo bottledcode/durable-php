@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
@@ -70,7 +71,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(private StateId $id)
+    public function __construct(private StateId $id, private Config $config)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -140,7 +141,8 @@ class OrchestrationHistory extends AbstractHistory
     {
         $class = new \ReflectionClass($this->instance->instanceId);
 
-        $this->constructed ??= $class->newInstanceWithoutConstructor();
+        $this->constructed ??= ($this->config->factory ? ($this->config->factory)($this->instance->instanceId) : null)
+            ?? $class->newInstanceWithoutConstructor();
         try {
             $taskScheduler = null;
             yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
@@ -156,22 +158,17 @@ class OrchestrationHistory extends AbstractHistory
             }
 
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Completed,
-                output: Serializer::serialize($result),
+                runtimeStatus: RuntimeStatus::Completed, output: Serializer::serialize($result),
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Failed,
-                output: Serializer::serialize(
-                    ExternalException::fromException($e)
-                ),
+                runtimeStatus: RuntimeStatus::Failed, output: Serializer::serialize(
+                ExternalException::fromException($e)
+            ),
             );
             $completion = TaskFailed::forTask(
-                StateId::fromInstance($this->instance),
-                $e->getMessage(),
-                $e->getTraceAsString(),
-                $e::class
+                StateId::fromInstance($this->instance), $e->getMessage(), $e->getTraceAsString(), $e::class
             );
         }
 

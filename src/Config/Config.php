@@ -34,11 +34,12 @@ readonly class Config
         public RedisConfig|RethinkDbConfig|WALConfig $storageConfig,
         public int $totalPartitions = 1,
         public int $totalWorkers = 3,
-        public string $bootstrapPath = __DIR__ . '/../../vendor/autoload.php',
+        public string|null $bootstrapPath = null,
         public string $partitionKeyPrefix = 'partition_',
         public int $workerTimeoutSeconds = 10,
         public int $workerGracePeriodSeconds = 1,
         public int $maximumMemoryPerWorker = 32,
+        public \Closure|null $factory = null,
     ) {
     }
 

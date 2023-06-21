@@ -97,4 +97,6 @@ interface EntityContextInterface
     public function getOperation(): string;
 
     public function startNewOrchestration(string $orchestration, array $input = [], string|null $id = null): void;
+
+    public static function current(): static;
 }

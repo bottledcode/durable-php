@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\ClassNameTypeMap;
@@ -32,7 +33,7 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 #[ClassNameTypeMap('_state_type')]
 interface StateInterface
 {
-    public function __construct(StateId $id);
+    public function __construct(StateId $id, Config $config);
 
     public function hasAppliedEvent(Event $event): bool;
 
