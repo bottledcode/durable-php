@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
+use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\EntityContextInterface;
 use Bottledcode\DurablePhp\Events\AwaitResult;
@@ -40,6 +41,7 @@ use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Generator;
 use ReflectionClass;
+use ReflectionNamedType;
 
 class EntityHistory extends AbstractHistory
 {
@@ -52,7 +54,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id)
+    public function __construct(public StateId $id, private Config $config)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -147,7 +149,9 @@ class EntityHistory extends AbstractHistory
         $now = MonotonicClock::current()->now();
         $this->status = new Status($now, '', [], $this->id, $now, [], RuntimeStatus::Running);
 
-        if (class_exists($this->name)) {
+        if ($this->config->factory) {
+            $this->state = ($this->config->factory)($this->name);
+        } elseif (class_exists($this->name)) {
             $reflection = new ReflectionClass($this->name);
             $this->state = $reflection->newInstanceWithoutConstructor();
         }
@@ -172,7 +176,7 @@ class EntityHistory extends AbstractHistory
             $properties = $reflector->getProperties();
             foreach ($properties as $property) {
                 $type = $property->getType();
-                if ($type instanceof \ReflectionNamedType && $type->getName() === EntityContextInterface::class) {
+                if ($type instanceof ReflectionNamedType && $type->getName() === EntityContextInterface::class) {
                     $property->setValue($this->state, $context);
                 }
             }
@@ -204,7 +208,7 @@ class EntityHistory extends AbstractHistory
         yield null;
     }
 
-    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): Generator
     {
         if ($this->queueIfLocked($original)) {
             return;
@@ -238,7 +242,7 @@ class EntityHistory extends AbstractHistory
         return true;
     }
 
-    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+    public function applyTaskFailed(TaskFailed $event, Event $original): Generator
     {
         if ($this->queueIfLocked($original)) {
             return;
@@ -248,7 +252,7 @@ class EntityHistory extends AbstractHistory
         yield from $this->finalize($event);
     }
 
-    public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
+    public function applyAwaitResult(AwaitResult $event, Event $original): Generator
     {
         if ($this->queueIfLocked($original)) {
             return;

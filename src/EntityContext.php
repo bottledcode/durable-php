@@ -41,12 +41,20 @@ use Ramsey\Uuid\Uuid;
 #[ClassSettings(includeFieldsByDefault: false)]
 class EntityContext implements EntityContextInterface
 {
+    private static EntityContextInterface|null $current = null;
+
     public function __construct(
         private readonly EntityId $id, private readonly string $operation, private readonly mixed $input,
         private mixed $state, private readonly EntityHistory $history,
         private readonly EventDispatcherTask $eventDispatcher, private readonly array $caller,
         private readonly string $requestingId,
     ) {
+        self::$current = $this;
+    }
+
+    public static function current(): static
+    {
+        return self::$current ?? throw new \RuntimeException('Not in an entity context');
     }
 
     public function delete(): never
