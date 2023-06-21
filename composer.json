@@ -31,10 +31,6 @@
     "ramsey/uuid": "^4.7.4",
     "withinboredom/time": "^2.1"
   },
-  "replace": {
-    "symfony/polyfill-php80": "*",
-    "symfony/polyfill-mbstring": "*"
-  },
   "suggest": {
     "ext-redis": "Required for Redis Streams",
     "ext-igbinary": "Use a better serializer"
