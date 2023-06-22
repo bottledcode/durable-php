@@ -34,20 +34,21 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Crell\Serde\Attributes\Field;
 
 class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
     private bool $hasExecuted = false;
 
-    public function __construct(private StateId $id, private Config $config)
+    public function __construct(private StateId $id, #[Field(exclude: true)] protected Config $config)
     {
         $this->activityId = $id->toActivityId();
     }
 
     public function hasAppliedEvent(Event $event): bool
     {
-        if($this->hasExecuted) {
+        if ($this->hasExecuted) {
             return true;
         }
         $this->hasExecuted = true;
@@ -59,7 +60,7 @@ class ActivityHistory extends AbstractHistory
         $task = $event->name;
         $replyTo = $this->getReplyTo($original);
         try {
-            if($this->config->factory) {
+            if ($this->config->factory) {
                 $task = ($this->config->factory)($task);
             } elseif (class_exists($task)) {
                 $task = new $task();
