@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
@@ -40,6 +41,12 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
     public Status|null $status = null;
+    protected Config $config;
+
+    public function setConfig(Config $config): void
+    {
+        $this->config = $config;
+    }
 
     public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
     {

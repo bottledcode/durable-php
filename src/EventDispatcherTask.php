@@ -91,7 +91,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             $this->updateState($state);
         }
 
-        foreach($this->batch as $f) {
+        foreach ($this->batch as $f) {
             $this->source->storeEvent($f);
         }
 
@@ -113,7 +113,9 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
         $rawState = $this->source->get($instance, $instance->getStateType());
         if (empty($rawState)) {
             $type = $instance->getStateType();
-            $rawState = new $type($instance, $this);
+            $rawState = new $type($instance, $this->config);
+        } else {
+            $rawState->setConfig($this->config);
         }
 
         return $rawState;
@@ -184,7 +186,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
             $this->updateState($state);
         }
 
-        foreach($this->batch as $f) {
+        foreach ($this->batch as $f) {
             $this->source->storeEvent($f, false);
         }
 

@@ -39,6 +39,7 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Crell\Serde\Attributes\Field;
 use Generator;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -54,7 +55,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, private Config $config)
+    public function __construct(public StateId $id, #[Field(exclude: true)] protected Config $config)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -167,7 +168,13 @@ class EntityHistory extends AbstractHistory
         };
 
         $context = new EntityContext(
-            $this->id->toEntityId(), $operation, $input, $this->state, $this, $taskDispatcher, $replyTo,
+            $this->id->toEntityId(),
+            $operation,
+            $input,
+            $this->state,
+            $this,
+            $taskDispatcher,
+            $replyTo,
             $original->eventId
         );
 

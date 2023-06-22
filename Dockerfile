@@ -2,7 +2,7 @@ FROM php:8-zts AS base
 
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/bin/
 
-RUN install-php-extensions ev apcu parallel @composer && \
+RUN install-php-extensions ev apcu pcntl parallel @composer && \
     mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" && \
     apt update && \
     apt install -y procps && \

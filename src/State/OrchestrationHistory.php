@@ -71,7 +71,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(private StateId $id, private Config $config)
+    public function __construct(private StateId $id, #[Field(exclude: true)] protected Config $config)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -158,17 +158,22 @@ class OrchestrationHistory extends AbstractHistory
             }
 
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Completed, output: Serializer::serialize($result),
+                runtimeStatus: RuntimeStatus::Completed,
+                output: Serializer::serialize($result),
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
             $this->status = $this->status->with(
-                runtimeStatus: RuntimeStatus::Failed, output: Serializer::serialize(
-                ExternalException::fromException($e)
-            ),
+                runtimeStatus: RuntimeStatus::Failed,
+                output: Serializer::serialize(
+                    ExternalException::fromException($e)
+                ),
             );
             $completion = TaskFailed::forTask(
-                StateId::fromInstance($this->instance), $e->getMessage(), $e->getTraceAsString(), $e::class
+                StateId::fromInstance($this->instance),
+                $e->getMessage(),
+                $e->getTraceAsString(),
+                $e::class
             );
         }
 

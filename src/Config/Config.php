@@ -39,7 +39,7 @@ readonly class Config
         public int $workerTimeoutSeconds = 10,
         public int $workerGracePeriodSeconds = 1,
         public int $maximumMemoryPerWorker = 32,
-        public \Closure|null $factory = null,
+        public string|null $factory = null,
     ) {
     }
 
