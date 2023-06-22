@@ -59,7 +59,7 @@ abstract class Serializer
     /**
      * @template T
      * @param array $value
-     * @param class-string $type
+     * @param class-string<T> $type
      * @return T
      */
     public static function deserialize(array $value, string $type): mixed
