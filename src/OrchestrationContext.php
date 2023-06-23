@@ -130,6 +130,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $identity = sha1($name);
         $deferred = new DeferredFuture();
         $this->history->historicalTaskResults->trackIdentity($identity, $deferred);
+        $this->futures[$deferred->getFuture()] = $deferred;
         return new DurableFuture($deferred->getFuture());
     }
 
