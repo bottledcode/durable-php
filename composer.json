@@ -46,11 +46,5 @@
       "dealerdirect/phpcodesniffer-composer-installer": true,
       "pestphp/pest-plugin": true
     }
-  },
-  "repositories": [
-    {
-      "type": "github",
-      "url": "https://github.com/withinboredom/byte-stream"
-    }
-  ]
+  }
 }

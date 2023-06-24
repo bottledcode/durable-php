@@ -69,11 +69,6 @@ class EntityHistory extends AbstractHistory
     {
     }
 
-    public function delete(): void
-    {
-        $this->state = null;
-    }
-
     public function ackedEvent(Event $event): void
     {
         unset($this->history[$event->eventId]);
@@ -83,7 +78,6 @@ class EntityHistory extends AbstractHistory
     {
         $this->state = $state;
     }
-
 
     public function applyRaiseEvent(RaiseEvent $event, Event $original): Generator
     {
@@ -96,6 +90,9 @@ class EntityHistory extends AbstractHistory
                 $input = $event->eventData['input'];
                 $operation = $event->eventData['operation'];
                 yield from $this->execute($original, $operation, $input);
+                if ($operation === 'delete') {
+                    $this->delete();
+                }
                 break;
             case '__lock':
                 // dequeue events currently in the lock queue
@@ -168,13 +165,7 @@ class EntityHistory extends AbstractHistory
         };
 
         $context = new EntityContext(
-            $this->id->toEntityId(),
-            $operation,
-            $input,
-            $this->state,
-            $this,
-            $taskDispatcher,
-            $replyTo,
+            $this->id->toEntityId(), $operation, $input, $this->state, $this, $taskDispatcher, $replyTo,
             $original->eventId
         );
 
@@ -205,6 +196,11 @@ class EntityHistory extends AbstractHistory
                 yield WithOrchestration::forInstance($reply, TaskCompleted::forId($original->eventId, $result ?? null));
             }
         }
+    }
+
+    public function delete(): void
+    {
+        $this->state = null;
     }
 
     private function finalize(Event $event): Generator

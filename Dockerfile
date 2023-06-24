@@ -23,6 +23,6 @@ COPY . /app
 
 ENTRYPOINT [ "php", "-d", "opcache.enable_cli=1", "-d", "opcache.jit_buffer_size=50M", "-d", "opcache.jit=tracing", "src/Run.php" ]
 
-FROM base as prod
+FROM base as dev
 
-#USER app
+RUN install-php-extensions xdebug
