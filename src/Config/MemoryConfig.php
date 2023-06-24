@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,22 +21,6 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Abstractions\Sources;
+namespace Bottledcode\DurablePhp\Config;
 
-use Bottledcode\DurablePhp\Config\Config;
-use Bottledcode\DurablePhp\Config\RedisConfig;
-use Bottledcode\DurablePhp\Config\RethinkDbConfig;
-use Bottledcode\DurablePhp\Config\WALConfig;
-
-class SourceFactory
-{
-    public static function fromConfig(Config $config, bool $asyncSupport = true): Source
-    {
-        return match ($config->storageConfig::class) {
-            RedisConfig::class => RedisSource::connect($config, $asyncSupport),
-            RethinkDbConfig::class => RethinkDbSource::connect($config, $asyncSupport),
-            WALConfig::class => LocalWAL::connect($config, $asyncSupport),
-            MemorySource::class => MemorySource::connect($config, $asyncSupport)
-        };
-    }
-}
+class MemoryConfig {}

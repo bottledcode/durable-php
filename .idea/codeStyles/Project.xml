@@ -15,7 +15,6 @@
       <option name="PARAMETERS_ATTRIBUTES_WRAP" value="1" />
     </PHPCodeStyleSettings>
     <codeStyleSettings language="PHP">
-      <option name="KEEP_LINE_BREAKS" value="false" />
       <option name="KEEP_FIRST_COLUMN_COMMENT" value="false" />
       <option name="KEEP_CONTROL_STATEMENT_IN_ONE_LINE" value="false" />
       <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="0" />

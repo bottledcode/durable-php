@@ -1,0 +1,20 @@
+name: Run Unit Tests
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pcntl, xdebug
+      - name: Install dependencies
+        run: composer install
+      - name: Run tests
+        run: ./vendor/bin/pest --coverage
