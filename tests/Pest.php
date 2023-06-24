@@ -1,4 +1,25 @@
 <?php
+/*
+ * Copyright ©2023 Robert Landers
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the “Software”), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT
+ * OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+ * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 /*
 |--------------------------------------------------------------------------
@@ -24,6 +45,9 @@
 |
 */
 
+use Bottledcode\DurablePhp\Config\Config;
+use Bottledcode\DurablePhp\Config\MemoryConfig;
+
 expect()->extend('toBeOne', function () {
     return $this->toBe(1);
 });
@@ -39,7 +63,55 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function getConfig(): Config
 {
-    // ..
+    return new Config(
+        currentPartition: 0, storageConfig: new MemoryConfig()
+    );
+}
+
+function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $processor): array
+{
+    $events = [];
+    $innerEvent = $event;
+    while ($innerEvent instanceof \Bottledcode\DurablePhp\Events\HasInnerEventInterface) {
+        $innerEvent = $innerEvent->getInnerEvent();
+    }
+
+    $fire = function (array $fired) use (&$events) {
+        static $id = 0;
+        $ids = [];
+        foreach ($fired as $toFire) {
+            $ids[] = $toFire->eventId = $id++;
+            $events[] = $toFire;
+        }
+
+        return $ids;
+    };
+
+    $eventDispatcher = new class($fire) extends \Bottledcode\DurablePhp\EventDispatcherTask {
+        public function __construct(
+            private Closure $fire
+        ) {
+        }
+
+        public function fire(\Bottledcode\DurablePhp\Events\Event ...$events): array
+        {
+            return ($this->fire)($events);
+        }
+    };
+
+    foreach ($processor($innerEvent, $event) as $nextEvent) {
+        if ($nextEvent instanceof \Bottledcode\DurablePhp\Events\Event) {
+            $events[] = $nextEvent;
+            if ($nextEvent instanceof \Bottledcode\DurablePhp\Events\PoisonPill) {
+                break;
+            }
+        }
+        if ($nextEvent instanceof Closure) {
+            $nextEvent($eventDispatcher, null, null);
+        }
+    }
+
+    return $events;
 }

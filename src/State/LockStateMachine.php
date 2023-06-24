@@ -78,9 +78,12 @@ class LockStateMachine
                 $next = $this->getNextParticipant($lock);
                 $prev = $this->getPreviousParticipant($lock);
                 $this->lockQueue[$owner->id] = [
-                    'events' => [], 'next' => $next,
-                    'previous' => $prev ?? $owner, 'sent' => $next === null,
-                    'received' => $next === null, 'lockId' => $lock->eventId,
+                    'events' => [],
+                    'next' => $next,
+                    'previous' => $prev ?? $owner,
+                    'sent' => $next === null,
+                    'received' => $prev?->isOrchestrationId() ?? false,
+                    'lockId' => $lock->eventId,
                 ];
                 $this->state = LockStateEnum::Enqueue;
                 goto restart;
@@ -95,7 +98,7 @@ class LockStateMachine
                 assert($sender !== null);
                 // is the current event a notification?
                 if ($raisedEvent = $this->isNotification($innerEvent)) {
-                    if ($sender->origin->id === ($this->lockQueue[$owner->id]['next']->id ?? null)) {
+                    if ($sender->origin->id === ($this->lockQueue[$owner->id]['previous']->id ?? null)) {
                         // yes, so track it as a received notification
                         $this->lockQueue[$owner->id]['received'] = true;
                     }
