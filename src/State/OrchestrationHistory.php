@@ -71,7 +71,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(private StateId $id, #[Field(exclude: true)] protected Config $config)
+    public function __construct(public readonly StateId $id, #[Field(exclude: true)] protected Config $config)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -93,7 +93,7 @@ class OrchestrationHistory extends AbstractHistory
 
         //Logger::log("Applying StartExecution event to OrchestrationHistory");
         $this->now = $event->timestamp;
-        $this->name = $event->name;
+        $this->name = $this->id->toOrchestrationInstance()->instanceId;
         $this->version = $event->version;
         $this->tags = $event->tags;
         $this->parentInstance = $event->parentInstance ?? null;
@@ -139,7 +139,11 @@ class OrchestrationHistory extends AbstractHistory
 
     private function construct(): \Generator
     {
-        $class = new \ReflectionClass($this->instance->instanceId);
+        try {
+            $class = new \ReflectionClass($this->instance->instanceId);
+        } catch (\ReflectionException) {
+            // we should handle this more gracefully...
+        }
 
         $this->constructed ??= ($this->config->factory ? ($this->config->factory)($this->instance->instanceId) : null)
             ?? $class->newInstanceWithoutConstructor();

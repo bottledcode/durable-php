@@ -52,6 +52,12 @@ expect()->extend('toBeOne', function () {
     return $this->toBe(1);
 });
 
+expect()->extend('toHaveStatus', function (\Bottledcode\DurablePhp\State\RuntimeStatus $status) {
+    /** @var \Bottledcode\DurablePhp\State\Status $otherStatus */
+    $otherStatus = $this->value->getStatus();
+    return expect($otherStatus->runtimeStatus)->toBe($status, "Expected status {$status->name} but got {$otherStatus->runtimeStatus->name}");
+});
+
 /*
 |--------------------------------------------------------------------------
 | Functions
@@ -62,6 +68,10 @@ expect()->extend('toBeOne', function () {
 | global functions to help you to reduce the number of lines of code in your test files.
 |
 */
+
+function getStatusOutput(\Bottledcode\DurablePhp\State\AbstractHistory $history): mixed {
+    return $history->getStatus()->output['value'] ?? null;
+}
 
 function getConfig(): Config
 {
@@ -114,4 +124,26 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
     }
 
     return $events;
+}
+
+function simpleFactory(string $key, Closure|null $store = null): object
+{
+    static $factory = [];
+
+    if ($store) {
+        $factory[$key] = $store;
+    }
+
+    return new class($key, $factory[$key] ?? null) {
+        public function __invoke(...$params)
+        {
+            return ($this->store)(...$params);
+        }
+
+        public function __construct(
+            private string $key,
+            private Closure|null $store
+        ) {
+        }
+    };
 }

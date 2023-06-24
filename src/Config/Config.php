@@ -24,11 +24,14 @@
 
 namespace Bottledcode\DurablePhp\Config;
 
+use Crell\fp\Evolvable;
 use InvalidArgumentException;
 use ReflectionClass;
 
 readonly class Config
 {
+    use Evolvable;
+
     public function __construct(
         public int $currentPartition,
         public RedisConfig|RethinkDbConfig|WALConfig|MemoryConfig $storageConfig,

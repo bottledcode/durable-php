@@ -24,12 +24,11 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Amp\DeferredFuture;
-use Amp\Future;
-use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\DurableFuture;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Closure;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
 use DateTimeImmutable;
@@ -44,8 +43,12 @@ class HistoricalStateTracker
         private int|null $readKey = null,
         #[Field(exclude: true)]
         private int $identityKey = 0,
+        #[Field(exclude: true)]
         private array $waiters = [],
         private array $results = [],
+        private array $received = [],
+        private array $expecting = [],
+        private int $writeKey = 0,
         #[SequenceField(arrayType: DateTimeImmutable::class)]
         private array $currentTime = [],
     ) {
@@ -56,35 +59,46 @@ class HistoricalStateTracker
      *
      * @param string $identity
      * @param string $eventId
-     * @param DeferredFuture $future
      * @return void
      */
-    public function sentEvent(string $identity, string $eventId, DeferredFuture $future): void
+    public function sentEvent(string $identity, string $eventId): void
     {
-        $this->getSlots()[$future->getFuture()] = [
-            'eventId' => $eventId, 'identity' => $identity, 'handler' => $future
-        ];
+        $this->expecting[$identity] = $eventId;
     }
 
-    private function getSlots(): \WeakMap
-    {
-        return $this->eventSlots ??= new \WeakMap();
-    }
-
+    /**
+     * Get a unique, replayable identity.
+     */
     public function getIdentity(): string
     {
         $this->identityKey ??= 0;
         return 'identity' . $this->identityKey++;
     }
 
+    /**
+     * Determine if we are expecting an identity.
+     */
     public function hasSentIdentity(string $identity): bool
     {
-        return isset($this->results[$identity]);
+        return array_key_exists($identity, $this->expecting);
     }
 
-    public function trackIdentity(string $identity, DeferredFuture $future): void
+    public function trackFuture(Closure $matcher, DurableFuture $future): void
     {
-        $this->getSlots()[$future->getFuture()] = ['identity' => $identity, 'handler' => $future];
+        $this->getSlots()[$future] = $matcher;
+    }
+
+    private function getReadKey(): int
+    {
+        return $this->readKey ??= 0;
+    }
+
+    /**
+     * @return \WeakMap<DurableFuture,Closure>
+     */
+    private function getSlots(): \WeakMap
+    {
+        return $this->eventSlots ??= new \WeakMap();
     }
 
     public function resetState(): void
@@ -102,163 +116,93 @@ class HistoricalStateTracker
      */
     public function receivedEvent(TaskCompleted|TaskFailed|RaiseEvent $event): void
     {
-        $id = $event->scheduledId ?? $event->eventId;
-        // get the identity of the event and delete it from the results
-        $identities = array_column($this->results[$id] ?? [], 'identity');
-        // if we have no identity, we are not waiting for this event
-        if (empty($identities)) {
-            // this happens when an event is raised but the executing code has not yet awaited it...
-            // this should only be when an event is raised.
-            if ($event instanceof RaiseEvent) {
-                $identity = sha1($event->eventName);
-                $this->results[$identity][] = ['result' => $event];
-            } elseif ($event instanceof TaskCompleted) {
-                // or perhaps the expected identity does not match, but we are expecting the event subject
-                $eventId = $event->scheduledId;
-                $identities = array_column($this->results[$eventId] ?? [], 'eventId');
-            } else {
-                return;
-            }
-        }
-        unset($this->results[$id]);
+        // ok, we've received an event, so add it to the received list
+        $received = ['event' => $event];
 
-        // get the waiter for this identity
-        foreach ($identities as $identity) {
-            $waiterKeys = array_column($this->results[$identity], 'key');
-            foreach ($waiterKeys as $key) {
-                // add the result to the waiter
-                $this->waiters[$key][] = ['result' => $event, 'identity' => $identity];
-            }
-        }
+        // see if we are expecting it?
+        $identity = array_search($event->scheduledId ?? $event->eventId, $this->expecting, true);
+
+        // we are expecting it, so annotate the received list
+        $received['identity'] = $identity;
+
+        // add it to the received list
+        $this->received[] = $received;
     }
 
     /**
      * Match waiting futures to event slots.
      *
-     * @param Future ...$futures
-     * @return void
+     * @param DurableFuture ...$futures
+     * @return array<int, DurableFuture>
      * @throws \Exception
      */
-    public function awaitingFutures(Future ...$futures): array
+    public function awaitingFutures(DurableFuture ...$futures): array
     {
-        // determine if we're writing or reading
-        $writeKey = count($this->waiters);
-        // if the write key === read key, we are writing
-        // if the write key > read key, we are reading
-        // if the write key < read key, we are in an error condition
-        if ($writeKey === $this->getReadKey()) {
-            // we are writing
-            $this->writeFutures($futures);
-            $writeKey += 1;
-        }
-
-        // we can go ahead and try reading as well
-        if ($writeKey > $this->getReadKey()) {
-            // we are reading
-            return $this->readFutures($futures);
-        }
-
-        // we are in an error condition
-        throw new \Exception('Invalid state');
-    }
-
-    private function getReadKey(): int
-    {
-        return $this->readKey ??= 0;
+        $this->writeFutures($futures);
+        return $this->readFutures($futures);
     }
 
     /**
-     * @param array<Future> $futures
+     * @param array<DurableFuture> $futures
      * @return void
      */
     private function writeFutures(array $futures): void
     {
-        $currentKey = count($this->waiters);
-        foreach ($futures as $future) {
-            $this->waiters[$currentKey][] = array_intersect_key(
-                $this->getSlots()[$future] ?? [],
-                array_flip(['eventId', 'identity'])
-            );
-            $meta = $this->getSlots()[$future];
-            $this->results[$meta['identity']][] = ['key' => $currentKey];
-            if (array_key_exists('eventId', $meta)) {
-                $this->results[$meta['eventId']][] = ['identity' => $meta['identity']];
+        // now we hunt for unsolved futures
+        foreach ($futures as $idx => $future) {
+            // see if we have a match already
+            if($this->results[$this->getReadKey()]['match'][$idx] ?? false) {
+                continue;
+            }
+
+            foreach ($this->received as $order => $received) {
+                $callback = $this->getSlots()[$future];
+                [$result, $found] = $callback($received['event'], $received['identity'] ?? null);
+                if ($found) {
+                    $this->results[$this->getReadKey()]['match'][$idx] = $result;
+                    $this->results[$this->getReadKey()]['order'][] = $idx;
+                    // unset the received event and the future
+                    unset($this->received[$order]);
+                    break;
+                }
             }
         }
+        $this->received = array_values($this->received);
     }
 
     /**
-     * @param array<Future> $futures
+     * @param array<DurableFuture> $futures
      * @return array
      */
     private function readFutures(array $futures): array
     {
-        $currentKey = $this->getReadKey();
-
-        $this->readKey = $currentKey + 1;
-
-        $identToFutures = [];
-
         $completedInOrder = [];
 
-
-        // go through the futures
-        foreach ($futures as $future) {
-            $meta = $this->getSlots()[$future];
-            // look up the identity and verify it matches the current read slot
-            $identity = $meta['identity'];
-            $results = $this->results[$identity] ?? null;
-            $allowedKeys = array_column($results ?? [], 'key');
-            if (!empty($allowedKeys) && !in_array($currentKey, $allowedKeys, true)) {
-                throw new LogicException('Detected order change in historical state.');
-            }
-            // check if we received results before now
-            $previousResults = array_column($results ?? [], 'result');
-            foreach ($previousResults as $result) {
-                if (is_array($result)) {
-                    $result = Serializer::deserialize($result, Event::class);
-                }
-                $this->waiters[$currentKey][] = ['result' => $result, 'identity' => $identity];
-            }
-            $identToFutures[$identity][] = $meta['handler'];
-        }
-
-        // find the matching event slots
-        $waiter = $this->waiters[$currentKey];
-        // get just the results, in reverse order
-        $results = array_reverse(array_column($waiter, 'result', 'identity'));
-
-        foreach ($results as $identity => $result) {
-            if (is_array($result)) {
-                $result = Serializer::deserialize($result, Event::class);
-            }
-
-            /**
-             * @var DeferredFuture $handler
-             */
-            foreach ($identToFutures[$identity] ?? [] as $handler) {
+        if (array_key_exists($this->readKey, $this->results)) {
+            foreach ($this->results[$this->readKey]['order'] as $idx) {
+                /** @var DurableFuture $handler */
+                $handler = $futures[$idx];
+                $result = $this->results[$this->readKey]['match'][$idx];
                 switch (true) {
                     case $result instanceof TaskCompleted:
-                        $handler?->complete($result->result);
-                        $completedInOrder[] = $handler?->getFuture();
+                        $handler->future->complete($result->result);
+                        $completedInOrder[] = $handler;
                         break;
                     case $result instanceof TaskFailed:
-                        $handler?->error(
-                            $result->previous ? new ($result->previous)(
-                                $result->reason . $result->details
-                            ) : new \RuntimeException($result->reason . $result->details)
-                        );
-                        $completedInOrder[] = $handler?->getFuture();
+                        $details = $result->reason . PHP_EOL . $result->details;
+                        $exceptionType = $result->previous ?? \Exception::class;
+                        $handler->future->error(new $exceptionType($details));
+                        $completedInOrder[] = $handler;
                         break;
                     case $result instanceof RaiseEvent:
-                        $handler?->complete($result->eventData);
-                        $completedInOrder[] = $handler?->getFuture();
+                        $handler->future->complete($result->eventData);
+                        $completedInOrder[] = $handler;
                         break;
-                    default:
-                        throw new LogicException('Invalid result type: ' . get_class($result));
                 }
             }
         }
+
+        $this->readKey = $this->getReadKey() + 1;
 
         return $completedInOrder;
     }
