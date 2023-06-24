@@ -48,14 +48,14 @@ function getEntityHistory(EntityState|null $withState = null): EntityHistory
 it('knows if it has applied an event', function () {
     $history = getEntityHistory();
     processEvent($event = new RaiseEvent('test', 'test', []), $history->applyRaiseEvent(...));
-    $this->assertTrue($history->hasAppliedEvent($event));
+    expect($history->hasAppliedEvent($event))->toBeTrue();
 });
 
 test('acking an event removes it from history', function () {
     $history = getEntityHistory();
     processEvent($event = new RaiseEvent('test', 'test', []), $history->applyRaiseEvent(...));
     $history->ackedEvent($event);
-    $this->assertFalse($history->hasAppliedEvent($event));
+    expect($history->hasAppliedEvent($event))->toBeFalse();
 });
 
 it('processes signals', function () {
@@ -79,8 +79,7 @@ it('processes signals', function () {
     processEvent(
         new RaiseEvent('id', '__signal', ['operation' => 'signal', 'input' => []]), $history->applyRaiseEvent(...)
     );
-
-    $this->assertSame(1, $called);
+    expect($called)->toBe(1);
 });
 
 it('only processes locked events', function () {
@@ -109,7 +108,7 @@ it('only processes locked events', function () {
             $owner, WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), $history->id)
         ), $history->applyRaiseEvent(...)
     );
-    $this->assertCount(2, $lockResult);
+    expect($lockResult)->toHaveCount(2);
 
     $result = processEvent(
         WithLock::onEntity($owner, AwaitResult::forEvent($owner, RaiseEvent::forOperation('signal', [])), $history->id),
@@ -119,8 +118,7 @@ it('only processes locked events', function () {
     $otherResult = processEvent(
         $waiting = AwaitResult::forEvent($other, RaiseEvent::forOperation('signal', [])), $history->applyRaiseEvent(...)
     );
-
-    $this->assertSame(1, $called);
+    expect($called)->toBe(1);
 
     $unlockResult = processEvent(
         WithLock::onEntity(
@@ -128,8 +126,8 @@ it('only processes locked events', function () {
         ), $history->applyRaiseEvent(...)
     );
 
-    $this->assertContains($waiting, $unlockResult);
-    $this->assertSame(1, $called);
+    expect($unlockResult)->toContain($waiting)
+        ->and($called)->toBe(1);
 });
 
 it('properly locks in a chain', function () {
@@ -183,22 +181,23 @@ it('properly locks in a chain', function () {
 
     // send the first lock notification in the chain
     $firstResult = processEvent($firstLock, $otherEntity->applyRaiseEvent(...));
-    $this->assertCount(3, $firstResult);
-    $this->assertSame($history->id->id, $firstResult[0]->innerEvent->target->id);
+    expect($firstResult)->toHaveCount(3)
+        ->and($firstResult[0]->innerEvent->target->id)->toBe($history->id->id);
 
     // send a signal to be run once the lock is complete
     $locked = processEvent($actualEvent, $history->applyRaiseEvent(...));
-    $this->assertCount(1, $locked);
+    expect($locked)->toHaveCount(1);
 
     // complete the lock sequence
     $secondResult = processEvent($firstResult[0], $history->applyRaiseEvent(...));
-    $this->assertCount(3, $secondResult);
-    $this->assertInstanceOf(WithEntity::class, $secondResult[0]);
+    expect($secondResult)->toHaveCount(3)
+        ->and($secondResult[0])->toBeInstanceOf(WithEntity::class);
 
     // process the actual event earlier
     $finalResult = processEvent($secondResult[0], $history->applyRaiseEvent(...));
-    $this->assertSame(1, $called);
+    expect($called)->toBe(1);
 
     // process the final lock notification
     $finalResult = processEvent($secondResult[1], $otherEntity->applyRaiseEvent(...));
+    expect($finalResult)->toBeEmpty();
 });
