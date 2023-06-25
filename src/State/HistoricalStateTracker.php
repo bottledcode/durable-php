@@ -29,11 +29,11 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\MonotonicClock;
 use Closure;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
 use DateTimeImmutable;
-use LogicException;
 
 class HistoricalStateTracker
 {
@@ -232,7 +232,7 @@ class HistoricalStateTracker
 
     public function getCurrentTime(): DateTimeImmutable
     {
-        return $this->currentTime[$this->getReadKey()] ?? throw new LogicException('Invalid state');
+        return $this->currentTime[$this->getReadKey()] ??= MonotonicClock::current()->now();
     }
 
     public function isReading(): bool
