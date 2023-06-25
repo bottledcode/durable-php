@@ -29,6 +29,7 @@ use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
@@ -62,9 +63,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
     {
-        $identity = $this->history->historicalTaskResults->getIdentity();
-        $identity = md5($identity);
-        $identity = Uuid::uuid8(base_convert($identity, 16, 8));
+        $identity = $this->newGuid();
         return $this->createFuture(
             fn() => $this->taskController->fire(
                 AwaitResult::forEvent(
@@ -72,8 +71,22 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     WithActivity::forEvent($identity, ScheduleTask::forName($name, $args))
                 )
             ),
+            function (Event $event, string $eventIdentity) use ($identity): array {
+                if ($event instanceof TaskCompleted && $eventIdentity === $identity->toString()) {
+                    return [$event, true];
+                }
+                return [null, false];
+            },
             $identity->toString()
         );
+    }
+
+    public function newGuid(): UuidInterface
+    {
+        $hash = md5(sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++));
+        $hash = base_convert($hash, 16, 8);
+        $hash = substr($hash, 0, 16);
+        return Uuid::uuid8($hash);
     }
 
     private function createFuture(
@@ -374,14 +387,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 return ['id' => $this->id];
             }
         };
-    }
-
-    public function newGuid(): UuidInterface
-    {
-        $hash = md5(sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++));
-        $hash = base_convert($hash, 16, 8);
-        $hash = substr($hash, 0, 16);
-        return Uuid::uuid8($hash);
     }
 
     public function signalEntity(EntityId $entityId, string $operation, array $args = []): void

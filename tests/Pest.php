@@ -58,6 +58,10 @@ expect()->extend('toHaveStatus', function (\Bottledcode\DurablePhp\State\Runtime
     return expect($otherStatus->runtimeStatus)->toBe($status, "Expected status {$status->name} but got {$otherStatus->runtimeStatus->name}");
 });
 
+expect()->extend('toHaveOutput', function (mixed $output) {
+    return expect(getStatusOutput($this->value))->toBe($output);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Functions
@@ -82,6 +86,7 @@ function getConfig(): Config
 
 function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $processor): array
 {
+    static $fakeId = 100;
     $events = [];
     $innerEvent = $event;
     while ($innerEvent instanceof \Bottledcode\DurablePhp\Events\HasInnerEventInterface) {
@@ -113,6 +118,7 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
 
     foreach ($processor($innerEvent, $event) as $nextEvent) {
         if ($nextEvent instanceof \Bottledcode\DurablePhp\Events\Event) {
+            $nextEvent->eventId = $fakeId++;
             $events[] = $nextEvent;
             if ($nextEvent instanceof \Bottledcode\DurablePhp\Events\PoisonPill) {
                 break;

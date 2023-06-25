@@ -27,7 +27,9 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
@@ -118,4 +120,18 @@ it('can wait for a signal after starting', function () {
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed)
         ->and(getStatusOutput($instance))->toBeTrue();
+});
+
+it('can call an activity with a successful result', function() {
+    $instance = getOrchestration('test', function(OrchestrationContext $context) {
+        return $context->waitOne($context->callActivity('test', ['hello world']));
+    }, [], $nextEvent);
+
+    $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
+    $instance->resetState();
+    expect($result)->toHaveCount(1);
+    $result = processEvent(WithOrchestration::forInstance($instance->id, TaskCompleted::forId($result[0]->eventId, 'pretty colors')), $instance->applyTaskCompleted(...));
+    expect($result)->toBeEmpty()
+        ->and($instance)->toHaveOutput('pretty colors')
+        ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
