@@ -78,7 +78,7 @@ final class OrchestrationClient implements OrchestrationClientInterface
 
         $event = WithOrchestration::forInstance(
             StateId::fromInstance($instance),
-            new StartExecution(null, $name, '0', $args, [], Uuid::uuid7(), new \DateTimeImmutable(), 0, '')
+            StartExecution::asParent($args, [])
         );
         $this->postEvent($event);
         return $instance;
