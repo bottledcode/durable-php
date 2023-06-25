@@ -313,6 +313,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     )
                 );
             }
+            $this->history->locks = [];
         });
     }
 

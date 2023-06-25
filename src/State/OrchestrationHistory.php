@@ -35,6 +35,8 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
@@ -179,6 +181,16 @@ class OrchestrationHistory extends AbstractHistory
                 $e->getTraceAsString(),
                 $e::class
             );
+        } finally {
+            if (!$this->isRunning()) {
+                // ok, we now need to release all of the locks that we have
+                foreach ($this->locks as $lock) {
+                    yield WithLock::onEntity(
+                        $this->id,
+                        WithEntity::forInstance($lock, RaiseEvent::forUnlock($this->id->id, null, null))
+                    );
+                }
+            }
         }
 
         $completion = WithOrchestration::forInstance(StateId::fromInstance($this->instance), $completion);
