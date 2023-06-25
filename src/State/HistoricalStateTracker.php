@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\DurableFuture;
+use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
@@ -37,16 +38,33 @@ use LogicException;
 class HistoricalStateTracker
 {
     public function __construct(
+        /**
+         * @var \WeakMap<DurableFuture, Closure>
+         */
         #[Field(exclude: true)]
         private \WeakMap|null $eventSlots = null,
         #[Field(exclude: true)]
         private int|null $readKey = null,
         #[Field(exclude: true)]
         private int $identityKey = 0,
+        /**
+         * @var ResultSet[]
+         */
+        #[SequenceField(arrayType: ResultSet::class)]
         private array $results = [],
+        /**
+         * @var Event[]
+         */
+        #[SequenceField(arrayType: Event::class)]
         private array $received = [],
+        /**
+         * @var string[]
+         */
         private array $expecting = [],
         private int $writeKey = 0,
+        /**
+         * @var DateTimeImmutable[]
+         */
         #[SequenceField(arrayType: DateTimeImmutable::class)]
         private array $currentTime = [],
     ) {
@@ -149,7 +167,7 @@ class HistoricalStateTracker
         // now we hunt for unsolved futures
         foreach ($futures as $idx => $future) {
             // see if we have a match already
-            if($this->results[$this->getReadKey()]['match'][$idx] ?? false) {
+            if($this->results[$this->getReadKey()] ?? false and $this->results[$this->getReadKey()]->match[$idx] ?? false) {
                 continue;
             }
 
@@ -157,8 +175,9 @@ class HistoricalStateTracker
                 $callback = $this->getSlots()[$future];
                 [$result, $found] = $callback($received['event'], $received['identity'] ?? null);
                 if ($found) {
-                    $this->results[$this->getReadKey()]['match'][$idx] = $result;
-                    $this->results[$this->getReadKey()]['order'][] = $idx;
+                    $this->results[$this->getReadKey()] ??= new ResultSet();
+                    $this->results[$this->getReadKey()]->match[$idx] = $result;
+                    $this->results[$this->getReadKey()]->order[] = $idx;
                     // unset the received event and the future
                     unset($this->received[$order]);
                     break;
@@ -178,10 +197,10 @@ class HistoricalStateTracker
         $completedInOrder = [];
 
         if (array_key_exists($this->readKey, $this->results)) {
-            foreach ($this->results[$this->readKey]['order'] as $idx) {
+            foreach($this->results[$this->readKey]->order as $idx) {
                 /** @var DurableFuture $handler */
                 $handler = $futures[$idx];
-                $result = $this->results[$this->readKey]['match'][$idx];
+                $result = $this->results[$this->readKey]->match[$idx];
                 switch (true) {
                     case $result instanceof TaskCompleted:
                         $handler->future->complete($result->result);

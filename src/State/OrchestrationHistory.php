@@ -67,7 +67,7 @@ class OrchestrationHistory extends AbstractHistory
      */
     #[SequenceField(StateId::class)]
     public array $locks = [];
-    private bool $debugHistory = false;
+    private bool $debugHistory = true;
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
