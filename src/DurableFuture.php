@@ -24,7 +24,7 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Amp\Future;
+use Amp\DeferredFuture;
 
 /**
  * @template T
@@ -32,9 +32,9 @@ use Amp\Future;
 class DurableFuture
 {
     /**
-     * @param Future<T> $future
+     * @param DeferredFuture<T> $future
      */
-    public function __construct(public readonly Future $future)
+    public function __construct(public readonly DeferredFuture $future)
     {
     }
 
@@ -44,7 +44,7 @@ class DurableFuture
     public function getResult(): mixed
     {
         if ($this->future->isComplete()) {
-            return $this->future->await();
+            return $this->future->getFuture()->await();
         }
 
         throw new \LogicException('Future is not complete');

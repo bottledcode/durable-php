@@ -25,10 +25,12 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\DeferredFuture;
-use Amp\Future;
 use Bottledcode\DurablePhp\Events\AwaitResult;
+use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
@@ -43,6 +45,7 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use LogicException;
+use Ramsey\Uuid\Guid\Guid;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
@@ -62,9 +65,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
     {
-        $identity = $this->history->historicalTaskResults->getIdentity();
-        $identity = md5($identity);
-        $identity = Uuid::uuid8(base_convert($identity, 16, 8));
+        $identity = $this->newGuid();
         return $this->createFuture(
             fn() => $this->taskController->fire(
                 AwaitResult::forEvent(
@@ -72,28 +73,42 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     WithActivity::forEvent($identity, ScheduleTask::forName($name, $args))
                 )
             ),
+            function (Event $event, string $eventIdentity) use ($identity): array {
+                if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
+                    return [$event, true];
+                }
+                return [null, false];
+            },
             $identity->toString()
         );
     }
 
+    public function newGuid(): UuidInterface
+    {
+        $namespace = Guid::fromString('00e0be66-7498-45d1-90ca-be447398ea22');
+        $hash = sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++);
+        return Uuid::uuid5($namespace, $hash);
+    }
+
     private function createFuture(
         \Closure $onSent,
+        \Closure $onReceived,
         string $identity = null
     ): DurableFuture {
         $identity ??= $this->history->historicalTaskResults->getIdentity();
         if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
             [$eventId] = $onSent();
             $deferred = new DeferredFuture();
-            $this->history->historicalTaskResults->sentEvent($identity, $eventId, $deferred);
-            $future = new DurableFuture($deferred->getFuture());
+            $this->history->historicalTaskResults->sentEvent($identity, $eventId);
+            $future = new DurableFuture($deferred);
+            $this->history->historicalTaskResults->trackFuture($onReceived, $future);
             $this->futures[$deferred->getFuture()] = $future;
             return $future;
         }
 
         $deferred = new DeferredFuture();
-        $this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-        $future = new DurableFuture($deferred->getFuture());
-        $this->futures[$deferred->getFuture()] = $future;
+        $future = new DurableFuture($deferred);
+        $this->history->historicalTaskResults->trackFuture($onReceived, $future);
         return $future;
     }
 
@@ -121,31 +136,34 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity))
                 )
             ),
-            $identity
+            function (Event $event) use ($identity): array {
+                if ($event instanceof RaiseEvent && $event->eventName === $identity) {
+                    return [$event, true];
+                }
+                return [null, false];
+            }
         );
     }
 
     public function waitForExternalEvent(string $name): DurableFuture
     {
-        $identity = sha1($name);
-        $deferred = new DeferredFuture();
-        $this->history->historicalTaskResults->trackIdentity($identity, $deferred);
-        $future = new DurableFuture($deferred->getFuture());
-        $this->futures[$deferred->getFuture()] = $future;
+        $future = new DurableFuture(new DeferredFuture());
+        $this->history->historicalTaskResults->trackFuture(function (Event $event) use ($name): array {
+            $found = false;
+            $result = null;
+            if ($event instanceof RaiseEvent && $event->eventName === $name) {
+                $found = true;
+                $result = $event;
+            }
+
+            return [$result, $found];
+        }, $future);
         return $future;
     }
 
     public function getInput(): array
     {
         return $this->history->status->input;
-    }
-
-    public function newGuid(): UuidInterface
-    {
-        $hash = md5(sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++));
-        $hash = base_convert($hash, 16, 8);
-        $hash = substr($hash, 0, 16);
-        return Uuid::uuid8($hash);
     }
 
     public function setCustomStatus(string $customStatus): void
@@ -156,12 +174,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function waitAny(DurableFuture ...$tasks): DurableFuture
     {
         // track the awaited tasks
-        $completed = $this->history->historicalTaskResults->awaitingFutures(
-            ...
-            array_map(static fn(DurableFuture $f) => $f->future, $tasks)
-        );
+        $completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
         foreach ($completed as $task) {
-            if ($task->isComplete()) {
+            if ($task->future->isComplete()) {
                 return $this->futures[$task];
             }
         }
@@ -202,9 +217,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
     ): \DateInterval {
         if (
             empty(
-                array_filter(
-                    compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
-                )
+            array_filter(
+                compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
+            )
             )
         ) {
             throw new LogicException('At least one interval part must be specified');
@@ -276,8 +291,15 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $owner,
             WithEntity::forInstance(current($entityId), RaiseEvent::forLockNotification($owner->id))
         );
+        $identity = $this->newGuid()->toString();
         $future =
-            $this->createFuture(fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)));
+            $this->createFuture(
+                fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)),
+                function(Event $event, string $eventIdentity) use ($identity) {
+                    return [$event, $identity === $eventIdentity];
+                },
+                $identity
+            );
         $this->waitOne($future);
 
         $this->history->locks = $entityId;
@@ -301,23 +323,25 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function waitOne(DurableFuture $task): mixed
     {
-        $completed = $this->history->historicalTaskResults->awaitingFutures($task->future);
+        $completed = $this->history->historicalTaskResults->awaitingFutures($task);
         if (count($completed) >= 1) {
-            return $completed[0]->await();
+            return current($completed)->getResult();
         }
         throw new Unwind();
     }
 
     public function waitAll(DurableFuture ...$tasks): DurableFuture
     {
-        $completed = $this->history->historicalTaskResults->awaitingFutures(
-            ...array_map(static fn(DurableFuture $f) => $f->future, $tasks)
-        );
+        $completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
         if (count($completed) === count($tasks)) {
+            /**
+             * @var DurableFuture $complete
+             */
             foreach ($completed as $complete) {
-                $complete->await();
+                // rethrow any exceptions
+                $complete->getResult();
             }
-            return new DurableFuture(Future::complete(true));
+            return current($tasks);
         }
 
         // there is no task that is already complete, so we need to unwind the stack
@@ -400,6 +424,12 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $event = WithLock::onEntity($id, $event);
         }
 
-        return $this->createFuture(fn() => $this->taskController->fire($event));
+        $identity = $this->newGuid()->toString();
+
+        return $this->createFuture(
+            fn() => $this->taskController->fire($event),
+            fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
+            $identity
+        );
     }
 }

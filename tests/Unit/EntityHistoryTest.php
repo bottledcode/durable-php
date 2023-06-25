@@ -27,23 +27,9 @@ use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
-use Bottledcode\DurablePhp\State\EntityHistory;
-use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-
-function getEntityHistory(EntityState|null $withState = null): EntityHistory
-{
-    static $id = 0;
-    $withState ??= new class extends EntityState {
-    };
-    $entityId = new EntityId('test', $id++);
-    $history = new EntityHistory(StateId::fromEntityId($entityId), getConfig());
-    $reflector = new \ReflectionClass($history);
-    $reflector->getProperty('state')->setValue($history, $withState);
-    return $history;
-}
 
 it('knows if it has applied an event', function () {
     $history = getEntityHistory();

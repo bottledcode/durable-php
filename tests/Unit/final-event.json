@@ -1,0 +1,8 @@
+{
+  "eventId": "0188f39c-4eb2-73c4-9213-5256c68adb2a",
+  "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+  "isPlayed": false,
+  "result": "Hello, Seoul!",
+  "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1e5b9dda",
+  "timestamp": "2023-06-25T17:31:27.279+00:00"
+}
