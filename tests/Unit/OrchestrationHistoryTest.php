@@ -23,38 +23,15 @@
 
 namespace Bottledcode\DurablePhp\Tests\Unit;
 
-use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
-use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
-
-function getOrchestration(
-    string $id,
-    callable $orchestration,
-    array $input,
-    StartOrchestration|null &$nextEvent = null,
-    Event|null $startupEvent = null
-): OrchestrationHistory {
-    static $instance = 0;
-    simpleFactory($instance, $orchestration);
-    $history = new OrchestrationHistory(
-        StateId::fromInstance(new OrchestrationInstance($instance++, $id)),
-        getConfig()->with(factory: 'simpleFactory')
-    );
-    $startupEvent ??= StartExecution::asParent($input, []);
-    $startupEvent = WithOrchestration::forInstance($history->id, $startupEvent);
-    [$nextEvent] = processEvent($startupEvent, $history->applyStartExecution(...));
-    expect($history)->toHaveStatus(RuntimeStatus::Pending);
-    return $history;
-}
 
 it('can be started', function () {
     $instance = getOrchestration('test', fn() => true, [], $nextEvent);
@@ -122,16 +99,35 @@ it('can wait for a signal after starting', function () {
         ->and(getStatusOutput($instance))->toBeTrue();
 });
 
-it('can call an activity with a successful result', function() {
-    $instance = getOrchestration('test', function(OrchestrationContext $context) {
+it('can call an activity with a successful result', function () {
+    $instance = getOrchestration('test', function (OrchestrationContext $context) {
         return $context->waitOne($context->callActivity('test', ['hello world']));
     }, [], $nextEvent);
 
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     $instance->resetState();
     expect($result)->toHaveCount(1);
-    $result = processEvent(WithOrchestration::forInstance($instance->id, TaskCompleted::forId($result[0]->eventId, 'pretty colors')), $instance->applyTaskCompleted(...));
+    $result = processEvent(
+        WithOrchestration::forInstance($instance->id, TaskCompleted::forId($result[0]->eventId, 'pretty colors')),
+        $instance->applyTaskCompleted(...)
+    );
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveOutput('pretty colors')
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
+});
+
+it('can call an activity with a failed result', function () {
+    $instance = getOrchestration('test', function (OrchestrationContext $context) {
+        return $context->waitOne($context->callActivity('test', ['hello world']));
+    }, [], $nextEvent);
+
+    $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
+    $instance->resetState();
+    expect($result)->toHaveCount(1);
+    $result = processEvent(
+        WithOrchestration::forInstance($instance->id, TaskFailed::forTask($result[0]->eventId, 'pretty colors')),
+        $instance->applyTaskFailed(...)
+    );
+    expect($result)->toBeEmpty()
+        ->and($instance)->toHaveStatus(RuntimeStatus::Failed);
 });

@@ -58,6 +58,6 @@ class StartExecution extends Event
 
     public function __toString(): string
     {
-        return sprintf('startExecution(%s)', $this->parentInstance ? 'child' : 'parent');
+        return sprintf('startExecution(%s)', ($this->parentInstance ?? null) ? 'child' : 'parent');
     }
 }

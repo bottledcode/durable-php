@@ -88,6 +88,7 @@ class EventDispatcherTask implements \Amp\Parallel\Worker\Task
                 }
             }
 
+            $state->resetState();
             $this->updateState($state);
         }
 

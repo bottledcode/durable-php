@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
+use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
@@ -44,6 +45,7 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use LogicException;
+use Ramsey\Uuid\Guid\Guid;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 
@@ -72,7 +74,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 )
             ),
             function (Event $event, string $eventIdentity) use ($identity): array {
-                if ($event instanceof TaskCompleted && $eventIdentity === $identity->toString()) {
+                if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
                     return [$event, true];
                 }
                 return [null, false];
@@ -83,10 +85,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function newGuid(): UuidInterface
     {
-        $hash = md5(sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++));
-        $hash = base_convert($hash, 16, 8);
-        $hash = substr($hash, 0, 16);
-        return Uuid::uuid8($hash);
+        $namespace = Guid::fromString('00e0be66-7498-45d1-90ca-be447398ea22');
+        $hash = sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->guidCounter++);
+        return Uuid::uuid5($namespace, $hash);
     }
 
     private function createFuture(
@@ -175,7 +176,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         // track the awaited tasks
         $completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
         foreach ($completed as $task) {
-            if ($task->isComplete()) {
+            if ($task->future->isComplete()) {
                 return $this->futures[$task];
             }
         }
@@ -290,8 +291,15 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $owner,
             WithEntity::forInstance(current($entityId), RaiseEvent::forLockNotification($owner->id))
         );
+        $identity = $this->newGuid()->toString();
         $future =
-            $this->createFuture(fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)));
+            $this->createFuture(
+                fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)),
+                function(Event $event, string $eventIdentity) use ($identity) {
+                    return [$event, $identity === $eventIdentity];
+                },
+                $identity
+            );
         $this->waitOne($future);
 
         $this->history->locks = $entityId;
@@ -416,6 +424,12 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $event = WithLock::onEntity($id, $event);
         }
 
-        return $this->createFuture(fn() => $this->taskController->fire($event));
+        $identity = $this->newGuid()->toString();
+
+        return $this->createFuture(
+            fn() => $this->taskController->fire($event),
+            fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
+            $identity
+        );
     }
 }

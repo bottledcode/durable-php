@@ -257,13 +257,13 @@ class OrchestrationHistory extends AbstractHistory
 
     public function hasAppliedEvent(Event $event): bool
     {
-        $has = array_key_exists($event->eventId, $this->history);
-        return $has;
+        return array_key_exists($event->eventId, $this->history);
     }
 
     public function resetState(): void
     {
         $this->historicalTaskResults->resetState();
+        $this->locks = [];
     }
 
     public function ackedEvent(Event $event): void

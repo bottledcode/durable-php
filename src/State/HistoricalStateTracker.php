@@ -43,8 +43,6 @@ class HistoricalStateTracker
         private int|null $readKey = null,
         #[Field(exclude: true)]
         private int $identityKey = 0,
-        #[Field(exclude: true)]
-        private array $waiters = [],
         private array $results = [],
         private array $received = [],
         private array $expecting = [],
@@ -168,6 +166,7 @@ class HistoricalStateTracker
             }
         }
         $this->received = array_values($this->received);
+        ++$this->writeKey;
     }
 
     /**
@@ -209,7 +208,7 @@ class HistoricalStateTracker
 
     public function setCurrentTime(DateTimeImmutable $time): DateTimeImmutable
     {
-        return $this->currentTime[count($this->waiters)] ??= $time;
+        return $this->currentTime[$this->getReadKey()] ??= $time;
     }
 
     public function getCurrentTime(): DateTimeImmutable
@@ -219,6 +218,6 @@ class HistoricalStateTracker
 
     public function isReading(): bool
     {
-        return count($this->waiters) > $this->getReadKey();
+        return $this->writeKey >= $this->getReadKey();
     }
 }

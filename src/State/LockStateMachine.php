@@ -109,10 +109,13 @@ class LockStateMachine
                     $next = $this->lockQueue[$owner->id]['next'] ?? null;
                     if ($next !== null) {
                         yield AwaitResult::forEvent(
-                            $this->myId, With::id(
-                            $next,
-                            WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), ...$lock->participants)
-                        )
+                            $this->myId,
+                            With::id(
+                                $next,
+                                WithLock::onEntity(
+                                    $owner, RaiseEvent::forLockNotification($owner), ...$lock->participants
+                                )
+                            )
                         );
                     }
                     $this->lockQueue[$owner->id]['sent'] = true;
