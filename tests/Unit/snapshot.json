@@ -1,0 +1,148 @@
+{
+  "_state_type": "Bottledcode\\DurablePhp\\State\\OrchestrationHistory",
+  "debugHistory": true,
+  "historicalTaskResults": {
+    "currentTime": [
+      "2023-06-25T17:31:27.228+00:00"
+    ],
+    "expecting": {
+      "12daea3e-3f9e-52e5-a0bd-7ddb7c4e64a7": "0188f39c-4e7d-738e-bb7a-cf8b1d9f5ce6",
+      "2e8aaf74-ef1e-5fa9-885b-c3448e88240e": "0188f39c-4e7d-738e-bb7a-cf8b1e5b9dda",
+      "31506c8e-d38d-5771-901a-6ef3164f4716": "0188f39c-4e7d-738e-bb7a-cf8b1e429697",
+      "8c757b90-05c6-5475-9b67-ef84c2f6fb8b": "0188f39c-4e7d-738e-bb7a-cf8b1c1aaa20",
+      "96e7b841-7759-5edc-bd3f-cbd7d8ddd8bc": "0188f39c-4e7d-738e-bb7a-cf8b1d0b206c"
+    },
+    "received": [],
+    "results": [
+      {
+        "match": [
+          {
+            "eventId": "0188f39c-4e85-736a-9687-36845aeccb17",
+            "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+            "isPlayed": false,
+            "result": "Hello, Tokyo!",
+            "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1c1aaa20",
+            "timestamp": "2023-06-25T17:31:27.236+00:00"
+          },
+          {
+            "eventId": "0188f39c-4e90-705f-ba06-d227bf33f1ed",
+            "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+            "isPlayed": false,
+            "result": "Hello, Seattle!",
+            "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1d0b206c",
+            "timestamp": "2023-06-25T17:31:27.247+00:00"
+          },
+          {
+            "eventId": "0188f39c-4e90-7331-857f-e26eae22be00",
+            "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+            "isPlayed": false,
+            "result": "Hello, London!",
+            "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1d9f5ce6",
+            "timestamp": "2023-06-25T17:31:27.247+00:00"
+          },
+          {
+            "eventId": "0188f39c-4ea6-716a-8bb9-779646fd528d",
+            "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+            "isPlayed": false,
+            "result": "Hello, Amsterdam!",
+            "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1e429697",
+            "timestamp": "2023-06-25T17:31:27.267+00:00"
+          },
+          {
+            "eventId": "0188f39c-4eb2-73c4-9213-5256c68adb2a",
+            "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+            "isPlayed": false,
+            "result": "Hello, Seoul!",
+            "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1e5b9dda",
+            "timestamp": "2023-06-25T17:31:27.279+00:00"
+          }
+        ],
+        "order": [
+          0,
+          2,
+          1,
+          3,
+          4
+        ]
+      }
+    ],
+    "writeKey": 6
+  },
+  "history": {
+    "0188f39c-4e46-7060-b878-84f69b0f44aa": {
+      "correlation": "",
+      "eventId": "0188f39c-4e46-7060-b878-84f69b0f44aa",
+      "eventType": "Bottledcode\\DurablePhp\\Events\\StartExecution",
+      "generation": 0,
+      "input": [],
+      "isPlayed": false,
+      "scheduledAt": "2023-06-25T17:31:27.171+00:00",
+      "tags": [],
+      "timestamp": "2023-06-25T17:31:27.171+00:00",
+      "version": "0"
+    },
+    "0188f39c-4e6e-70fd-aa89-4032aa7d05f6": {
+      "eventId": "0188f39c-4e6e-70fd-aa89-4032aa7d05f6",
+      "eventType": "Bottledcode\\DurablePhp\\Events\\StartOrchestration",
+      "isPlayed": false,
+      "timestamp": "2023-06-25T17:31:27.211+00:00"
+    },
+    "0188f39c-4e85-736a-9687-36845aeccb17": {
+      "eventId": "0188f39c-4e85-736a-9687-36845aeccb17",
+      "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+      "isPlayed": false,
+      "result": "Hello, Tokyo!",
+      "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1c1aaa20",
+      "timestamp": "2023-06-25T17:31:27.236+00:00"
+    },
+    "0188f39c-4e90-705f-ba06-d227bf33f1ed": {
+      "eventId": "0188f39c-4e90-705f-ba06-d227bf33f1ed",
+      "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+      "isPlayed": false,
+      "result": "Hello, Seattle!",
+      "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1d0b206c",
+      "timestamp": "2023-06-25T17:31:27.247+00:00"
+    },
+    "0188f39c-4e90-7331-857f-e26eae22be00": {
+      "eventId": "0188f39c-4e90-7331-857f-e26eae22be00",
+      "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+      "isPlayed": false,
+      "result": "Hello, London!",
+      "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1d9f5ce6",
+      "timestamp": "2023-06-25T17:31:27.247+00:00"
+    },
+    "0188f39c-4ea6-716a-8bb9-779646fd528d": {
+      "eventId": "0188f39c-4ea6-716a-8bb9-779646fd528d",
+      "eventType": "Bottledcode\\DurablePhp\\Events\\TaskCompleted",
+      "isPlayed": false,
+      "result": "Hello, Amsterdam!",
+      "scheduledId": "0188f39c-4e7d-738e-bb7a-cf8b1e429697",
+      "timestamp": "2023-06-25T17:31:27.267+00:00"
+    }
+  },
+  "id": {
+    "__type": "Bottledcode\\DurablePhp\\State\\Ids\\StateId",
+    "id": "orchestration:Bottledcode\\DurablePhp\\Tests\\PerformanceTests\\HelloCities\\HelloSequence:0"
+  },
+  "instance": {
+    "executionId": "0",
+    "instanceId": "Bottledcode\\DurablePhp\\Tests\\PerformanceTests\\HelloCities\\HelloSequence"
+  },
+  "locks": [],
+  "name": "Bottledcode\\DurablePhp\\Tests\\PerformanceTests\\HelloCities\\HelloSequence",
+  "now": "2023-06-25T17:31:27.171+00:00",
+  "status": {
+    "createdAt": "2023-06-25T17:31:27.171+00:00",
+    "customStatus": "",
+    "id": {
+      "__type": "Bottledcode\\DurablePhp\\State\\Ids\\StateId",
+      "id": "orchestration:Bottledcode\\DurablePhp\\Tests\\PerformanceTests\\HelloCities\\HelloSequence:0"
+    },
+    "input": [],
+    "lastUpdated": "2023-06-25T17:31:27.171+00:00",
+    "output": [],
+    "runtimeStatus": "Running"
+  },
+  "tags": [],
+  "version": "0"
+}

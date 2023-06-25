@@ -15,7 +15,9 @@ services:
     depends_on:
       - rethinkdb
   runner1:
-    build: .
+    build:
+      context: .
+      target: base
     image: test
     command:
       - '--db'
@@ -43,7 +45,9 @@ services:
       - SYS_ADMIN
   runner2:
     restart: always
-    build: .
+    build:
+      context: .
+      target: base
     image: test
     command:
       - '--db'
@@ -70,7 +74,9 @@ services:
       - SYS_ADMIN
   runner3:
     restart: always
-    build: .
+    build:
+      context: .
+      target: base
     image: test
     command:
       - '--db'

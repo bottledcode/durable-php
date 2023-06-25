@@ -120,7 +120,7 @@ class EntityContext implements EntityContextInterface
         $instance = StateId::fromInstance(new OrchestrationInstance($orchestration, $id));
         $this->eventDispatcher->fire(
             WithOrchestration::forInstance(
-                $instance, StartExecution::asParent($instance->toOrchestrationInstance(), $input, [])
+                $instance, StartExecution::asParent($input, [])
             )
         );
     }

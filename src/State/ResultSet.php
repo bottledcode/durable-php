@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,42 +21,17 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\Events\Event;
+use Crell\Serde\Attributes\DictionaryField;
 
-class StartExecution extends Event
+class ResultSet
 {
     public function __construct(
-        public OrchestrationInstance|null $parentInstance,
-        public string $version,
-        public array $input,
-        public array $tags,
-        public string $correlation,
-        public \DateTimeImmutable $scheduledAt,
-        public int $generation,
-        public string $eventId,
+        #[DictionaryField(arrayType: Event::class)]
+        public array $match = [],
+        public array $order = []
     ) {
-        parent::__construct($eventId);
-    }
-
-    public static function asParent(
-        array $input, array $tags, \DateTimeImmutable $at = new \DateTimeImmutable()
-    ): self {
-        return new self(null, 0, $input, $tags, '', $at, 0, '');
-    }
-
-    public static function asChild(
-        OrchestrationInstance $parent,
-        array $input,
-        array $tags,
-        \DateTimeImmutable $at = new \DateTimeImmutable()
-    ) {
-        return new self($parent, 0, $input, $tags, '', $at, 0, '');
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('startExecution(%s)', ($this->parentInstance ?? null) ? 'child' : 'parent');
     }
 }
