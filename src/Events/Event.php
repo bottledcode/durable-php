@@ -33,13 +33,10 @@ abstract class Event implements \Stringable
 {
     use Evolvable;
 
-    public bool $isPlayed;
-
     public \DateTimeImmutable $timestamp;
 
     public function __construct(public string $eventId)
     {
-        $this->isPlayed = false;
         $this->timestamp = MonotonicClock::current()->now();
     }
 
