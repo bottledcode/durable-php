@@ -52,7 +52,6 @@ use Ramsey\Uuid\UuidInterface;
 final class OrchestrationContext implements OrchestrationContextInterface
 {
     private int $guidCounter = 0;
-    private \WeakMap $futures;
 
     public function __construct(
         private readonly OrchestrationInstance $id,
@@ -60,7 +59,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
         private readonly EventDispatcherTask $taskController
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
-        $this->futures = new \WeakMap();
     }
 
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
@@ -102,7 +100,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $this->history->historicalTaskResults->sentEvent($identity, $eventId);
             $future = new DurableFuture($deferred);
             $this->history->historicalTaskResults->trackFuture($onReceived, $future);
-            $this->futures[$deferred->getFuture()] = $future;
             return $future;
         }
 
@@ -177,7 +174,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
         foreach ($completed as $task) {
             if ($task->future->isComplete()) {
-                return $this->futures[$task];
+                return $task;
             }
         }
 
