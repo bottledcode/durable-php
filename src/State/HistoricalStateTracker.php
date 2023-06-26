@@ -31,8 +31,8 @@ use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Closure;
+use Crell\Serde\Attributes\DictionaryField;
 use Crell\Serde\Attributes\Field;
-use Crell\Serde\Attributes\SequenceField;
 use DateTimeImmutable;
 
 class HistoricalStateTracker
@@ -50,12 +50,12 @@ class HistoricalStateTracker
         /**
          * @var ResultSet[]
          */
-        #[SequenceField(arrayType: ResultSet::class)]
+        #[DictionaryField(arrayType: ResultSet::class)]
         private array $results = [],
         /**
          * @var Event[]
          */
-        #[SequenceField(arrayType: Event::class)]
+        #[DictionaryField(arrayType: Event::class)]
         private array $received = [],
         /**
          * @var string[]
@@ -65,7 +65,7 @@ class HistoricalStateTracker
         /**
          * @var DateTimeImmutable[]
          */
-        #[SequenceField(arrayType: DateTimeImmutable::class)]
+        #[DictionaryField(arrayType: DateTimeImmutable::class)]
         private array $currentTime = [],
     ) {
     }
