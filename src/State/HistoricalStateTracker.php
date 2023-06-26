@@ -25,7 +25,6 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\DurableFuture;
-use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
@@ -53,9 +52,9 @@ class HistoricalStateTracker
         #[DictionaryField(arrayType: ResultSet::class)]
         private array $results = [],
         /**
-         * @var Event[]
+         * @var ReceivedSet[]
          */
-        #[DictionaryField(arrayType: Event::class)]
+        #[DictionaryField(arrayType: ReceivedSet::class)]
         private array $received = [],
         /**
          * @var string[]
@@ -133,13 +132,13 @@ class HistoricalStateTracker
     public function receivedEvent(TaskCompleted|TaskFailed|RaiseEvent $event): void
     {
         // ok, we've received an event, so add it to the received list
-        $received = ['event' => $event];
+        $received = new ReceivedSet($event);
 
         // see if we are expecting it?
         $identity = array_search($event->scheduledId ?? $event->eventId, $this->expecting, true);
 
         // we are expecting it, so annotate the received list
-        $received['identity'] = $identity;
+        $received->identity = $identity;
 
         // add it to the received list
         $this->received[] = $received;
@@ -173,7 +172,7 @@ class HistoricalStateTracker
 
             foreach ($this->received as $order => $received) {
                 $callback = $this->getSlots()[$future];
-                [$result, $found] = $callback($received['event'], $received['identity'] ?? null);
+                [$result, $found] = $callback($received->event, $received->identity);
                 if ($found) {
                     $this->results[$this->getReadKey()] ??= new ResultSet();
                     $this->results[$this->getReadKey()]->match[$idx] = $result;
