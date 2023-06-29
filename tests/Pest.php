@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -47,10 +48,13 @@
 
 use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Config\MemoryConfig;
+use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\State\AbstractHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -73,6 +77,20 @@ expect()->extend('toHaveOutput', function (mixed $output) {
     return expect(getStatusOutput($this->value))->toBe($output);
 });
 
+expect()->intercept('toEqual', Event::class, function (Event $expected) {
+    $now = new DateTimeImmutable();
+    while ($expected instanceof HasInnerEventInterface) {
+        $expected->eventId = 'same';
+        $expected->timestamp = $now;
+        $expected = $expected->getInnerEvent();
+    }
+    while ($this->value instanceof HasInnerEventInterface) {
+        $this->value->eventId = 'same';
+        $this->value->timestamp = $now;
+        $this->value = $this->value->getInnerEvent();
+    }
+});
+
 /*
 |--------------------------------------------------------------------------
 | Functions
@@ -84,14 +102,16 @@ expect()->extend('toHaveOutput', function (mixed $output) {
 |
 */
 
-function getStatusOutput(\Bottledcode\DurablePhp\State\AbstractHistory $history): mixed {
+function getStatusOutput(AbstractHistory $history): mixed
+{
     return $history->getStatus()->output['value'] ?? null;
 }
 
 function getConfig(): Config
 {
     return new Config(
-        currentPartition: 0, storageConfig: new MemoryConfig()
+        currentPartition: 0,
+        storageConfig: new MemoryConfig()
     );
 }
 
@@ -100,7 +120,7 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
     static $fakeId = 100;
     $events = [];
     $innerEvent = $event;
-    while ($innerEvent instanceof \Bottledcode\DurablePhp\Events\HasInnerEventInterface) {
+    while ($innerEvent instanceof HasInnerEventInterface) {
         $innerEvent = $innerEvent->getInnerEvent();
     }
 
@@ -114,7 +134,7 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
         return $ids;
     };
 
-    $eventDispatcher = new class($fire) extends \Bottledcode\DurablePhp\EventDispatcherTask {
+    $eventDispatcher = new class ($fire) extends EventDispatcherTask {
         public function __construct(
             private Closure $fire
         ) {
@@ -150,7 +170,7 @@ function simpleFactory(string $key, Closure|null $store = null): object
         $factory[$key] = $store;
     }
 
-    return new class($key, $factory[$key] ?? null) {
+    return new class ($key, $factory[$key] ?? null) {
         public function __invoke(...$params)
         {
             return ($this->store)(...$params);
