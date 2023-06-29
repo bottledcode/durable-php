@@ -39,7 +39,6 @@ use Crell\Serde\Attributes\Field;
 class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
-    private bool $hasExecuted = false;
 
     public function __construct(private StateId $id, #[Field(exclude: true)] protected Config $config)
     {
@@ -48,10 +47,6 @@ class ActivityHistory extends AbstractHistory
 
     public function hasAppliedEvent(Event $event): bool
     {
-        if ($this->hasExecuted) {
-            return true;
-        }
-        $this->hasExecuted = true;
         return false;
     }
 
@@ -59,6 +54,23 @@ class ActivityHistory extends AbstractHistory
     {
         $task = $event->name;
         $replyTo = $this->getReplyTo($original);
+
+        if ($this->isFinished()) {
+            if ($this->status->runtimeStatus === RuntimeStatus::Completed) {
+                foreach ($replyTo as $id) {
+                    yield WithOrchestration::forInstance($id, TaskCompleted::forId($original->eventId, $this->status->output));
+                }
+            }
+            if ($this->status->runtimeStatus === RuntimeStatus::Failed) {
+                $exception = Serializer::deserialize($this->status->output, ExternalException::class);
+                foreach ($replyTo as $id) {
+                    yield WithOrchestration::forInstance($id, TaskFailed::forTask($original->eventId, $exception->message, $exception->trace, $exception->type));
+                }
+            }
+
+            return;
+        }
+
         try {
             if ($this->config->factory) {
                 $task = ($this->config->factory)($task);
