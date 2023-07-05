@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\EntityState;
 
 interface EntityClientInterface
 {
@@ -34,7 +35,8 @@ interface EntityClientInterface
      * @return void
      */
     public function cleanEntityStorage(): void;
-/**
+
+    /**
      * Get a list of entities
      *
      * @return \Generator<EntityId>
@@ -56,4 +58,11 @@ interface EntityClientInterface
         array $input = [],
         \DateTimeImmutable $scheduledTime = null
     ): void;
+
+    /**
+     * @template T
+     * @param EntityId $entityId
+     * @return EntityState<T>
+     */
+    public function getEntitySnapshot(EntityId $entityId): EntityState;
 }
