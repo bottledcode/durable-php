@@ -62,7 +62,7 @@ interface EntityClientInterface
     /**
      * @template T
      * @param EntityId $entityId
-     * @return EntityState<T>
+     * @return EntityState<T>|null
      */
-    public function getEntitySnapshot(EntityId $entityId): EntityState;
+    public function getEntitySnapshot(EntityId $entityId): EntityState|null;
 }
