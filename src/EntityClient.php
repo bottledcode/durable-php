@@ -73,6 +73,6 @@ class EntityClient implements EntityClientInterface
 
     public function getEntitySnapshot(EntityId $entityId): EntityState|null
     {
-        return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)->getState();
+        return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)?->getState();
     }
 }
