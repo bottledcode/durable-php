@@ -74,6 +74,11 @@ class EntityHistory extends AbstractHistory
         unset($this->history[$event->eventId]);
     }
 
+    public function getState(): EntityState|null
+    {
+        return $this->state;
+    }
+
     public function setState(mixed $state): void
     {
         $this->state = $state;

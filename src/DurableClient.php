@@ -105,7 +105,7 @@ class DurableClient implements DurableClientInterface
         $this->orchestrationClient->waitForCompletion($instance);
     }
 
-    public function getEntitySnapshot(EntityId $entityId): EntityState
+    public function getEntitySnapshot(EntityId $entityId): EntityState|null
     {
         return $this->entityClient->getEntitySnapshot($entityId);
     }

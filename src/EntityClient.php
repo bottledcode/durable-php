@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -70,8 +71,8 @@ class EntityClient implements EntityClientInterface
         $this->source->storeEvent($event, false);
     }
 
-    public function getEntitySnapshot(EntityId $entityId): EntityState
+    public function getEntitySnapshot(EntityId $entityId): EntityState|null
     {
-        return $this->source->get(StateId::fromEntityId($entityId), EntityState::class);
+        return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)->getState();
     }
 }
