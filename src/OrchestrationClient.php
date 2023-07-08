@@ -54,7 +54,7 @@ final class OrchestrationClient implements OrchestrationClientInterface
 
     public function purge(OrchestrationInstance $instance): void
     {
-        throw new LogicException('Not implemented');
+        $this->source->put(StateId::fromInstance($instance), null);
     }
 
     public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
