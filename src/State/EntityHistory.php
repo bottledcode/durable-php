@@ -186,9 +186,9 @@ class EntityHistory extends AbstractHistory
             $operationReflection = $reflector->getMethod($operation);
             $parameters = $operationReflection->getParameters();
             $input = array_map(
-                static fn(\ReflectionParameter $parameter, mixed $input) => Serializer::deserialize(
+                static fn(\ReflectionParameter $parameter, mixed $input) => is_array($input) ? Serializer::deserialize(
                     $input, $parameter->getType()?->getName() ?? 'array'
-                ),
+                ) : $input,
                 $parameters,
                 $input
             );
