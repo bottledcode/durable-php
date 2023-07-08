@@ -30,27 +30,32 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 #[ClassNameTypeMap('__entity_type')]
 interface EntityContextInterface
 {
+    public static function current(): static;
+
     /**
      * Delete the current entity.
      *
      * @return never
      */
     public function delete(): never;
-/**
+
+    /**
      * Get the input to the current operation.
      *
      * @template T
      * @return T
      */
     public function getInput(): mixed;
-/**
+
+    /**
      * Get the current entity's state.
      *
      * @template T
      * @return T
      */
     public function getState(): mixed;
-/**
+
+    /**
      * Return the given value from the current operation.
      *
      * @template T
@@ -58,7 +63,8 @@ interface EntityContextInterface
      * @return never
      */
     public function return(mixed $value): never;
-/**
+
+    /**
      * Set the current state of the entity.
      *
      * @template T
@@ -83,13 +89,15 @@ interface EntityContextInterface
         array $input = [],
         \DateTimeImmutable|null $scheduledTime = null
     ): void;
-/**
+
+    /**
      * Get the current entity id.
      *
      * @return EntityId
      */
     public function getId(): EntityId;
-/**
+
+    /**
      * Get the current operation.
      *
      * @return string
@@ -98,5 +106,9 @@ interface EntityContextInterface
 
     public function startNewOrchestration(string $orchestration, array $input = [], string|null $id = null): void;
 
-    public static function current(): static;
+    public function delayUntil(
+        string $operation,
+        array $args = [],
+        \DateTimeInterface $until = new \DateTimeImmutable()
+    ): void;
 }

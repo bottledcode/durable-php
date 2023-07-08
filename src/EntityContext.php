@@ -124,4 +124,14 @@ class EntityContext implements EntityContextInterface
             )
         );
     }
+
+    public function delayUntil(string $operation, array $args = [], \DateTimeInterface $until = new \DateTimeImmutable()
+    ): void {
+        $this->eventDispatcher->fire(
+            WithDelay::forEvent(
+                $until,
+                WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args))
+            )
+        );
+    }
 }
