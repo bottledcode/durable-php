@@ -84,7 +84,7 @@ interface OrchestrationContextInterface
         string $name, array $args = [], string|null $instanceId = null, RetryOptions|null $retryOptions = null
     ): DurableFuture;
 
-    public function continueAsNew(array $args = []): void;
+    public function continueAsNew(array $args = []): never;
 
     /**
      * Creates a durable timer that resolves at the specified time.
