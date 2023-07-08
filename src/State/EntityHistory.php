@@ -183,6 +183,15 @@ class EntityHistory extends AbstractHistory
                     $property->setValue($this->state, $context);
                 }
             }
+            $operationReflection = $reflector->getMethod($operation);
+            $parameters = $operationReflection->getParameters();
+            $input = array_map(
+                static fn(\ReflectionParameter $parameter, array $input) => Serializer::deserialize(
+                    $input, $parameter->getType()?->getName() ?? 'array'
+                ),
+                $parameters,
+                $input
+            );
             try {
                 $result = $this->state->$operation(...$input);
             } catch (Unwind) {
