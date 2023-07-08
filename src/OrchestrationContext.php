@@ -72,7 +72,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 )
             ),
             function (Event $event, string $eventIdentity) use ($identity): array {
-                if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
+                if (($event instanceof TaskCompleted || $event instanceof TaskFailed) &&
+                    $eventIdentity === $identity->toString()) {
                     return [$event, true];
                 }
                 return [null, false];
@@ -118,9 +119,16 @@ final class OrchestrationContext implements OrchestrationContextInterface
         throw new LogicException('Not implemented');
     }
 
-    public function continueAsNew(array $args = []): void
+    public function continueAsNew(array $args = []): never
     {
-        throw new LogicException('Not implemented');
+        // alright, we just want to totally reset internal state and pass the new args...
+        // first, release any locks we might have
+        foreach ($this->history->releaseAllLocks() as $event) {
+            $this->taskController->fire($event);
+        }
+
+        $this->history->restartAsNew();
+        throw new Unwind();
     }
 
     public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
@@ -292,7 +300,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $future =
             $this->createFuture(
                 fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)),
-                function(Event $event, string $eventIdentity) use ($identity) {
+                function (Event $event, string $eventIdentity) use ($identity) {
                     return [$event, $identity === $eventIdentity];
                 },
                 $identity

@@ -111,7 +111,7 @@ class OrchestrationHistory extends AbstractHistory
     private function finalize(Event $event): \Generator
     {
         $this->addEventToHistory($event);
-        ($this->status?->with(lastUpdated: MonotonicClock::current()->now())) ?? $this->status = new Status(
+            ($this->status?->with(lastUpdated: MonotonicClock::current()->now())) ?? $this->status = new Status(
             MonotonicClock::current()->now(),
             '',
             [],
@@ -192,12 +192,7 @@ class OrchestrationHistory extends AbstractHistory
         } finally {
             if (!$this->isRunning()) {
                 // ok, we now need to release all of the locks that we have
-                foreach ($this->locks as $lock) {
-                    yield WithLock::onEntity(
-                        $this->id,
-                        WithEntity::forInstance($lock, RaiseEvent::forUnlock($this->id->id, null, null))
-                    );
-                }
+                yield from $this->releaseAllLocks();
             }
         }
 
@@ -210,6 +205,16 @@ class OrchestrationHistory extends AbstractHistory
         }
 
         yield $completion;
+    }
+
+    public function releaseAllLocks(): \Generator
+    {
+        foreach ($this->locks as $lock) {
+            yield WithLock::onEntity(
+                $this->id,
+                WithEntity::forInstance($lock, RaiseEvent::forUnlock($this->id->id, null, null))
+            );
+        }
     }
 
     public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
@@ -284,6 +289,11 @@ class OrchestrationHistory extends AbstractHistory
     {
         $this->historicalTaskResults->resetState();
         $this->locks = [];
+    }
+
+    public function restartAsNew(): void
+    {
+        $this->historicalTaskResults->restartAsNew();
     }
 
     public function ackedEvent(Event $event): void

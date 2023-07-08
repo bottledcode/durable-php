@@ -69,6 +69,16 @@ class HistoricalStateTracker
     ) {
     }
 
+    public function restartAsNew(): void {
+        $this->resetState();
+
+        $this->results = [];
+        $this->expecting = [];
+        $this->writeKey = 0;
+        $this->currentTime = [];
+        // note: we do NOT reset received events in case the next iteration is supposed to get the event
+    }
+
     /**
      * Begin tracking an event and it's future.
      *
