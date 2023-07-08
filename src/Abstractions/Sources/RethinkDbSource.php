@@ -162,6 +162,10 @@ class RethinkDbSource implements Source
 
     public function put(string $key, mixed $data, ?Seconds $ttl = null, ?int $etag = null): void
     {
+        if($data === null) {
+            table($this->stateTable)->get($key)->delete()->run($this->connection, new RunOptions());
+        }
+
         $serialized = Serializer::serialize($data);
         if (function_exists('apcu_store')) {
             if ($etag && ($data['etag'] ?? false)) {
