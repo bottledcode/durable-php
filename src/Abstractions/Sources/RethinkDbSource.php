@@ -164,6 +164,7 @@ class RethinkDbSource implements Source
     {
         if($data === null) {
             table($this->stateTable)->get($key)->delete()->run($this->connection, new RunOptions());
+            return;
         }
 
         $serialized = Serializer::serialize($data);
