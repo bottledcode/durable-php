@@ -53,6 +53,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
 {
     private int $guidCounter = 0;
 
+    private int $randomKey = 0;
+
     public function __construct(
         private readonly OrchestrationInstance $id,
         private readonly OrchestrationHistory $history,
@@ -437,5 +439,17 @@ final class OrchestrationContext implements OrchestrationContextInterface
             fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
             $identity
         );
+    }
+
+    public function getRandomInt(int $min, int $max): int
+    {
+        ++$this->randomKey;
+        return $this->history->randoms[$this->randomKey] ??= random_int($min, $max);
+    }
+
+    public function getRandomBytes(int $length): string
+    {
+        ++$this->randomKey;
+        return $this->history->randoms[$this->randomKey] ??= random_bytes($length);
     }
 }

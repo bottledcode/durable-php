@@ -64,6 +64,8 @@ class OrchestrationHistory extends AbstractHistory
 
     public array $history = [];
 
+    public array $randoms = [];
+
     /**
      * @var array<StateId>
      */

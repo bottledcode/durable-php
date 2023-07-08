@@ -219,4 +219,21 @@ interface OrchestrationContextInterface
      * @return T
      */
     public function createEntityProxy(string $className, EntityId|null $entityId = null): object;
+
+    /**
+     * Cryptographic random ints
+     *
+     * @param int $min
+     * @param int $max
+     * @return int
+     */
+    public function getRandomInt(int $min, int $max): int;
+
+    /**
+     * Cryptographic random bytes
+     *
+     * @param int $length
+     * @return string
+     */
+    public function getRandomBytes(int $length): string;
 }
