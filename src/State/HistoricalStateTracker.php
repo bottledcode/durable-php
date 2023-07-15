@@ -246,6 +246,6 @@ class HistoricalStateTracker
 
     public function isReading(): bool
     {
-        return $this->writeKey > $this->getReadKey();
+        return $this->writeKey < $this->getReadKey();
     }
 }
