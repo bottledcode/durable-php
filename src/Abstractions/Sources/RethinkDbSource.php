@@ -176,13 +176,13 @@ class RethinkDbSource implements Source
                 }
             }
 
-            apcu_store($key, [$serialized, $data::class], (int)($ttl?->inSeconds() ?? $this->config->workerTimeoutSeconds));
+            apcu_store($key, [$serialized, get_debug_type($data)], (int)($ttl?->inSeconds() ?? $this->config->workerTimeoutSeconds));
         }
 
         table($this->stateTable)->insert(
             [
                 'id' => $key, 'data' => $serialized, 'etag' => $etag, 'ttl' => $ttl?->inSeconds(),
-                'type' => $data::class,
+                'type' => get_debug_type($data),
             ],
             new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
         )->run($this->connection, new RunOptions());
