@@ -29,6 +29,7 @@ use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithActivity;
@@ -129,7 +130,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $this->taskController->fire($event);
         }
 
-        $this->history->restartAsNew();
+        $this->history->restartAsNew($args);
+        $this->taskController->fire(WithOrchestration::forInstance(StateId::fromInstance($this->id), StartOrchestration::forInstance($this->id)));
         throw new Unwind();
     }
 

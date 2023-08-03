@@ -293,9 +293,10 @@ class OrchestrationHistory extends AbstractHistory
         $this->locks = [];
     }
 
-    public function restartAsNew(): void
+    public function restartAsNew(array $args): void
     {
         $this->historicalTaskResults->restartAsNew();
+        $this->status = $this->status->with(input: $args, runtimeStatus: RuntimeStatus::ContinuedAsNew);
     }
 
     public function ackedEvent(Event $event): void
