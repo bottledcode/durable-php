@@ -58,7 +58,7 @@ class ActivityHistory extends AbstractHistory
         if ($this->isFinished()) {
             if ($this->status->runtimeStatus === RuntimeStatus::Completed) {
                 foreach ($replyTo as $id) {
-                    yield WithOrchestration::forInstance($id, TaskCompleted::forId($original->eventId, $this->status->output));
+                    yield WithOrchestration::forInstance($id, TaskCompleted::forId($original->eventId, Serializer::deserialize($this->status->output[0], $this->status->output[1])));
                 }
             }
             if ($this->status->runtimeStatus === RuntimeStatus::Failed) {
@@ -85,7 +85,7 @@ class ActivityHistory extends AbstractHistory
                 $event->input,
                 $this->id,
                 $now,
-                Serializer::serialize($result),
+                [Serializer::serialize($result), get_debug_type($result)],
                 RuntimeStatus::Completed
             );
             foreach ($replyTo as $id) {
