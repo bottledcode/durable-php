@@ -88,7 +88,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function newGuid(): UuidInterface
     {
         $namespace = Guid::fromString('00e0be66-7498-45d1-90ca-be447398ea22');
-        $hash = sprintf('%s-%s-%d', $this->id->instanceId, $this->id->executionId, $this->history->version . $this->guidCounter++);
+        $hash = sprintf('%s-%s-%d-%d', $this->id->instanceId, $this->id->executionId, $this->history->version, $this->guidCounter++);
         return Uuid::uuid5($namespace, $hash);
     }
 
