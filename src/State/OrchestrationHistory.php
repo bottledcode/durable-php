@@ -128,11 +128,10 @@ class OrchestrationHistory extends AbstractHistory
 
     private function addEventToHistory(Event $event): void
     {
-        if ($this->debugHistory) {
-            $this->history[$event->eventId] = $event;
-        } else {
-            $this->history[$event->eventId] = true;
-        }
+        $now = time();
+        $cutoff = $now - 3600; // 1 hour
+        $this->history[$event->eventId] = $this->debugHistory ? $event : $now;
+        $this->history = array_filter($this->history, static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value);
     }
 
     public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
