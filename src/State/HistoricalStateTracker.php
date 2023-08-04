@@ -28,6 +28,7 @@ use Bottledcode\DurablePhp\DurableFuture;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Closure;
 use Crell\Serde\Attributes\DictionaryField;
@@ -66,6 +67,10 @@ class HistoricalStateTracker
          */
         #[DictionaryField(arrayType: DateTimeImmutable::class)]
         private array $currentTime = [],
+        private int $readHead = 0,
+        #[Field(exclude: true)]
+        private int $currentRead = 0,
+        public int $guidCounter = 0,
     ) {
     }
 
@@ -76,6 +81,7 @@ class HistoricalStateTracker
         $this->expecting = [];
         $this->writeKey = 0;
         $this->currentTime = [];
+        $this->readHead = 0;
         // note: we do NOT reset received events in case the next iteration is supposed to get the event
     }
 
@@ -131,6 +137,7 @@ class HistoricalStateTracker
         $this->readKey = null;
         $this->eventSlots = null;
         $this->identityKey = 0;
+        $this->currentRead = 0;
     }
 
     /**
@@ -246,6 +253,12 @@ class HistoricalStateTracker
 
     public function isReading(): bool
     {
-        return $this->writeKey < $this->getReadKey();
+        if(++$this->currentRead > $this->readHead) {
+            $this->readHead = $this->currentRead;
+            Logger::always('isReading: false');
+            return false;
+        }
+        Logger::always('isReading: true');
+        return true;
     }
 }
