@@ -219,7 +219,10 @@ class EntityHistory extends AbstractHistory
 
     private function finalize(Event $event): Generator
     {
-        $this->history[$event->eventId] = $this->debugHistory ? $event : true;
+        $now = time();
+        $cutoff = $now - 3600; // 1 hour
+        $this->history[$event->eventId] = $this->debugHistory ? $event : $now;
+        $this->history = array_filter($this->history, static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value);
         $this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 
         yield null;
