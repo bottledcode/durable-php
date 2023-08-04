@@ -53,6 +53,11 @@ interface OrchestrationContextInterface
      */
     public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture;
 
+    /**
+     * Get a logger that only logs when not replaying
+     * @return Logger
+     */
+    public function getReplayAwareLogger(): Logger;
 
     public function signalEntity(EntityId $entityId, string $operation, array $args = []): void;
 

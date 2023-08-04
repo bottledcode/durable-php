@@ -296,6 +296,7 @@ class OrchestrationHistory extends AbstractHistory
     {
         $this->historicalTaskResults->restartAsNew();
         $this->status = $this->status->with(input: $args, runtimeStatus: RuntimeStatus::ContinuedAsNew);
+        ++$this->version;
     }
 
     public function ackedEvent(Event $event): void
