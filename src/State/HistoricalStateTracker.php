@@ -212,7 +212,7 @@ class HistoricalStateTracker
                 $result = $this->results[$this->readKey]->match[$idx];
                 switch (true) {
                     case $result instanceof TaskCompleted:
-                        $handler->future->complete($result->result);
+                        $handler->future->complete($result->getResult());
                         $completedInOrder[] = $handler;
                         break;
                     case $result instanceof TaskFailed:
