@@ -253,6 +253,7 @@ class HistoricalStateTracker
 
     public function isReading(): bool
     {
+        $this->currentRead ??= 0;
         if(++$this->currentRead > $this->readHead) {
             $this->readHead = $this->currentRead;
             Logger::always('isReading: false');
