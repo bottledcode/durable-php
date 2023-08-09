@@ -22,7 +22,7 @@
   "name": "bottledcode/durable-php",
   "require": {
     "amphp/file": "^3.0",
-    "amphp/log": "v2.0.0-beta.2",
+    "amphp/log": "v2.0.0",
     "amphp/parallel": "^v2",
     "bottledcode/php-rql": "dev-master",
     "crell/serde": "^0.6.0",
