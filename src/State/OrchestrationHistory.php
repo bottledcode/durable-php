@@ -42,6 +42,7 @@ use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
+use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
@@ -158,12 +159,13 @@ class OrchestrationHistory extends AbstractHistory
 
         $this->constructed ??= ($this->config->factory ? ($this->config->factory)($this->instance->instanceId) : null)
             ?? $class->newInstanceWithoutConstructor();
+        $proxyGenerator = ($this->config->factory ? ($this->config->factory)(OrchestratorProxy::class) : new OrchestratorProxy());
         try {
             $taskScheduler = null;
             yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
                 $taskScheduler = $task;
             };
-            $context = new OrchestrationContext($this->instance, $this, $taskScheduler);
+            $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator);
             try {
                 $result = ($this->constructed)($context);
             } catch (Unwind) {
