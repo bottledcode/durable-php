@@ -90,7 +90,7 @@ EOT;
     protected function preamble(\ReflectionClass $class): string
     {
         return <<<EOT
-public function __construct(private OrchestrationContext \$context, private EntityId \$id) {}
+public function __construct(private Bottledcode\DurablePhp\OrchestrationContextInterface \$context, private Bottledcode\DurablePhp\State\EntityId \$id) {}
 EOT;
     }
 }

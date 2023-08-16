@@ -38,6 +38,7 @@ use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityLock;
@@ -59,7 +60,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function __construct(
         private readonly OrchestrationInstance $id,
         private readonly OrchestrationHistory $history,
-        private readonly EventDispatcherTask $taskController
+        private readonly EventDispatcherTask $taskController,
+        private readonly OrchestratorProxy $proxyGenerator
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
     }
@@ -373,38 +375,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
         if (!$class->isInterface()) {
             throw new LogicException('Only interfaces can be proxied');
         }
-        $methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
-        $proxies = [];
-        foreach ($methods as $method) {
-            $hasReturn = $method->hasReturnType();
-            $isVoid = $hasReturn && $method->getReturnType()?->getName() === 'void';
-            $proxies[$method->getName()] = compact('hasReturn', 'isVoid');
-        }
 
-        return new class ($this, $proxies, $entityId) {
-            public function __construct(
-                private OrchestrationContext $context,
-                private array $proxies,
-                private EntityId $id
-            ) {
-            }
-
-            public function __call(string $name, array $arguments)
-            {
-                $proxy = $this->proxies[$name] ?? throw new LogicException('Method not found');
-                if (($proxy['isVoid'] || !$proxy['hasReturn'])) {
-                    $this->context->signalEntity($this->id, $name, $arguments);
-                    return null;
-                }
-
-                return $this->context->waitOne($this->context->callEntity($this->id, $name, $arguments));
-            }
-
-            public function __debugInfo(): ?array
-            {
-                return ['id' => $this->id];
-            }
-        };
+        $name = $this->proxyGenerator->define($className);
+        return new $name($this, $entityId);
     }
 
     public function signalEntity(EntityId $entityId, string $operation, array $args = []): void

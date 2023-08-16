@@ -27,6 +27,34 @@ use ReflectionUnionType;
 
 abstract class Generator
 {
+    public function __construct(protected string|null $cacheDir = null)
+    {
+    }
+
+    public function define(string $interface): string
+    {
+        $name = $this->getName(new \ReflectionClass($interface));
+        $cacheFile = null;
+        if ($this->cacheDir) {
+            $cacheFile = $this->cacheDir . DIRECTORY_SEPARATOR . $name . '.php';
+            if (file_exists($cacheFile)) {
+                require_once $cacheFile;
+                return $name;
+            }
+        }
+
+        if (!class_exists($this->getName(new \ReflectionClass($interface)))) {
+            eval($output = $this->generate($interface));
+            if ($cacheFile) {
+                file_put_contents($cacheFile, "<?php\n$output");
+            }
+        }
+
+        return $name;
+    }
+
+    abstract protected function getName(\ReflectionClass $class): string;
+
     public function generate(string $interface): string
     {
         $reflection = new \ReflectionClass($interface);
@@ -53,21 +81,19 @@ abstract class Generator
             $methods
         );
         $methods = implode("\n", $methods);
+        $namespace = $namespace ? "namespace $namespace;" : '';
 
         return <<<EOT
-<?php
-namespace {$namespace};
+{$namespace}
 
 class {$this->getName($reflection)} implements {$className} {
-  {$this->preamble()}
+  {$this->preamble($reflection)}
   $methods
 }
 EOT;
     }
 
     abstract protected function pureMethod(\ReflectionMethod $method): string;
-
-    abstract protected function getName(\ReflectionClass $class): string;
 
     abstract protected function impureSignal(\ReflectionMethod $method): string;
 

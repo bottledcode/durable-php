@@ -170,6 +170,8 @@ function simpleFactory(string $key, Closure|null $store = null): object
         $factory[$key] = $store;
     }
 
+    return $factory[$key]();
+
     return new class ($key, $factory[$key] ?? null) {
         public function __invoke(...$params)
         {
@@ -204,7 +206,8 @@ function getOrchestration(
     Event|null $startupEvent = null
 ): OrchestrationHistory {
     static $instance = 0;
-    simpleFactory($instance, $orchestration);
+    simpleFactory(\Bottledcode\DurablePhp\Proxy\OrchestratorProxy::class, fn() => new \Bottledcode\DurablePhp\Proxy\OrchestratorProxy());
+    simpleFactory($instance, fn() => $orchestration);
     $history = new OrchestrationHistory(
         StateId::fromInstance(new OrchestrationInstance($instance++, $id)),
         getConfig()->with(factory: 'simpleFactory')
