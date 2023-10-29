@@ -69,7 +69,9 @@ class EntityClient implements EntityClientInterface
         }
         $spy = $this->spyProxy->define($interfaceName);
         $class = new $spy($operationName, $arguments);
-        $signal($class);
+        try {
+            $signal($class);
+        } catch(\Throwable) {}
         $this->signalEntity(
             is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments
         );
