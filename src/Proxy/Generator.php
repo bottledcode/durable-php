@@ -39,7 +39,7 @@ abstract class Generator
             $cacheFile = $this->cacheDir . DIRECTORY_SEPARATOR . $name . '.php';
             if (file_exists($cacheFile)) {
                 require_once $cacheFile;
-                return $name;
+                return '\Monitoring\Models\Actors\\' . $name;
             }
         }
 
@@ -50,7 +50,7 @@ abstract class Generator
             }
         }
 
-        return $name;
+        return '\Monitoring\Models\Actors\\' . $name;
     }
 
     abstract protected function getName(\ReflectionClass $class): string;
