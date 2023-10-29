@@ -60,6 +60,15 @@ interface EntityClientInterface
     ): void;
 
     /**
+     * Signals an entity using a closure
+     *
+     * @param EntityId|string $entityId The id of the entity to signal
+     * @param \Closure $signal
+     * @return void
+     */
+    public function signal(EntityId|string $entityId, \Closure $signal): void;
+
+    /**
      * @template T
      * @param EntityId $entityId
      * @return EntityState<T>|null

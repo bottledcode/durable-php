@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -40,7 +41,7 @@ class EntityClient implements EntityClientInterface
     use PartitionCalculator;
 
 
-    public function __construct(private Config $config, private Source $source)
+    public function __construct(private Config $config, private Source $source, private SpyProxy $spyProxy)
     {
     }
 
@@ -52,6 +53,23 @@ class EntityClient implements EntityClientInterface
     public function listEntities(): \Generator
     {
         throw new \Exception('Not implemented');
+    }
+
+    public function getEntitySnapshot(EntityId $entityId): EntityState|null
+    {
+        return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)?->getState();
+    }
+
+    public function signal(EntityId|string $entityId, \Closure $signal): void
+    {
+        $interfaceReflector = new \ReflectionFunction($signal);
+        $interfaceName = $interfaceReflector->getParameters()[0]->getName();
+        $spy = $this->spyProxy->define($interfaceName);
+        $class = new $spy($operationName, $arguments);
+        $signal($class);
+        $this->signalEntity(
+            is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments
+        );
     }
 
     public function signalEntity(
@@ -69,10 +87,5 @@ class EntityClient implements EntityClientInterface
         }
 
         $this->source->storeEvent($event, false);
-    }
-
-    public function getEntitySnapshot(EntityId $entityId): EntityState|null
-    {
-        return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)?->getState();
     }
 }
