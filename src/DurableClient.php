@@ -32,8 +32,9 @@ use Generator;
 
 class DurableClient implements DurableClientInterface
 {
-    public function __construct(private EntityClientInterface $entityClient, private OrchestrationClientInterface $orchestrationClient)
-    {
+    public function __construct(
+        private EntityClientInterface $entityClient, private OrchestrationClientInterface $orchestrationClient
+    ) {
     }
 
     public function cleanEntityStorage(): void
@@ -108,5 +109,10 @@ class DurableClient implements DurableClientInterface
     public function getEntitySnapshot(EntityId $entityId): EntityState|null
     {
         return $this->entityClient->getEntitySnapshot($entityId);
+    }
+
+    public function signal(EntityId|string $entityId, \Closure $signal): void
+    {
+        $this->entityClient->signal($entityId, $signal);
     }
 }
