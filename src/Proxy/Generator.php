@@ -33,13 +33,14 @@ abstract class Generator
 
     public function define(string $interface): string
     {
-        $name = $this->getName(new \ReflectionClass($interface));
+        $name = $this->getName($class = new \ReflectionClass($interface));
+        $namespace = $this->getInterfaceNamespace($class);
         $cacheFile = null;
         if ($this->cacheDir) {
             $cacheFile = $this->cacheDir . DIRECTORY_SEPARATOR . $name . '.php';
             if (file_exists($cacheFile)) {
                 require_once $cacheFile;
-                return '\Monitoring\Models\Actors\\' . $name;
+                return '\\' . $namespace . '\\' . $name;
             }
         }
 
@@ -50,7 +51,11 @@ abstract class Generator
             }
         }
 
-        return '\Monitoring\Models\Actors\\' . $name;
+        return '\\' . $namespace . '\\' . $name;
+    }
+
+    protected function getInterfaceNamespace(\ReflectionClass $class): string {
+        return $class->getNamespaceName();
     }
 
     abstract protected function getName(\ReflectionClass $class): string;
