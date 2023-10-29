@@ -51,7 +51,7 @@ class SpyProxy extends Generator
 
         return <<<EOT
 public function $name($params)$return {
-    \$this->operation = __METHOD__;
+    \$this->operation = "$name";
     \$this->arguments = func_get_args();
     throw new \Exception('Not implemented');
 }
