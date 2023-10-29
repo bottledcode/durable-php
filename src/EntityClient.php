@@ -63,7 +63,10 @@ class EntityClient implements EntityClientInterface
     public function signal(EntityId|string $entityId, \Closure $signal): void
     {
         $interfaceReflector = new \ReflectionFunction($signal);
-        $interfaceName = $interfaceReflector->getParameters()[0]->getName();
+        $interfaceName = $interfaceReflector->getParameters()[0]->getType()?->getName();
+        if(interface_exists($interfaceName) === false) {
+            throw new \Exception("Interface $interfaceName does not exist");
+        }
         $spy = $this->spyProxy->define($interfaceName);
         $class = new $spy($operationName, $arguments);
         $signal($class);
