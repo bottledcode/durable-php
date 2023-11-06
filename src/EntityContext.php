@@ -31,6 +31,7 @@ use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -48,6 +49,7 @@ class EntityContext implements EntityContextInterface
         private mixed $state, private readonly EntityHistory $history,
         private readonly EventDispatcherTask $eventDispatcher, private readonly array $caller,
         private readonly string $requestingId,
+        private readonly SpyProxy $spyProxy,
     ) {
         self::$current = $this;
     }
@@ -133,5 +135,29 @@ class EntityContext implements EntityContextInterface
                 WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args))
             )
         );
+    }
+
+    public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void {
+        $classReflector = new \ReflectionClass($this->history->getState());
+        $interfaces = $classReflector->getInterfaceNames();
+        if(count($interfaces) > 1) {
+            throw new \Exception('Cannot delay an entity with more than one interface');
+        }
+
+        $fnReflector = new \ReflectionFunction($self);
+        if($fnReflector->getNumberOfParameters() > 0) {
+            throw new \Exception('Cannot delay a function with parameters');
+        }
+
+        // create the spy proxy
+        $spy = $this->spyProxy->define($interfaces[0]);
+        $class = new $spy($operationName, $arguments);
+        $self->bindTo($class);
+
+        try {
+            $self();
+        } catch(\Throwable) {}
+
+        $this->delayUntil($operationName, $arguments, $until);
     }
 }
