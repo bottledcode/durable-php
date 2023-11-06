@@ -111,4 +111,6 @@ interface EntityContextInterface
         array $args = [],
         \DateTimeInterface $until = new \DateTimeImmutable()
     ): void;
+
+    public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void;
 }
