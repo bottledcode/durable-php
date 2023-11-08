@@ -25,7 +25,7 @@
     "amphp/log": "v2.0.0",
     "amphp/parallel": "^v2",
     "bottledcode/php-rql": "dev-master",
-    "crell/serde": "^0.6.0",
+    "crell/serde": "^1.0",
     "nesbot/carbon": "^2.66",
     "php": ">=8.2",
     "ramsey/uuid": "^4.7.4",
