@@ -56,7 +56,7 @@ class Logger
             ...
             [basename($caller['file'], '.php'), ...$vars]
         );
-        $logger->alert($output, ['e/s' => number_format(self::$counter / self::$elapsed, 2), 'est' => number_format((self::$counter / self::$elapsed) * 3, 2)]);
+        $logger->alert($output);
     }
 
     public static function error(string $message, ...$vars): void

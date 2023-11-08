@@ -38,6 +38,7 @@ use Bottledcode\DurablePhp\Events\With;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Generator;
@@ -171,7 +172,7 @@ class EntityHistory extends AbstractHistory
 
         $context = new EntityContext(
             $this->id->toEntityId(), $operation, $input, $this->state, $this, $taskDispatcher, $replyTo,
-            $original->eventId
+            $original->eventId, new SpyProxy()
         );
 
         if (is_object($this->state)) {
@@ -222,7 +223,9 @@ class EntityHistory extends AbstractHistory
         $now = time();
         $cutoff = $now - 3600; // 1 hour
         $this->history[$event->eventId] = $this->debugHistory ? $event : $now;
-        $this->history = array_filter($this->history, static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value);
+        $this->history =
+            array_filter($this->history, static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value
+            );
         $this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 
         yield null;
