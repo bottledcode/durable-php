@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -62,15 +62,16 @@ interface EntityClientInterface
     /**
      * Signals an entity using a closure
      *
-     * @param EntityId|string $entityId The id of the entity to signal
-     * @param \Closure $signal
+     * @template T
+     * @param EntityId<T>|class-string<T> $entityId The id of the entity to signal
+     * @param \Closure<T> $signal
      * @return void
      */
     public function signal(EntityId|string $entityId, \Closure $signal): void;
 
     /**
      * @template T
-     * @param EntityId $entityId
+     * @param EntityId<T> $entityId
      * @return EntityState<T>|null
      */
     public function getEntitySnapshot(EntityId $entityId): EntityState|null;

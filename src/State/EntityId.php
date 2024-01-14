@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -26,8 +26,15 @@ namespace Bottledcode\DurablePhp\State;
 
 use Stringable;
 
+/**
+ * @template T
+ */
 readonly class EntityId implements Stringable
 {
+    /**
+     * @param class-string<T> $name
+     * @param string $id
+     */
     public function __construct(public string $name, public string $id)
     {
     }

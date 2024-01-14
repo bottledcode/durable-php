@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -77,9 +77,9 @@ interface EntityContextInterface
      * Signal another entity.
      *
      * @template T
-     * @param EntityId $entityId
-     * @param string $operation
-     * @param array<T> $input
+     * @param EntityId<T> $entityId
+     * @param non-empty-string $operation
+     * @param array $input
      * @param \DateTimeImmutable|null $scheduledTime
      * @return void
      */

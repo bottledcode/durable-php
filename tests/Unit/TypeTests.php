@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,15 +21,24 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State;
+$entityClient = new \Bottledcode\DurablePhp\EntityClient(null, null, null);
 
-use Crell\Serde\Attributes\ClassNameTypeMap;
+interface ITest
+{
+    public function weee();
+}
+
+class Test extends \Bottledcode\DurablePhp\State\EntityState implements ITest
+{
+    public function weee()
+    {
+        // TODO: Implement weee() method.
+    }
+}
 
 /**
- * @template T
- * @mixin T
+ * @var \Bottledcode\DurablePhp\State\EntityId<ITest> $id
  */
-#[ClassNameTypeMap('_entity_state_type')]
-abstract class EntityState
-{
-}
+$id = new \Bottledcode\DurablePhp\State\EntityId(ITest::class, "hello");
+
+$result = $entityClient->getEntitySnapshot($id);
