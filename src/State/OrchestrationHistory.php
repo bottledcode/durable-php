@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -43,6 +43,7 @@ use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
@@ -160,12 +161,13 @@ class OrchestrationHistory extends AbstractHistory
         $this->constructed ??= ($this->config->factory ? ($this->config->factory)($this->instance->instanceId) : null)
             ?? $class->newInstanceWithoutConstructor();
         $proxyGenerator = ($this->config->factory ? ($this->config->factory)(OrchestratorProxy::class) : new OrchestratorProxy());
+        $spyGenerator = ($this->config->factory ? ($this->config->factory)(SpyProxy::class) : new SpyProxy());
         try {
             $taskScheduler = null;
             yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
                 $taskScheduler = $task;
             };
-            $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator);
+            $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator);
             try {
                 $result = ($this->constructed)($context);
             } catch (Unwind) {
