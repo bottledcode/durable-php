@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -59,9 +59,8 @@ class RethinkDbSource implements Source
 {
     use PartitionCalculator;
 
-
     private function __construct(
-        private readonly Connection $connection,
+        public readonly Connection $connection,
         private readonly Config $config,
         private readonly string $partitionTable,
         private readonly string $stateTable
