@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -55,6 +55,11 @@ class EntityClient implements EntityClientInterface
         throw new \Exception('Not implemented');
     }
 
+    /**
+     * @template T
+     * @param EntityId<T> $entityId
+     * @return EntityState<T>|null
+     */
     public function getEntitySnapshot(EntityId $entityId): EntityState|null
     {
         return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)?->getState();
@@ -64,14 +69,15 @@ class EntityClient implements EntityClientInterface
     {
         $interfaceReflector = new \ReflectionFunction($signal);
         $interfaceName = $interfaceReflector->getParameters()[0]->getType()?->getName();
-        if(interface_exists($interfaceName) === false) {
+        if (interface_exists($interfaceName) === false) {
             throw new \Exception("Interface $interfaceName does not exist");
         }
         $spy = $this->spyProxy->define($interfaceName);
         $class = new $spy($operationName, $arguments);
         try {
             $signal($class);
-        } catch(\Throwable) {}
+        } catch (\Throwable) {
+        }
         $this->signalEntity(
             is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments
         );

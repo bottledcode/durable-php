@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -59,7 +59,22 @@ interface OrchestrationContextInterface
      */
     public function getReplayAwareLogger(): Logger;
 
+    /**
+     * @param EntityId $entityId
+     * @param string $operation
+     * @param array $args
+     * @return void
+     */
     public function signalEntity(EntityId $entityId, string $operation, array $args = []): void;
+
+    /**
+     * @template T
+     * @template V
+     * @param string $id
+     * @param \Closure(T): V $operation
+     * @return V
+     */
+    public function entityOp(string $id, \Closure $operation): mixed;
 
     /**
      * Determines if an entity is locked. Returns true if the entity is locked.
