@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -44,7 +44,10 @@ abstract class Generator
             }
         }
 
-        if (!class_exists($this->getName(new \ReflectionClass($interface)))) {
+        $reflection = new \ReflectionClass($interface);
+        $fullname = $this->getInterfaceNamespace($reflection) . '\\' . $this->getName($reflection);
+
+        if (!class_exists($fullname)) {
             eval($output = $this->generate($interface));
             if ($cacheFile) {
                 file_put_contents($cacheFile, "<?php\n$output");
@@ -109,7 +112,10 @@ EOT;
     protected function getTypes(\ReflectionNamedType|ReflectionUnionType|\ReflectionIntersectionType|null $type): string
     {
         if ($type instanceof \ReflectionNamedType) {
-            return $type->getName();
+            if($type->isBuiltin()) {
+                return $type->getName();
+            }
+            return '\\' . $type->getName();
         }
 
         if ($type instanceof ReflectionUnionType) {

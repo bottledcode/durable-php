@@ -38,7 +38,7 @@ class  SpyProxy extends Generator
             function (\ReflectionParameter $param) {
                 $type = $param->getType();
                 if ($type !== null) {
-                    $type = '\\' . $this->getTypes($type);
+                    $type = $this->getTypes($type);
                 }
 
                 return "$type \${$param->getName()}";
