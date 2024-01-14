@@ -466,7 +466,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         };
     }
 
-    public function entityOp(string $id, \Closure $operation): mixed
+    public function entityOp(string|EntityId $id, \Closure $operation): mixed
     {
         $func = new \ReflectionFunction($operation);
         if($func->getNumberOfParameters() !== 1) {
@@ -498,7 +498,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
             throw new LogicException('Did not call an operation');
         }
 
-        $entityId = new EntityId($name, $id);
+        $entityId = $id instanceof EntityId ? $id : new EntityId($name, $id);
 
         if($returns) {
             return $this->waitOne($this->callEntity($entityId, $operationName, $arguments));
