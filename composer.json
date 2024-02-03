@@ -21,14 +21,14 @@
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
-    "amphp/file": "^3.0",
+    "amphp/file": "^3.0.2",
     "amphp/log": "v2.0.0",
     "amphp/parallel": "^v2",
     "bottledcode/php-rql": "dev-master",
-    "crell/serde": "^1.0",
-    "nesbot/carbon": "^2.66",
+    "crell/serde": "^1.1.0",
+    "nesbot/carbon": "^2.72.3",
     "php": ">=8.2",
-    "ramsey/uuid": "^4.7.4",
+    "ramsey/uuid": "^4.7.5",
     "withinboredom/time": "^2.1"
   },
   "suggest": {
@@ -38,9 +38,9 @@
   "type": "library",
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
-    "squizlabs/php_codesniffer": "^3.7",
-    "pestphp/pest": "^2.8",
-    "mockery/mockery": "^1.6"
+    "squizlabs/php_codesniffer": "^3.8.1",
+    "pestphp/pest": "^2.33.4",
+    "mockery/mockery": "^1.6.7"
   },
   "config": {
     "allow-plugins": {
