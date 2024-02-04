@@ -74,7 +74,7 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
 
     private function getQueueForEvent(Event $event): TubeName
     {
-        $tubes = [
+        static $tubes = [
             'entity' => new TubeName('entities'),
             'activity' => new TubeName('activities'),
             'orchestration' => new TubeName('orchestrations'),
@@ -103,6 +103,7 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
                 $now = new CarbonImmutable();
                 return max(0, (new CarbonImmutable($event->timestamp))->diffInSeconds($now));
             }
+            $event = $event->getInnerEvent();
         }
 
         return 0;
