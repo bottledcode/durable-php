@@ -24,24 +24,19 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
-use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Config\Config;
+use Bottledcode\DurablePhp\Abstractions\EventQueueInterface;
+use Bottledcode\DurablePhp\Abstractions\ProjectorInterface;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
-use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class EntityClient implements EntityClientInterface
 {
-    use PartitionCalculator;
-
-
-    public function __construct(private Config $config, private Source $source, private SpyProxy $spyProxy)
+    public function __construct(private SpyProxy $spyProxy, private ProjectorInterface $projector, private EventQueueInterface $queue)
     {
     }
 
@@ -62,7 +57,7 @@ class EntityClient implements EntityClientInterface
      */
     public function getEntitySnapshot(EntityId $entityId): EntityState|null
     {
-        return $this->source->get(StateId::fromEntityId($entityId), EntityHistory::class)?->getState();
+        return $this->projector->getState(StateId::fromEntityId($entityId))?->getState();
     }
 
     public function signal(EntityId|string $entityId, \Closure $signal): void
@@ -97,6 +92,6 @@ class EntityClient implements EntityClientInterface
             WithDelay::forEvent($scheduledTime, $event);
         }
 
-        $this->source->storeEvent($event, false);
+        $this->queue->fire($event);
     }
 }

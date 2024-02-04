@@ -29,31 +29,29 @@ use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\ApcuProjector;
+use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
+use Bottledcode\DurablePhp\Abstractions\EventHandlerInterface;
+use Bottledcode\DurablePhp\Abstractions\EventQueueInterface;
 use Bottledcode\DurablePhp\Abstractions\ProjectorInterface;
+use Bottledcode\DurablePhp\Abstractions\QueueType;
 use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
 use Bottledcode\DurablePhp\Abstractions\Semaphore;
 use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
 use Bottledcode\DurablePhp\Config\ProviderTrait;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\WorkerTask;
 use Closure;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Exception\ConnectionException;
-use Pheanstalk\Pheanstalk;
-use Pheanstalk\Values\TubeName;
 use Revolt\EventLoop;
 use Throwable;
 
 class RunCommand extends Command
 {
-    use PartitionCalculator;
     use ProviderTrait;
 
-    private Pheanstalk|null $beanstalkClient = null;
     private ProjectorInterface|null $projector = null;
     private Semaphore|null $semaphore = null;
 
@@ -68,6 +66,8 @@ class RunCommand extends Command
     private string $bootstrap;
 
     private array $providers;
+
+    private EventHandlerInterface&EventQueueInterface $beanstalkClient;
 
     public function __construct()
     {
@@ -115,17 +115,17 @@ class RunCommand extends Command
 
         if (str_contains($monitor, 'activities')) {
             $writer->yellow("Subscribing to activity feed...")->eol();
-            $this->beanstalkClient->watch($this->getTubeFor("activities"));
+            $this->beanstalkClient->subscribe(QueueType::Activities);
         }
 
         if (str_contains($monitor, 'entities')) {
             $writer->yellow("Subscribing to entities feed...")->eol();
-            $this->beanstalkClient->watch($this->getTubeFor('entities'));
+            $this->beanstalkClient->subscribe(QueueType::Entities);
         }
 
         if (str_contains($monitor, 'orchestrations')) {
             $writer->yellow("Subscribing to orchestration feed...")->eol();
-            $this->beanstalkClient->watch($this->getTubeFor('orchestrations'));
+            $this->beanstalkClient->subscribe(QueueType::Orchestrations);
         }
 
         $writer->yellow("starting worker pool with $maxWorkers workers...")->eol();
@@ -137,7 +137,7 @@ class RunCommand extends Command
 
         EventLoop::repeat(0.001, function () use ($executionTimeout): void {
             try {
-                $bEvent = $this->beanstalkClient->reserveWithTimeout(0);
+                $bEvent = $this->beanstalkClient->getSingleEvent();
             } catch (ConnectionException $exception) {
                 $this->exit($exception->getMessage());
                 return;
@@ -162,14 +162,7 @@ class RunCommand extends Command
 
     private function configureBeanstalk(string $host, int $port): void
     {
-        $this->beanstalkClient = Pheanstalk::create($host, $port);
-    }
-
-    private function getTubeFor(string $type): TubeName
-    {
-        static $tubes = [];
-
-        return $tubes[$type] ??= new TubeName("{$this->namespace}_{$type}");
+        $this->beanstalkClient = new BeanstalkEventSource($host, $port, $this->namespace);
     }
 
     private function exit(string|Throwable $reason = "exit")
@@ -205,34 +198,12 @@ class RunCommand extends Command
     {
         return function (array $result) use ($originalEvent, $bEvent) {
             // mark event as successful
-            $this->beanstalkClient->delete($bEvent);
+            $this->beanstalkClient->ack($bEvent);
 
             // dispatch events
             foreach ($result as $event) {
-                $queue = $this->getQueueForEvent($event);
-                $this->beanstalkClient->useTube($queue);
-                $this->beanstalkClient->put($event);
+                $this->beanstalkClient->fire($event);
             }
         };
-    }
-
-    private function getQueueForEvent(Event $event): TubeName
-    {
-        $tubes = [
-            'entity' => new TubeName('entities'),
-            'activity' => new TubeName('activities'),
-            'orchestration' => new TubeName('orchestrations'),
-        ];
-
-        while ($event instanceof HasInnerEventInterface) {
-            if ($event instanceof StateTargetInterface) {
-                $state = $event->getTarget();
-                return $tubes[explode(':', $state->id)[0]];
-            }
-
-            $event = $this->event->getInnerEvent();
-        }
-
-        return $tubes['activity'];
     }
 }

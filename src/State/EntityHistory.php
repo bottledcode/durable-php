@@ -275,10 +275,4 @@ class EntityHistory extends AbstractHistory
         }
         yield from $this->finalize($event);
     }
-
-    public function onComplete(Source $source): void
-    {
-        // note locks are not released here, they are released when the __unlock event is received
-        // an entity is not required to be running to be locked.
-    }
 }

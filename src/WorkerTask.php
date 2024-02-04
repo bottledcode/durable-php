@@ -104,12 +104,10 @@ class WorkerTask implements Task
         return $this->batch;
     }
 
-    private function getState(string $target, Channel $channel): ApplyStateInterface&StateInterface
+    public function getState(string $target): ApplyStateInterface&StateInterface
     {
-        $channel->send('lock:begin');
         $result = $this->semaphore->wait($target, true);
         if (!$result) {
-            $channel->send('lock:end');
             throw new \LogicException('unable to get lock on state, manual intervention may be required');
         }
 

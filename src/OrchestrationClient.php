@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -26,16 +26,14 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Cancellation;
 use Amp\NullCancellation;
-use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
-use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Config\Config;
+use Bottledcode\DurablePhp\Abstractions\EventQueueInterface;
+use Bottledcode\DurablePhp\Abstractions\ProjectorInterface;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Status;
@@ -46,15 +44,13 @@ use function Amp\async;
 
 final class OrchestrationClient implements OrchestrationClientInterface
 {
-    use PartitionCalculator;
-
-    public function __construct(private readonly Config $config, private readonly Source $source)
+    public function __construct(private EventQueueInterface $queue, private ProjectorInterface $projector)
     {
     }
 
     public function purge(OrchestrationInstance $instance): void
     {
-        $this->source->put(StateId::fromInstance($instance), null);
+        $this->projector->projectState(StateId::fromInstance($instance), null);
     }
 
     public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
@@ -64,9 +60,9 @@ final class OrchestrationClient implements OrchestrationClientInterface
         );
     }
 
-    private function postEvent(Event $event): string
+    private function postEvent(Event $event): void
     {
-        return $this->source->storeEvent($event, false);
+        $this->queue->fire($event);
     }
 
     public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance
@@ -99,8 +95,7 @@ final class OrchestrationClient implements OrchestrationClientInterface
     public function waitForCompletion(OrchestrationInstance $instance, Cancellation $timeout = null): void
     {
         async(function () use ($instance) {
-            $this->source->watch(
-                StateId::fromInstance($instance),
+            $this->projector->watch(StateId::fromInstance($instance),
                 RuntimeStatus::Completed,
                 RuntimeStatus::Canceled,
                 RuntimeStatus::Failed,
@@ -111,7 +106,7 @@ final class OrchestrationClient implements OrchestrationClientInterface
 
     public function getStatus(OrchestrationInstance $instance): Status
     {
-        return $this->source->get(StateId::fromInstance($instance), OrchestrationHistory::class)->status ?? new Status(
+        return $this->projector->getState(StateId::fromInstance($instance))->status ?? new Status(
             new \DateTimeImmutable(),
             '',
             [],

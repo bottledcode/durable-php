@@ -1,7 +1,6 @@
 <?php
-
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -22,19 +21,16 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Abstractions\Sources;
+namespace Bottledcode\DurablePhp\Abstractions;
 
-use Closure;
+use Pheanstalk\Contract\JobIdInterface;
+use Pheanstalk\Values\Job;
 
-final class Lock
+interface EventHandlerInterface
 {
-    public function __construct(
-        private readonly Closure $unlock
-    ) {
-    }
+    public function subscribe(QueueType $type): void;
 
-    public function unlock(): void
-    {
-        ($this->unlock)();
-    }
+    public function getSingleEvent(): Job|null;
+
+    public function ack(JobIdInterface $job): void;
 }

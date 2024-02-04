@@ -27,6 +27,7 @@ use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
+use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 
@@ -66,5 +67,10 @@ class ApcuProjector implements ProjectorInterface
     public function chain(ProjectorInterface $next): void
     {
         $this->next = $next;
+    }
+
+    public function watch(StateId $key, RuntimeStatus ...$for): void
+    {
+        $this->next?->watch($key, ...$for);
     }
 }
