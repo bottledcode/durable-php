@@ -74,10 +74,12 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
 
     private function getQueueForEvent(Event $event): TubeName
     {
-        static $tubes = [
-            'entity' => new TubeName('entities'),
-            'activity' => new TubeName('activities'),
-            'orchestration' => new TubeName('orchestrations'),
+        static $tubes = null;
+
+        $tubes ??= [
+            'entity' => new TubeName("{$this->namespace}_entities"),
+            'activity' => new TubeName("{$this->namespace}_activities"),
+            'orchestration' => new TubeName("{$this->namespace}_orchestrations"),
         ];
 
         while ($event instanceof HasInnerEventInterface) {
