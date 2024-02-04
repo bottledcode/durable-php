@@ -3,8 +3,7 @@
 
 require_once $GLOBALS['_composer_autoload_path'] ?? __DIR__ . '/../vendor/autoload.php';
 
-$version =
-    file_exists(__DIR__ . '/../VERSION') ? file_get_contents(__DIR__ . '/../VERSION') : `git rev-parse --short HEAD`;
+$version = 'v2.0.0';
 
 $app = new \Ahc\Cli\Application("durable-php", $version);
 
