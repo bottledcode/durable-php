@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\SequenceField;
+use Ramsey\Uuid\Uuid;
 
 class WithLock extends Event implements HasInnerEventInterface
 {
@@ -42,7 +43,7 @@ class WithLock extends Event implements HasInnerEventInterface
         public array $participants,
         public Event $innerEvent,
     ) {
-        parent::__construct($eventId);
+        parent::__construct($this->innerEvent ?: Uuid::uuid7());
     }
 
     public static function onEntity(StateId $owner, Event $innerEvent, StateId ...$targets): self
@@ -57,7 +58,6 @@ class WithLock extends Event implements HasInnerEventInterface
 
     public function getInnerEvent(): Event
     {
-        $this->innerEvent->eventId = $this->eventId;
         return $this->innerEvent;
     }
 }

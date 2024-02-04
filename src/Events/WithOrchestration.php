@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Ramsey\Uuid\Uuid;
 
 class WithOrchestration extends Event implements HasInnerEventInterface, StateTargetInterface
 {
@@ -33,7 +34,7 @@ class WithOrchestration extends Event implements HasInnerEventInterface, StateTa
         public StateId $target,
         private readonly Event $innerEvent
     ) {
-        parent::__construct($eventId);
+        parent::__construct($this->innerEvent->eventId ?: Uuid::uuid7());
     }
 
     public static function forInstance(StateId $instance, Event $innerEvent): Event
@@ -43,7 +44,6 @@ class WithOrchestration extends Event implements HasInnerEventInterface, StateTa
 
     public function getInnerEvent(): Event
     {
-        $this->innerEvent->eventId = $this->eventId;
         return $this->innerEvent;
     }
 

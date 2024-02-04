@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,6 +24,8 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Ramsey\Uuid\Uuid;
+
 class ScheduleTask extends Event
 {
     public function __construct(
@@ -37,12 +39,12 @@ class ScheduleTask extends Event
 
     public static function fromOrchestrationContext(array $data): self
     {
-        return new self('', $data['name'], input: $data['input']);
+        return new self(Uuid::uuid7(), $data['name'], input: $data['input']);
     }
 
     public static function forName(string $name, array $data): self
     {
-        return new self('', $name, input: $data);
+        return new self(Uuid::uuid7(), $name, input: $data);
     }
 
     public function __toString(): string

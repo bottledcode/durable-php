@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Ramsey\Uuid\Uuid;
 
 class StartOrchestration extends Event
 {
@@ -36,7 +37,7 @@ class StartOrchestration extends Event
 
     public static function forInstance(OrchestrationInstance $instance): Event
     {
-        return new WithOrchestration('', StateId::fromInstance($instance), new StartOrchestration(''));
+        return new WithOrchestration(Uuid::uuid7(), StateId::fromInstance($instance), new StartOrchestration(''));
     }
 
     public function __toString(): string

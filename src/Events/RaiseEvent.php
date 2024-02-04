@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,6 +24,8 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Ramsey\Uuid\Uuid;
+
 class RaiseEvent extends Event
 {
     public function __construct(string $eventId, public string $eventName, public array $eventData)
@@ -33,27 +35,27 @@ class RaiseEvent extends Event
 
     public static function forOperation(string $operation, array $input): static
     {
-        return new static('', '__signal', ['input' => $input, 'operation' => $operation]);
+        return new static(Uuid::uuid7(), '__signal', ['input' => $input, 'operation' => $operation]);
     }
 
     public static function forLock(string $owner): static
     {
-        return new static('', '__lock', ['owner' => $owner]);
+        return new static(Uuid::uuid7(), '__lock', ['owner' => $owner]);
     }
 
     public static function forLockNotification(string $owner): static
     {
-        return new static('', '__lock_notification', ['owner' => $owner]);
+        return new static(Uuid::uuid7(), '__lock_notification', ['owner' => $owner]);
     }
 
     public static function forUnlock(string $name, ?string $owner, ?string $target): static
     {
-        return new static('', '__unlock', ['name' => $name, 'owner' => $owner, 'target' => $target]);
+        return new static(Uuid::uuid7(), '__unlock', ['name' => $name, 'owner' => $owner, 'target' => $target]);
     }
 
     public static function forTimer(string $identity): static
     {
-        return new static('', $identity, []);
+        return new static(Uuid::uuid7(), $identity, []);
     }
 
     public function __toString(): string
