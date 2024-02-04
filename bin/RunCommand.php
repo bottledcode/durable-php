@@ -201,7 +201,7 @@ class RunCommand extends Command
             $this->io()->info("Acknowledge")->eol();
             $this->beanstalkClient->ack($bEvent);
 
-            $this->io()->info("Firing events")->eol();
+            $this->io()->info("Firing " . count($result) . " events")->eol();
             // dispatch events
             foreach ($result as $event) {
                 $this->beanstalkClient->fire($event);
