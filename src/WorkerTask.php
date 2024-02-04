@@ -113,6 +113,7 @@ class WorkerTask implements Task
 
     public function getState(string $target): ApplyStateInterface&StateInterface
     {
+        $this->writer->comment("Taking lock for $target", true);
         $result = $this->semaphore->wait($target, true);
         if (!$result) {
             throw new \LogicException('unable to get lock on state, manual intervention may be required');
@@ -128,7 +129,7 @@ class WorkerTask implements Task
 
     public function fire(Event $event): void
     {
-        $this->writer->comment("Batching: $event");
+        $this->writer->comment("Batching: $event", true);
         if (empty($event->eventId)) {
             $event->eventId = Uuid::uuid7();
         }
@@ -137,6 +138,7 @@ class WorkerTask implements Task
 
     private function updateState(ApplyStateInterface&StateInterface $state): void
     {
+        $this->writer->comment('projecting state', true);
         $this->projector->projectState($id = StateId::fromState($state), $state);
         $this->semaphore->signal($id->id);
     }
