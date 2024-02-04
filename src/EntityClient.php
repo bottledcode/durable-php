@@ -38,6 +38,7 @@ class EntityClient implements EntityClientInterface
 {
     public function __construct(private SpyProxy $spyProxy, private ProjectorInterface $projector, private EventQueueInterface $queue)
     {
+        $this->projector->connect();
     }
 
     public function cleanEntityStorage(): void
