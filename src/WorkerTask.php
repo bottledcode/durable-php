@@ -133,7 +133,7 @@ class WorkerTask implements Task
         $this->semaphore->signal($id->id);
     }
 
-    private function __destruct()
+    public function __destruct()
     {
         $this->semaphore->signalAll();
     }
