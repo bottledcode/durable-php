@@ -48,8 +48,6 @@ use Pheanstalk\Values\TubeName;
 use Revolt\EventLoop;
 use Throwable;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
 class RunCommand extends Command
 {
     use PartitionCalculator;
