@@ -96,39 +96,38 @@ class RunCommand extends Command
         $this->namespace = $namespace;
         $this->workerTimeout = $executionTimeout;
         $this->bootstrap = $bootstrap;
-        $writer = $this->io()->writer();
-        $writer->write('Connecting to beanstalkd...');
+        $this->io()->comment('Connecting to beanstalkd... ');
         $this->beanstalkConnectionParams = [$host, $port] = explode(':', $beanstalk);
 
         $this->configureBeanstalk($host, $port);
         assert($this->beanstalkClient !== null);
 
-        $writer->green('connected', true);
+        $this->io()->ok("Connected to beanstalkd", true);
 
         $projectors = explode('->', $projector);
 
-        $writer->write("Configuring projectors and semaphore providers")->eol();
+        $this->io()->comment("Configuring projectors and semaphore providers", true);
 
         $this->providers = $projectors;
 
         $this->configureProviders($projectors);
 
         if (str_contains($monitor, 'activities')) {
-            $writer->yellow("Subscribing to activity feed...")->eol();
+            $this->io()->comment("Subscribing to activity feed...")->eol();
             $this->beanstalkClient->subscribe(QueueType::Activities);
         }
 
         if (str_contains($monitor, 'entities')) {
-            $writer->yellow("Subscribing to entities feed...")->eol();
+            $this->io()->comment("Subscribing to entities feed...")->eol();
             $this->beanstalkClient->subscribe(QueueType::Entities);
         }
 
         if (str_contains($monitor, 'orchestrations')) {
-            $writer->yellow("Subscribing to orchestration feed...")->eol();
+            $this->io()->comment("Subscribing to orchestration feed...")->eol();
             $this->beanstalkClient->subscribe(QueueType::Orchestrations);
         }
 
-        $writer->yellow("starting worker pool with $maxWorkers workers...")->eol();
+        $this->io()->info("starting worker pool with $maxWorkers workers...")->eol();
 
         $factory = new ContextWorkerFactory($bootstrap, new LoggingContextFactory(new DefaultContextFactory()));
         $this->workerPool = new ContextWorkerPool($maxWorkers, $factory);
@@ -153,7 +152,7 @@ class RunCommand extends Command
             }
         });
 
-        $writer->blue("Starting processing of events")->eol();
+        $this->io()->comment("Starting processing of events")->eol();
 
         EventLoop::run();
 
@@ -168,11 +167,11 @@ class RunCommand extends Command
     private function exit(string|Throwable $reason = "exit")
     {
         if ($this->namespace && $this->partition >= 0) {
-            $this->writer()->red("releasing locks due to $reason")->eol();
+            $this->io()->error("releasing locks due to $reason")->eol();
 
             EventLoop::queue(function () {
                 $this->semaphore->signalAll();
-                $this->writer()->green("Successfully released locks")->eol();
+                $this->io()->ok("Successfully released locks")->eol();
                 exit(1);
             });
 
@@ -188,7 +187,7 @@ class RunCommand extends Command
 
     private function handleEvent(Event $event, JobIdInterface $bEvent): void
     {
-        $this->io()->blue("Sending $event to worker")->eol();
+        $this->io()->info("Sending $event to worker")->eol();
         $task = new WorkerTask($this->bootstrap, $event, $this->providers);
         $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
         $execution->getFuture()->map($this->handleTaskResult($event, $bEvent));
