@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,7 +25,6 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
@@ -34,13 +33,12 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\Serde\Attributes\Field;
 
 class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
 
-    public function __construct(private StateId $id, #[Field(exclude: true)] protected Config $config)
+    public function __construct(private StateId $id)
     {
         $this->activityId = $id->toActivityId();
     }

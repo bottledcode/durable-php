@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -47,7 +47,7 @@ class EntityContext implements EntityContextInterface
     public function __construct(
         private readonly EntityId $id, private readonly string $operation, private readonly mixed $input,
         private mixed $state, private readonly EntityHistory $history,
-        private readonly EventDispatcherTask $eventDispatcher, private readonly array $caller,
+        private readonly WorkerTask $eventDispatcher, private readonly array $caller,
         private readonly string $requestingId,
         private readonly SpyProxy $spyProxy,
     ) {

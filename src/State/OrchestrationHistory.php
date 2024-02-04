@@ -25,7 +25,6 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
@@ -77,7 +76,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(public readonly StateId $id, #[Field(exclude: true)] protected Config $config)
+    public function __construct(public readonly StateId $id)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();

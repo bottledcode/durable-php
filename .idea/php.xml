@@ -119,6 +119,8 @@
       <path value="$PROJECT_DIR$/vendor/mockery/mockery" />
       <path value="$PROJECT_DIR$/vendor/psr/http-factory" />
       <path value="$PROJECT_DIR$/vendor/carbonphp/carbon-doctrine-types" />
+      <path value="$PROJECT_DIR$/vendor/adhocore/cli" />
+      <path value="$PROJECT_DIR$/vendor/pda/pheanstalk" />
     </include_path>
   </component>
   <component name="PhpInterpreters">

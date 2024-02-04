@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,15 +25,15 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\ClassNameTypeMap;
+use Psr\Container\ContainerInterface;
 
 #[ClassNameTypeMap('_state_type')]
 interface StateInterface
 {
-    public function __construct(StateId $id, Config $config);
+    public function __construct(StateId $id);
 
     public function hasAppliedEvent(Event $event): bool;
 
@@ -44,4 +44,6 @@ interface StateInterface
     public function onComplete(Source $source): void;
 
     public function getStatus(): Status;
+
+    public function setContainer(ContainerInterface $container): void;
 }

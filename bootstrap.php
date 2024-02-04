@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,27 +21,16 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Abstractions\Sources;
+// example bootstrap file
 
-use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\StateTargetInterface;
-
-trait PartitionCalculator
-{
-    public function calculateDestinationPartitionFor(Event $event, bool $local, int $numberPartitions): int|null
+return new class implements \Psr\Container\ContainerInterface {
+    public function get(string $id)
     {
-        while ($event instanceof HasInnerEventInterface) {
-            if ($event instanceof StateTargetInterface) {
-                $id = $event->getTarget();
-                $partition = $id->getPartitionKey($numberPartitions);
-                if ($partition !== null) {
-                    return $partition;
-                }
-            }
-            $event = $event->getInnerEvent();
-        }
-
-        return $local ? $this->config->currentPartition : null;
+        return new $id();
     }
-}
+
+    public function has(string $id): bool
+    {
+        return true;
+    }
+};

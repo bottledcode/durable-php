@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,7 +25,6 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\EntityContextInterface;
 use Bottledcode\DurablePhp\Events\AwaitResult;
@@ -40,7 +39,6 @@ use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\Serde\Attributes\Field;
 use Generator;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -56,7 +54,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, #[Field(exclude: true)] protected Config $config)
+    public function __construct(public StateId $id)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -153,12 +151,7 @@ class EntityHistory extends AbstractHistory
         $now = MonotonicClock::current()->now();
         $this->status = new Status($now, '', [], $this->id, $now, [], RuntimeStatus::Running);
 
-        if ($this->config->factory) {
-            $this->state = ($this->config->factory)($this->name);
-        } elseif (class_exists($this->name)) {
-            $reflection = new ReflectionClass($this->name);
-            $this->state = $reflection->newInstanceWithoutConstructor();
-        }
+        $this->state = $this->container->get($this->name);
     }
 
     private function execute(Event $original, string $operation, array $input): Generator
