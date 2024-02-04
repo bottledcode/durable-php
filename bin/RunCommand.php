@@ -198,12 +198,12 @@ class RunCommand extends Command
     {
         return function (array $result) use ($originalEvent, $bEvent) {
             // mark event as successful
-            $this->io()->info("Acknowledge", ['bId' => $bEvent->getId()])->eol();
+            $this->io()->info("Acknowledge")->eol();
             $this->beanstalkClient->ack($bEvent);
 
+            $this->io()->info("Firing events")->eol();
             // dispatch events
             foreach ($result as $event) {
-                $this->io()->info("Firing event", compact('event'))->eol();
                 $this->beanstalkClient->fire($event);
             }
         };
