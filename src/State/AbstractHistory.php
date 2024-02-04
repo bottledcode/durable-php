@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,7 +24,6 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
@@ -37,15 +36,19 @@ use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Crell\Serde\Attributes\Field;
+use Psr\Container\ContainerInterface;
 
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
     public Status|null $status = null;
-    protected Config $config;
 
-    public function setConfig(Config $config): void
+    #[Field(exclude: true)]
+    protected ContainerInterface $container;
+
+    public function setContainer(ContainerInterface $container): void
     {
-        $this->config = $config;
+        $this->container = $container;
     }
 
     public function applyAwaitResult(AwaitResult $event, Event $original): \Generator

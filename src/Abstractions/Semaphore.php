@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,27 +21,27 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Abstractions\Sources;
+namespace Bottledcode\DurablePhp\Abstractions;
 
-use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\StateTargetInterface;
-
-trait PartitionCalculator
+interface Semaphore
 {
-    public function calculateDestinationPartitionFor(Event $event, bool $local, int $numberPartitions): int|null
-    {
-        while ($event instanceof HasInnerEventInterface) {
-            if ($event instanceof StateTargetInterface) {
-                $id = $event->getTarget();
-                $partition = $id->getPartitionKey($numberPartitions);
-                if ($partition !== null) {
-                    return $partition;
-                }
-            }
-            $event = $event->getInnerEvent();
-        }
+    /**
+     * Attempts to take possession of the semaphore. Should not block.
+     *
+     * @param string $key The key to wait on
+     * @return bool true if took possession, false if not
+     */
+    public function wait(string $key, bool $block = false): bool;
 
-        return $local ? $this->config->currentPartition : null;
-    }
+    /**
+     * Relinquishes possession of the semaphore
+     *
+     * @param string $key The key to signal
+     * @return void
+     */
+    public function signal(string $key): void;
+
+    public function signalAll(): void;
+
+    public function connect(): void;
 }

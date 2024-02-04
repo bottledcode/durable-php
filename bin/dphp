@@ -1,0 +1,59 @@
+#!/bin/env php
+<?php
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+$version =
+    file_exists(__DIR__ . '/../VERSION') ? file_get_contents(__DIR__ . '/../VERSION') : `git rev-parse --short HEAD`;
+
+$app = new \Ahc\Cli\Application("durable-php", $version);
+
+$app->command(
+    "listen", "Attempt to listen to a queue and process messages, optionally forcing a specific class handler"
+)
+    ->arguments("<queue> [handler]")
+    ->action(function (string $queue, string|null $handler) use ($app) {
+        $app->io()?->bold("Listening on ")->write($queue)->bold(" with ")->write($handler ?? "default")->eol();
+    })->tap();
+
+$app->command("hunt", "Hunt for queues to listen to and try listening to them")
+    ->option("--bootstrap", "A file to load before execution")
+    ->option("--prefix", "A prefix to filter by")
+    ->option("--beanstalk", "host:port of a beanstalk server to connect to")
+    ->action(function (string|null $prefix, string|null $bootstrap, string|null $beanstalk) use ($app) {
+        $writer = $app->io()?->writer();
+        $writer->write("Connecting to beanstalkd...");
+
+        $host = $beanstalk ?? 'localhost:11300';
+        [$host, $port] = explode(':', $host);
+
+        $prefix ??= 'dphp';
+
+        $b = \Pheanstalk\Pheanstalk::create($host, $port);
+        $writer->green("connected", true);
+
+        $tubes = $b->listTubes();
+        $writer->write("Found " . number_format(count($tubes->getIterator())) . " potential queues")->eol();
+
+        foreach ($tubes->getIterator() as $tube) {
+            if (!str_starts_with($tube->value, $prefix)) {
+                $writer->write("Skipping queue due to not matching prefix: " . $tube->value)->eol();
+                continue;
+            }
+
+            $stats = $b->statsTube($tube);
+            if ($stats->currentWatching === 0) {
+                $writer->write("Nobody watching " . $tube . ", starting watcher");
+                // todo: start listener
+            }
+        }
+    })
+    ->tap();
+
+require_once __DIR__ . '/RunCommand.php';
+
+$app->add(new \Bottledcode\RunCommand());
+
+$app->defaultCommand('run');
+
+$app->handle($argv);
