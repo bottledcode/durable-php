@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,27 +21,13 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Abstractions\Sources;
+namespace Bottledcode\DurablePhp\Abstractions;
 
 use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
-use Bottledcode\DurablePhp\Events\StateTargetInterface;
 
-trait PartitionCalculator
+interface EventQueueInterface
 {
-    public function calculateDestinationPartitionFor(Event $event, bool $local, int $numberPartitions): int|null
-    {
-        while ($event instanceof HasInnerEventInterface) {
-            if ($event instanceof StateTargetInterface) {
-                $id = $event->getTarget();
-                $partition = $id->getPartitionKey($numberPartitions);
-                if ($partition !== null) {
-                    return $partition;
-                }
-            }
-            $event = $event->getInnerEvent();
-        }
+    public function fire(Event $event): void;
 
-        return $local ? $this->config->currentPartition : null;
-    }
+    public function reconnect(): void;
 }

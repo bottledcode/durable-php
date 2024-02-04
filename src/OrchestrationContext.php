@@ -61,7 +61,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function __construct(
         private readonly OrchestrationInstance $id,
         private readonly OrchestrationHistory $history,
-        private readonly EventDispatcherTask $taskController,
+        private readonly WorkerTask $taskController,
         private readonly OrchestratorProxy $proxyGenerator,
         private readonly SpyProxy $spyProxy,
     ) {

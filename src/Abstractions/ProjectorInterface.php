@@ -27,6 +27,7 @@ use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
+use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\StateInterface;
 
 interface ProjectorInterface
@@ -49,4 +50,6 @@ interface ProjectorInterface
     public function getState(StateId $key): EntityHistory|OrchestrationHistory|ActivityHistory|null;
 
     public function chain(ProjectorInterface $next): void;
+
+    public function watch(StateId $key, RuntimeStatus ...$for): void;
 }

@@ -1,7 +1,6 @@
 <?php
-
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -22,17 +21,11 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Config;
+namespace Bottledcode\DurablePhp\Abstractions;
 
-readonly class RethinkDbConfig
+enum QueueType: string
 {
-    public function __construct(
-        public string $host = 'localhost',
-        public int $port = 28015,
-        public string|null $username = null,
-        public string|null $password = null,
-        public string $database = 'durablephp',
-        public int $changefeedBufferSize = 50000,
-    ) {
-    }
+    case Activities = 'activities';
+    case Entities = 'entities';
+    case Orchestrations = 'orchestrations';
 }

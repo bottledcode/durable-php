@@ -24,7 +24,6 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
@@ -70,11 +69,7 @@ class ActivityHistory extends AbstractHistory
         }
 
         try {
-            if ($this->config->factory) {
-                $task = ($this->config->factory)($task);
-            } elseif (class_exists($task)) {
-                $task = new $task();
-            }
+            $task = $this->container->get($task);
             $result = $task(...($event->input ?? []));
             $now = MonotonicClock::current()->now();
             $this->status = new Status(
@@ -122,10 +117,6 @@ class ActivityHistory extends AbstractHistory
     }
 
     public function ackedEvent(Event $event): void
-    {
-    }
-
-    public function onComplete(Source $source): void
     {
     }
 }

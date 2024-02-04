@@ -157,10 +157,9 @@ class OrchestrationHistory extends AbstractHistory
             // we should handle this more gracefully...
         }
 
-        $this->constructed ??= ($this->config->factory ? ($this->config->factory)($this->instance->instanceId) : null)
-            ?? $class->newInstanceWithoutConstructor();
-        $proxyGenerator = ($this->config->factory ? ($this->config->factory)(OrchestratorProxy::class) : new OrchestratorProxy());
-        $spyGenerator = ($this->config->factory ? ($this->config->factory)(SpyProxy::class) : new SpyProxy());
+        $this->constructed = $this->container->get($this->instance->instanceId);
+        $proxyGenerator = $this->container->get(OrchestratorProxy::class);
+        $spyGenerator = $this->container->get(SpyProxy::class);
         try {
             $taskScheduler = null;
             yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
@@ -305,14 +304,5 @@ class OrchestrationHistory extends AbstractHistory
     public function ackedEvent(Event $event): void
     {
         unset($this->history[$event->eventId]);
-    }
-
-    public function onComplete(Source $source): void
-    {
-        foreach ($this->locks as $entity => $time) {
-            //$howLong = time() - $time;
-            //Logger::log("Releasing lock on $entity after $howLong seconds");
-            // todo: release locks...
-        }
     }
 }

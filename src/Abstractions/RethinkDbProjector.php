@@ -27,6 +27,7 @@ use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
+use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Exception;
@@ -36,6 +37,7 @@ use r\Options\ChangesOptions;
 use r\Options\Durability;
 use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
+use r\ValuedQuery\RVar;
 
 use function r\connectAsync;
 use function r\dbCreate;
@@ -219,5 +221,17 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
 
         table('locks')->get($key)->delete()->run($this->conn);
         unset($this->semaphores[$key]);
+    }
+
+    public function watch(StateId $key, RuntimeStatus ...$for): void
+    {
+        $result = table($this->getTable($key))->get($key)->filter(
+            fn(RVar $row) => (new \r\Datum\ArrayDatum(array_map(fn(RuntimeStatus $s) => $s->name, $for)))->contains(
+                $row('data')('status')('runtimeStatus')
+            )
+        )->changes()->run($this->conn);
+        foreach ($result as $r) {
+            return;
+        }
     }
 }

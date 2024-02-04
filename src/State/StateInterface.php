@@ -24,7 +24,6 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\ClassNameTypeMap;
@@ -40,8 +39,6 @@ interface StateInterface
     public function resetState(): void;
 
     public function ackedEvent(Event $event): void;
-
-    public function onComplete(Source $source): void;
 
     public function getStatus(): Status;
 
