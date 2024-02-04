@@ -69,7 +69,7 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
     public function fire(Event $event): void
     {
         $this->beanstalkClient->useTube($this->getQueueForEvent($event));
-        $this->beanstalkClient->put(json_encode(Serializer::serialize($event)), 100, $this->getDelayForEvent($event));
+        $this->beanstalkClient->put(json_encode(Serializer::serialize($event)), 100, $this->getDelayForEvent($event), timeToRelease: 120);
     }
 
     private function getQueueForEvent(Event $event): TubeName
