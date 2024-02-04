@@ -101,6 +101,8 @@ class WorkerTask implements Task
             $state->ackedEvent($originalEvent);
         }
 
+        $this->semaphore->signalAll();
+
         return $this->batch;
     }
 
@@ -131,10 +133,5 @@ class WorkerTask implements Task
     {
         $this->projector->projectState($id = StateId::fromState($state), $state);
         $this->semaphore->signal($id->id);
-    }
-
-    public function __destruct()
-    {
-        $this->semaphore->signalAll();
     }
 }
