@@ -24,8 +24,6 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\Source;
-use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
@@ -44,6 +42,7 @@ use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\WorkerTask;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
 
@@ -162,7 +161,7 @@ class OrchestrationHistory extends AbstractHistory
         $spyGenerator = $this->container->get(SpyProxy::class);
         try {
             $taskScheduler = null;
-            yield static function (EventDispatcherTask $task) use (&$taskScheduler) {
+            yield static function (WorkerTask $task) use (&$taskScheduler) {
                 $taskScheduler = $task;
             };
             $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator);
