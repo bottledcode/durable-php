@@ -18,6 +18,9 @@
   "scripts": {
     "test": "pest"
   },
+  "bin": [
+    "bin/dphp"
+  ],
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
@@ -34,10 +37,6 @@
     "ramsey/uuid": "^4.7.5",
     "withinboredom/time": "^2.1"
   },
-  "suggest": {
-    "ext-redis": "Required for Redis Streams",
-    "ext-igbinary": "Use a better serializer"
-  },
   "type": "library",
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
@@ -48,8 +47,7 @@
   "config": {
     "allow-plugins": {
       "dealerdirect/phpcodesniffer-composer-installer": true,
-      "pestphp/pest-plugin": true,
-      "olvlvl/composer-attribute-collector": true
+      "pestphp/pest-plugin": true
     }
   }
 }
