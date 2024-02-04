@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp\Events;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Crell\fp\Evolvable;
 use Crell\Serde\Attributes\ClassNameTypeMap;
+use Ramsey\Uuid\Uuid;
 
 #[ClassNameTypeMap(key: 'eventType')]
 abstract class Event implements \Stringable
@@ -37,6 +38,7 @@ abstract class Event implements \Stringable
 
     public function __construct(public string $eventId)
     {
+        $this->eventId = $this->eventId ?: Uuid::uuid7();
         $this->timestamp = MonotonicClock::current()->now();
     }
 

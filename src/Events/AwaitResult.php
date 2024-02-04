@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Ramsey\Uuid\Uuid;
 
 class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterface
 {
@@ -35,12 +36,11 @@ class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterf
 
     public static function forEvent(StateId $replyTo, Event $innerEvent): Event
     {
-        return new AwaitResult('', $replyTo, $innerEvent);
+        return new AwaitResult($innerEvent->eventId ?: Uuid::uuid7(), $replyTo, $innerEvent);
     }
 
     public function getInnerEvent(): Event
     {
-        $this->innerEvent->eventId = $this->eventId;
         return $this->innerEvent;
     }
 

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,6 +24,8 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Ramsey\Uuid\Uuid;
+
 class TaskFailed extends Event
 {
     public function __construct(
@@ -42,7 +44,7 @@ class TaskFailed extends Event
         string $details = null,
         string $previous = null
     ): self {
-        return new self('', $scheduledId, $reason, $details, $previous);
+        return new self(Uuid::uuid7(), $scheduledId, $reason, $details, $previous);
     }
 
     public function __toString(): string

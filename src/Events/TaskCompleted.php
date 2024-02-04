@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Serializer;
+use Ramsey\Uuid\Uuid;
 
 class TaskCompleted extends Event
 {
@@ -39,7 +40,7 @@ class TaskCompleted extends Event
 
     public static function forId(string $scheduledId, mixed $result = null): self
     {
-        return new self('', $scheduledId, get_debug_type($result), $result ? Serializer::serialize($result) : null);
+        return new self(Uuid::uuid7(), $scheduledId, get_debug_type($result), $result ? Serializer::serialize($result) : null);
     }
 
     public function __toString(): string

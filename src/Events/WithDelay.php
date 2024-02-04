@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,11 +24,13 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Ramsey\Uuid\Uuid;
+
 class WithDelay extends Event implements HasInnerEventInterface
 {
     public function __construct(string $eventId, public \DateTimeImmutable $fireAt, public Event $innerEvent)
     {
-        parent::__construct($eventId);
+        parent::__construct($this->innerEvent ?: Uuid::uuid7());
     }
 
     public static function forEvent(\DateTimeImmutable $fireAt, Event $innerEvent): static
