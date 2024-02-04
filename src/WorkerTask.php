@@ -127,20 +127,24 @@ class WorkerTask implements Task
         return $currentState;
     }
 
-    public function fire(Event $event): string
+    public function fire(Event ...$events): array
     {
-        $this->writer->comment("Batching: $event", true);
-        $parent = $event;
-        if (empty($event->eventId)) {
-            $id = Uuid::uuid7();
-            while($event instanceof HasInnerEventInterface) {
-                $event->eventId = $id;
-                $event = $event->getInnerEvent();
+        $ids = [];
+        foreach ($events as $event) {
+            $this->writer->comment("Batching: $event", true);
+            $parent = $event;
+            if (empty($event->eventId)) {
+                $id = Uuid::uuid7();
+                while ($event instanceof HasInnerEventInterface) {
+                    $event->eventId = $id;
+                    $event = $event->getInnerEvent();
+                }
             }
+            $this->batch[] = $parent;
+            $ids[] = $parent->eventId;
         }
-        $this->batch[] = $parent;
 
-        return $parent->eventId;
+        return $ids;
     }
 
     private function updateState(ApplyStateInterface&StateInterface $state): void
