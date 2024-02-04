@@ -127,7 +127,7 @@ class WorkerTask implements Task
         return $currentState;
     }
 
-    public function fire(Event $event): void
+    public function fire(Event $event): string
     {
         $this->writer->comment("Batching: $event", true);
         $parent = $event;
@@ -139,6 +139,8 @@ class WorkerTask implements Task
             }
         }
         $this->batch[] = $parent;
+
+        return $parent->eventId;
     }
 
     private function updateState(ApplyStateInterface&StateInterface $state): void
