@@ -46,6 +46,7 @@ final class OrchestrationClient implements OrchestrationClientInterface
 {
     public function __construct(private EventQueueInterface $queue, private ProjectorInterface $projector)
     {
+        $this->projector->connect();
     }
 
     public function purge(OrchestrationInstance $instance): void
