@@ -130,10 +130,15 @@ class WorkerTask implements Task
     public function fire(Event $event): void
     {
         $this->writer->comment("Batching: $event", true);
+        $parent = $event;
         if (empty($event->eventId)) {
-            $event->eventId = Uuid::uuid7();
+            $id = Uuid::uuid7();
+            while($event instanceof HasInnerEventInterface) {
+                $event->eventId = $id;
+                $event = $event->getInnerEvent();
+            }
         }
-        $this->batch[] = $event;
+        $this->batch[] = $parent;
     }
 
     private function updateState(ApplyStateInterface&StateInterface $state): void
