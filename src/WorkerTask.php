@@ -23,6 +23,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Ahc\Cli\Output\Writer;
 use Amp\Cancellation;
 use Amp\Parallel\Worker\Task;
 use Amp\Sync\Channel;
@@ -51,6 +52,8 @@ class WorkerTask implements Task
 
     private Semaphore $semaphore;
 
+    private Writer $writer;
+
     private array $batch = [];
 
     public function __construct(private string $bootstrap, private Event $event, private array $providers)
@@ -59,6 +62,7 @@ class WorkerTask implements Task
 
     public function run(Channel $channel, Cancellation $cancellation): array
     {
+        $this->writer = new Writer();
         $this->configureProviders($this->providers);
         $this->container = include $this->bootstrap;
 
@@ -74,6 +78,7 @@ class WorkerTask implements Task
 
         foreach ($states as $state) {
             if ($state->hasAppliedEvent($this->event)) {
+                $this->writer->warn("Already applied $this->event");
                 goto finalize;
             }
 
@@ -123,6 +128,7 @@ class WorkerTask implements Task
 
     public function fire(Event $event): void
     {
+        $this->writer->comment("Batching: $event");
         if (empty($event->eventId)) {
             $event->eventId = Uuid::uuid7();
         }
