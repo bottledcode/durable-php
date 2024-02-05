@@ -36,7 +36,6 @@ use Bottledcode\DurablePhp\Abstractions\ProjectorInterface;
 use Bottledcode\DurablePhp\Abstractions\QueueType;
 use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
 use Bottledcode\DurablePhp\Abstractions\Semaphore;
-use Bottledcode\DurablePhp\Abstractions\Sources\PartitionCalculator;
 use Bottledcode\DurablePhp\Config\ProviderTrait;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\Events\Event;
@@ -78,10 +77,13 @@ class RunCommand extends Command
             ->option("--max-workers", "maximum number of workers to run", default: "32")
             ->option("--execution-timeout", "maximum amount of time allowed to run code", default: '60')
             ->option(
-                "--projector", "the projector to use", default: ApcuProjector::class . "->" . RethinkDbProjector::class
+                "--projector",
+                "the projector to use",
+                default: ApcuProjector::class . "->" . RethinkDbProjector::class
             )
             ->option(
-                "--monitor", "what queues to monitor for more fine-grained scaling",
+                "--monitor",
+                "what queues to monitor for more fine-grained scaling",
                 default: "activities,entities,orchestrations"
             )
             ->onExit($this->exit(...));
@@ -90,8 +92,13 @@ class RunCommand extends Command
     }
 
     public function execute(
-        string $bootstrap, string $namespace, string $beanstalk, string $projector, int $maxWorkers,
-        int $executionTimeout, string $monitor
+        string $bootstrap,
+        string $namespace,
+        string $beanstalk,
+        string $projector,
+        int $maxWorkers,
+        int $executionTimeout,
+        string $monitor
     ): int {
         $this->namespace = $namespace;
         $this->workerTimeout = $executionTimeout;

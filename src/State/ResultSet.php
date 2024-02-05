@@ -32,6 +32,5 @@ class ResultSet
         #[DictionaryField(arrayType: Event::class)]
         public array $match = [],
         public array $order = []
-    ) {
-    }
+    ) {}
 }

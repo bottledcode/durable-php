@@ -16,9 +16,7 @@ namespace parallel {
          * Make an anonymous channel
          * @param int $capacity
          */
-        public function __construct(int $capacity = self::Infinite)
-        {
-        }
+        public function __construct(int $capacity = self::Infinite) {}
 
         /**
          * @param string $name
@@ -26,26 +24,20 @@ namespace parallel {
          * @return Channel
          * @throws Existence
          */
-        public static function make(string $name, int $capacity = 0): Channel
-        {
-        }
+        public static function make(string $name, int $capacity = 0): Channel {}
 
         /**
          * @param string $name
          * @return Channel
          * @throws Existence
          */
-        public static function open(string $name): Channel
-        {
-        }
+        public static function open(string $name): Channel {}
 
         /**
          * @return mixed
          * @throws Closed
          */
-        public function recv(): mixed
-        {
-        }
+        public function recv(): mixed {}
 
         /**
          * @param mixed $value
@@ -53,17 +45,13 @@ namespace parallel {
          * @throws IllegalValue
          * @throws Closed
          */
-        public function send(mixed $value): void
-        {
-        }
+        public function send(mixed $value): void {}
 
         /**
          * @return void
          * @throws Closed
          */
-        public function close(): void
-        {
-        }
+        public function close(): void {}
     }
 }
 
@@ -71,15 +59,9 @@ namespace parallel\Channel\Error {
 
     use Exception;
 
-    class Existence extends Exception
-    {
-    }
+    class Existence extends Exception {}
 
-    class Closed extends Exception
-    {
-    }
+    class Closed extends Exception {}
 
-    class IllegalValue extends Exception
-    {
-    }
+    class IllegalValue extends Exception {}
 }

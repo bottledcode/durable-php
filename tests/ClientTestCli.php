@@ -31,9 +31,9 @@ $config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
 $client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
 
 $orchestrationInstance = $client->startNew(
-	\Bottledcode\DurablePhp\HelloSequence::class,
-	['name' => 'World'],
-	\Ramsey\Uuid\Uuid::uuid7()->toString()
+    \Bottledcode\DurablePhp\HelloSequence::class,
+    ['name' => 'World'],
+    \Ramsey\Uuid\Uuid::uuid7()->toString()
 );
 $client->raiseEvent($orchestrationInstance, 'event', ['data']);
 $client->waitForCompletion($orchestrationInstance, new \Amp\TimeoutCancellation(hours(2)->inSeconds()));

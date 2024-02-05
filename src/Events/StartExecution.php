@@ -43,7 +43,9 @@ class StartExecution extends Event
     }
 
     public static function asParent(
-        array $input, array $tags, \DateTimeImmutable $at = new \DateTimeImmutable()
+        array $input,
+        array $tags,
+        \DateTimeImmutable $at = new \DateTimeImmutable()
     ): self {
         return new self(null, 0, $input, $tags, '', $at, 0, '');
     }

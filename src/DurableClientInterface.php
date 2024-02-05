@@ -24,6 +24,4 @@
 
 namespace Bottledcode\DurablePhp;
 
-interface DurableClientInterface extends OrchestrationClientInterface, EntityClientInterface
-{
-}
+interface DurableClientInterface extends OrchestrationClientInterface, EntityClientInterface {}

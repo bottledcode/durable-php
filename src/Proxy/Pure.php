@@ -27,6 +27,4 @@ namespace Bottledcode\DurablePhp\Proxy;
  * Marks a method as pure (no side effects)
  */
 #[\Attribute(\Attribute::TARGET_METHOD)]
-class Pure
-{
-}
+class Pure {}

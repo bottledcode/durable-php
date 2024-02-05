@@ -9,6 +9,5 @@ readonly class ParentInstance
         public int $taskScheduledId,
         public int $version,
         public OrchestrationInstance|null $parentInstance = null,
-    ) {
-    }
+    ) {}
 }

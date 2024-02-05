@@ -34,7 +34,8 @@ class TaskCompleted extends Event
         parent::__construct($eventId);
     }
 
-    public function getResult(): mixed {
+    public function getResult(): mixed
+    {
         return $this->result ? Serializer::deserialize($this->result, $this->type) : null;
     }
 

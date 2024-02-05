@@ -33,9 +33,9 @@ use Generator;
 class DurableClient implements DurableClientInterface
 {
     public function __construct(
-        private EntityClientInterface $entityClient, private OrchestrationClientInterface $orchestrationClient
-    ) {
-    }
+        private EntityClientInterface $entityClient,
+        private OrchestrationClientInterface $orchestrationClient
+    ) {}
 
     public function cleanEntityStorage(): void
     {

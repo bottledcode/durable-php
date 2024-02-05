@@ -112,11 +112,7 @@ class ActivityHistory extends AbstractHistory
         }
     }
 
-    public function resetState(): void
-    {
-    }
+    public function resetState(): void {}
 
-    public function ackedEvent(Event $event): void
-    {
-    }
+    public function ackedEvent(Event $event): void {}
 }

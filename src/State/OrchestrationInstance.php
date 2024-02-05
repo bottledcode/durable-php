@@ -26,9 +26,7 @@ namespace Bottledcode\DurablePhp\State;
 
 readonly class OrchestrationInstance implements \Stringable
 {
-    public function __construct(public string $instanceId, public string $executionId)
-    {
-    }
+    public function __construct(public string $instanceId, public string $executionId) {}
 
     public function __toString(): string
     {

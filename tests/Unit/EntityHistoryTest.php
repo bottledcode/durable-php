@@ -50,10 +50,8 @@ it('processes signals', function () {
         $called++;
     };
     $history = getEntityHistory(
-        new class($outerCall) extends EntityState {
-            public function __construct(public $outerCall)
-            {
-            }
+        new class ($outerCall) extends EntityState {
+            public function __construct(public $outerCall) {}
 
             public function signal()
             {
@@ -63,7 +61,8 @@ it('processes signals', function () {
     );
 
     processEvent(
-        new RaiseEvent('id', '__signal', ['operation' => 'signal', 'input' => []]), $history->applyRaiseEvent(...)
+        new RaiseEvent('id', '__signal', ['operation' => 'signal', 'input' => []]),
+        $history->applyRaiseEvent(...)
     );
     expect($called)->toBe(1);
 });
@@ -74,10 +73,8 @@ it('only processes locked events', function () {
         $called++;
     };
     $history = getEntityHistory(
-        new class($outerCall) extends EntityState {
-            public function __construct(public $outerCall)
-            {
-            }
+        new class ($outerCall) extends EntityState {
+            public function __construct(public $outerCall) {}
 
             public function signal()
             {
@@ -91,8 +88,10 @@ it('only processes locked events', function () {
 
     $lockResult = processEvent(
         AwaitResult::forEvent(
-            $owner, WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), $history->id)
-        ), $history->applyRaiseEvent(...)
+            $owner,
+            WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), $history->id)
+        ),
+        $history->applyRaiseEvent(...)
     );
     expect($lockResult)->toHaveCount(2);
 
@@ -102,14 +101,18 @@ it('only processes locked events', function () {
     );
 
     $otherResult = processEvent(
-        $waiting = AwaitResult::forEvent($other, RaiseEvent::forOperation('signal', [])), $history->applyRaiseEvent(...)
+        $waiting = AwaitResult::forEvent($other, RaiseEvent::forOperation('signal', [])),
+        $history->applyRaiseEvent(...)
     );
     expect($called)->toBe(1);
 
     $unlockResult = processEvent(
         WithLock::onEntity(
-            $owner, AwaitResult::forEvent($owner, RaiseEvent::forUnlock($owner->id, null, null)), $history->id
-        ), $history->applyRaiseEvent(...)
+            $owner,
+            AwaitResult::forEvent($owner, RaiseEvent::forUnlock($owner->id, null, null)),
+            $history->id
+        ),
+        $history->applyRaiseEvent(...)
     );
 
     expect($unlockResult)->toContain($waiting)
@@ -122,10 +125,8 @@ it('properly locks in a chain', function () {
         $called++;
     };
     $history = getEntityHistory(
-        new class($outerCall) extends EntityState {
-            public function __construct(public $outerCall)
-            {
-            }
+        new class ($outerCall) extends EntityState {
+            public function __construct(public $outerCall) {}
 
             public function signal()
             {

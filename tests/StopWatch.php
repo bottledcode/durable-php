@@ -25,32 +25,30 @@ namespace Bottledcode\DurablePhp\Tests;
 
 class StopWatch
 {
-	private int $startTime = 0;
-	private float $mag = 0;
+    private int $startTime = 0;
+    private float $mag = 0;
 
-	public function __construct(public int $time = 0)
-	{
-	}
+    public function __construct(public int $time = 0) {}
 
-	public function start(): void
-	{
-		$this->startTime = hrtime(true);
-		$this->mag = microtime(true);
-	}
+    public function start(): void
+    {
+        $this->startTime = hrtime(true);
+        $this->mag = microtime(true);
+    }
 
-	public function stop(): void
-	{
-		$this->time = hrtime(true) - $this->startTime;
-		$this->mag = microtime(true) - $this->mag;
-	}
+    public function stop(): void
+    {
+        $this->time = hrtime(true) - $this->startTime;
+        $this->mag = microtime(true) - $this->mag;
+    }
 
-	public function getSeconds(): float
-	{
-		return $this->time / 1_000_000_000;
-	}
+    public function getSeconds(): float
+    {
+        return $this->time / 1_000_000_000;
+    }
 
-	public function getTestSecs(): float
-	{
-		return $this->mag;
-	}
+    public function getTestSecs(): float
+    {
+        return $this->mag;
+    }
 }

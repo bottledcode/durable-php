@@ -27,9 +27,7 @@ use ReflectionUnionType;
 
 abstract class Generator
 {
-    public function __construct(protected string|null $cacheDir = null)
-    {
-    }
+    public function __construct(protected string|null $cacheDir = null) {}
 
     public function define(string $interface): string
     {
@@ -57,7 +55,8 @@ abstract class Generator
         return '\\' . $namespace . '\\' . $name;
     }
 
-    protected function getInterfaceNamespace(\ReflectionClass $class): string {
+    protected function getInterfaceNamespace(\ReflectionClass $class): string
+    {
         return $class->getNamespaceName();
     }
 

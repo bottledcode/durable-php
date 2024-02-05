@@ -24,6 +24,4 @@
 
 namespace Bottledcode\DurablePhp\Exceptions;
 
-class Unwind extends \Exception
-{
-}
+class Unwind extends \Exception {}

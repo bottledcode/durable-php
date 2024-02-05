@@ -35,9 +35,7 @@ readonly class EntityId implements Stringable
      * @param class-string<T> $name
      * @param string $id
      */
-    public function __construct(public string $name, public string $id)
-    {
-    }
+    public function __construct(public string $name, public string $id) {}
 
     public function __toString(): string
     {

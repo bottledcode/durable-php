@@ -26,8 +26,10 @@ namespace Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
-class HelloSequence {
-    public function __invoke(OrchestrationContextInterface $context) {
+class HelloSequence
+{
+    public function __invoke(OrchestrationContextInterface $context)
+    {
         $outputs = [
             $context->callActivity(SayHello::class, ['Tokyo']),
             $context->callActivity(SayHello::class, ['Seattle']),

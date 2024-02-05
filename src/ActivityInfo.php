@@ -34,6 +34,5 @@ class ActivityInfo
         public DateTimeInterface $issueTime,
         public int $dequeueCount,
         public string $eventId
-    ) {
-    }
+    ) {}
 }

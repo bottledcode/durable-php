@@ -34,9 +34,7 @@ class DurableFuture
     /**
      * @param DeferredFuture<T> $future
      */
-    public function __construct(public readonly DeferredFuture $future)
-    {
-    }
+    public function __construct(public readonly DeferredFuture $future) {}
 
     /**
      * @return T

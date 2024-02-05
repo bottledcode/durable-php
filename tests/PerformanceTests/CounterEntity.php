@@ -27,24 +27,24 @@ use Bottledcode\DurablePhp\EntityContextInterface;
 
 class CounterEntity
 {
-	public int $currentValue = 0;
-	public \DateTimeImmutable|null $lastUpdated = null;
-	private EntityContextInterface $context;
+    public int $currentValue = 0;
+    public \DateTimeImmutable|null $lastUpdated = null;
+    private EntityContextInterface $context;
 
-	public function add(int $amount): void
-	{
-		$this->lastUpdated = new \DateTimeImmutable();
-		$this->currentValue += $amount;
-	}
+    public function add(int $amount): void
+    {
+        $this->lastUpdated = new \DateTimeImmutable();
+        $this->currentValue += $amount;
+    }
 
-	public function reset(): void
-	{
-		$this->lastUpdated = new \DateTimeImmutable();
-		$this->currentValue = 0;
-	}
+    public function reset(): void
+    {
+        $this->lastUpdated = new \DateTimeImmutable();
+        $this->currentValue = 0;
+    }
 
-	public function get(): array
-	{
-		return ['currentValue' => $this->currentValue, 'lastUpdated' => $this->lastUpdated];
-	}
+    public function get(): array
+    {
+        return ['currentValue' => $this->currentValue, 'lastUpdated' => $this->lastUpdated];
+    }
 }

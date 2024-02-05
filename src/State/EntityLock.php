@@ -26,13 +26,9 @@ namespace Bottledcode\DurablePhp\State;
 
 class EntityLock
 {
-    public function __construct(private readonly \Closure $unlocker, private bool $locked = true)
-    {
-    }
+    public function __construct(private readonly \Closure $unlocker, private bool $locked = true) {}
 
-    public function __destruct()
-    {
-    }
+    public function __destruct() {}
 
     public function unlock(): void
     {

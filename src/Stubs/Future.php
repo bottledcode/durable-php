@@ -22,25 +22,19 @@ namespace parallel {
          * @throws Cancelled
          * @throws Error
          */
-        public function value(): mixed
-        {
-        }
+        public function value(): mixed {}
 
         /**
          * Shall indicate if the task was cancelled
          * @return bool
          */
-        public function cancelled(): bool
-        {
-        }
+        public function cancelled(): bool {}
 
         /**
          * Shall indicate if the task is completed
          * @return bool
          */
-        public function done(): bool
-        {
-        }
+        public function done(): bool {}
 
         /**
          * Shall try to cancel the task
@@ -49,32 +43,22 @@ namespace parallel {
          * @throws Killed
          * @throws Cancelled
          */
-        public function cancel(): bool
-        {
-        }
+        public function cancel(): bool {}
     }
 }
 
 namespace parallel\Future {
 
-    class Error extends \Error
-    {
-    }
+    class Error extends \Error {}
 }
 
 namespace parallel\Future\Error {
 
     use parallel\Future\Error;
 
-    class Killed extends Error
-    {
-    }
+    class Killed extends Error {}
 
-    class Cancelled extends Error
-    {
-    }
+    class Cancelled extends Error {}
 
-    class Foreign extends Error
-    {
-    }
+    class Foreign extends Error {}
 }

@@ -75,7 +75,9 @@ class EntityClient implements EntityClientInterface
         } catch (\Throwable) {
         }
         $this->signalEntity(
-            is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments
+            is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId,
+            $operationName,
+            $arguments
         );
     }
 

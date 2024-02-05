@@ -113,7 +113,7 @@ class OrchestrationHistory extends AbstractHistory
     private function finalize(Event $event): \Generator
     {
         $this->addEventToHistory($event);
-            ($this->status?->with(lastUpdated: MonotonicClock::current()->now())) ?? $this->status = new Status(
+        ($this->status?->with(lastUpdated: MonotonicClock::current()->now())) ?? $this->status = new Status(
             MonotonicClock::current()->now(),
             '',
             [],

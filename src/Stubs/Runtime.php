@@ -13,9 +13,7 @@ namespace parallel {
 
     final class Runtime
     {
-        public function __construct(string|null $bootstrap = null)
-        {
-        }
+        public function __construct(string|null $bootstrap = null) {}
 
         /**
          * @param Closure $task
@@ -27,70 +25,46 @@ namespace parallel {
          * @throws IllegalParameter
          * @throws IllegalReturn
          */
-        public function run(Closure $task, array $argv = []): Future|null
-        {
-        }
+        public function run(Closure $task, array $argv = []): Future|null {}
 
         /**
          * @return void
          * @throws Closed
          */
-        public function close(): void
-        {
-        }
+        public function close(): void {}
 
         /**
          * @return void
          * @throws Closed
          */
-        public function kill(): void
-        {
-        }
+        public function kill(): void {}
     }
 
-    function bootstrap(string $file): void
-    {
-    }
+    function bootstrap(string $file): void {}
 
-    function run(Closure $task, array $argv = []): Future|null
-    {
-    }
+    function run(Closure $task, array $argv = []): Future|null {}
 }
 
 namespace parallel\Runtime {
 
     use Exception;
 
-    class Error extends Exception
-    {
-    }
+    class Error extends Exception {}
 
-    class Bootstrap extends Error
-    {
-    }
+    class Bootstrap extends Error {}
 }
 
 namespace parallel\Runtime\Error {
 
     use parallel\Runtime\Error;
 
-    class Closed extends Error
-    {
-    }
+    class Closed extends Error {}
 
-    class IllegalFunction extends Error
-    {
-    }
+    class IllegalFunction extends Error {}
 
-    class IllegalInstruction extends Error
-    {
-    }
+    class IllegalInstruction extends Error {}
 
-    class IllegalParameter extends Error
-    {
-    }
+    class IllegalParameter extends Error {}
 
-    class IllegalReturn extends Error
-    {
-    }
+    class IllegalReturn extends Error {}
 }

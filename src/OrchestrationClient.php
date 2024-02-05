@@ -96,7 +96,8 @@ final class OrchestrationClient implements OrchestrationClientInterface
     public function waitForCompletion(OrchestrationInstance $instance, Cancellation $timeout = null): void
     {
         async(function () use ($instance) {
-            $this->projector->watch(StateId::fromInstance($instance),
+            $this->projector->watch(
+                StateId::fromInstance($instance),
                 RuntimeStatus::Completed,
                 RuntimeStatus::Canceled,
                 RuntimeStatus::Failed,

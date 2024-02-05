@@ -41,6 +41,5 @@ readonly class Status
         public \DateTimeImmutable $lastUpdated,
         public array|null $output,
         public RuntimeStatus $runtimeStatus,
-    ) {
-    }
+    ) {}
 }

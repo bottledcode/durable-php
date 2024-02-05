@@ -71,10 +71,10 @@ class HistoricalStateTracker
         #[Field(exclude: true)]
         private int $currentRead = 0,
         public int $guidCounter = 0,
-    ) {
-    }
+    ) {}
 
-    public function restartAsNew(): void {
+    public function restartAsNew(): void
+    {
         $this->resetState();
 
         $this->results = [];

@@ -38,9 +38,7 @@ use Ramsey\Uuid\UuidInterface;
 #[ClassNameTypeMap('__type')]
 readonly class StateId implements \Stringable
 {
-    public function __construct(public string $id)
-    {
-    }
+    public function __construct(public string $id) {}
 
     public static function fromState(StateInterface $state): self
     {
