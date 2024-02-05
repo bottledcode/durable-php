@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -21,15 +21,12 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
-use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\Tests\PerformanceTests\Bank\BankTransaction;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-$config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
-$client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
+$client = new \Bottledcode\DurablePhp\OrchestrationClient();
 
 $watch = new StopWatch();
 $watch->start();
@@ -43,5 +40,3 @@ $watch->stop();
 
 var_dump($client->getStatus($instance));
 var_dump($client->getStatus($instance2));
-
-Logger::log("Completed in %s seconds", number_format($watch->getSeconds(), 2));

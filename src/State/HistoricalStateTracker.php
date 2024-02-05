@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -28,7 +28,6 @@ use Bottledcode\DurablePhp\DurableFuture;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
-use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Closure;
 use Crell\Serde\Attributes\DictionaryField;
@@ -256,10 +255,8 @@ class HistoricalStateTracker
         $this->currentRead ??= 0;
         if(++$this->currentRead > $this->readHead) {
             $this->readHead = $this->currentRead;
-            Logger::always('isReading: false');
             return false;
         }
-        Logger::always('isReading: true');
         return true;
     }
 }

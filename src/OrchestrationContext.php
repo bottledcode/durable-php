@@ -48,6 +48,7 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use LogicException;
+use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\Guid\Guid;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
@@ -64,12 +65,14 @@ final class OrchestrationContext implements OrchestrationContextInterface
         private readonly WorkerTask $taskController,
         private readonly OrchestratorProxy $proxyGenerator,
         private readonly SpyProxy $spyProxy,
+        private readonly DurableLogger $durableLogger
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
     }
 
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
     {
+        $this->durableLogger->debug('Calling activity', ['name' => $name]);
         $identity = $this->newGuid();
         return $this->createFuture(
             fn() => $this->taskController->fire(
@@ -103,6 +106,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     ): DurableFuture {
         $identity ??= $this->history->historicalTaskResults->getIdentity();
         if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
+            $this->durableLogger->debug("Future requested for an unsent identity", [$identity]);
             [$eventId] = $onSent();
             $deferred = new DeferredFuture();
             $this->history->historicalTaskResults->sentEvent($identity, $eventId);
@@ -110,6 +114,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $this->history->historicalTaskResults->trackFuture($onReceived, $future);
             return $future;
         }
+
+        $this->durableLogger->debug("Future requested for a sent identity, processing future", [$identity]);
 
         $deferred = new DeferredFuture();
         $future = new DurableFuture($deferred);
@@ -128,6 +134,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function continueAsNew(array $args = []): never
     {
+        $this->durableLogger->debug('Restarting orchestration as new', ['args' => $args]);
+
         // alright, we just want to totally reset internal state and pass the new args...
         // first, release any locks we might have
         foreach ($this->history->releaseAllLocks() as $event) {
@@ -141,6 +149,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
     {
+        $this->durableLogger->debug('Creating durable timer', ['fireAt' => $fireAt]);
         $identity = sha1($fireAt->format('c'));
         return $this->createFuture(
             fn() => $this->taskController->fire(
@@ -160,6 +169,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function waitForExternalEvent(string $name): DurableFuture
     {
+        $this->durableLogger->debug('Waiting for external event', ['name' => $name]);
         $future = new DurableFuture(new DeferredFuture());
         $this->history->historicalTaskResults->trackFuture(function (Event $event) use ($name): array {
             $found = false;
@@ -181,6 +191,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function setCustomStatus(string $customStatus): void
     {
+        $this->durableLogger->debug('setting custom status', ['customStatus' => $customStatus]);
         $this->history->status = $this->history->status->with(customStatus: $customStatus);
     }
 
@@ -193,6 +204,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 return $task;
             }
         }
+
+        $this->durableLogger->debug('Waiting for any task, but no task is complete');
 
         // there is no task that is already complete, so we need to unwind the stack
         throw new Unwind();
@@ -291,6 +304,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function lockEntity(EntityId ...$entityId): EntityLock
     {
+        $this->durableLogger->debug('Locking entities', ['entityId' => $entityId]);
         if (!empty($this->history->locks ?? []) && !$this->isReplaying()) {
             throw new LogicException('Cannot lock an entity while holding locks');
         }
@@ -341,6 +355,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
         if (count($completed) >= 1) {
             return current($completed)->getResult();
         }
+
+        $this->durableLogger->debug('Waiting for a single task, but not yet complete');
+
         throw new Unwind();
     }
 
@@ -357,6 +374,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
             }
             return current($tasks);
         }
+
+        $this->durableLogger->debug('Waiting for all tasks but not yet complete');
 
         // there is no task that is already complete, so we need to unwind the stack
         throw new Unwind();
@@ -387,6 +406,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
         if ($this->isReplaying()) {
             return;
         }
+
+        $this->durableLogger->debug('Signalling entity', ['entityId' => $entityId, 'operation' => $operation]);
+
         $id = StateId::fromInstance($this->id);
 
         $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
@@ -399,6 +421,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
     {
+        $this->durableLogger->debug('Calling entity', ['entityId' => $entityId, 'operation' => $operation]);
+
         $id = StateId::fromInstance($this->id);
 
         $event = AwaitResult::forEvent(
@@ -430,54 +454,74 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return $this->history->randoms[$this->randomKey] ??= random_bytes($length);
     }
 
-    public function getReplayAwareLogger(): Logger
+    public function getReplayAwareLogger(): LoggerInterface
     {
-        return new class ($this) extends Logger {
-            private static OrchestrationContextInterface $context;
-
-            public function __construct(OrchestrationContextInterface $context)
+        return new class ($this, $this->durableLogger) extends DurableLogger {
+            public function __construct(private OrchestrationContextInterface $context, $logger)
             {
-                self::$context = $context;
+                parent::__construct($logger);
             }
 
-            public static function always(string $message, ...$vars): void
+            public function debug(\Stringable|string $message, array $context = []): void
             {
-                if(self::$context->isReplaying()) {
+                if ($this->context->isReplaying()) {
                     return;
                 }
-                parent::always($message, $vars);
+
+                parent::debug($message, $context);
             }
 
-            public static function log(string $message, ...$vars): void
+            public function critical(\Stringable|string $message, array $context = []): void
             {
-                if(self::$context->isReplaying()) {
+                if ($this->context->isReplaying()) {
                     return;
                 }
-                parent::log($message, $vars); // TODO: Change the autogenerated stub
+                parent::critical($message, $context);
             }
 
-            public static function error(string $message, ...$vars): void
+            public function warning(\Stringable|string $message, array $context = []): void
             {
-                if(self::$context->isReplaying()) {
+                if ($this->context->isReplaying()) {
                     return;
                 }
-                parent::error($message, $vars); // TODO: Change the autogenerated stub
+
+                parent::warning($message, $context);
             }
 
-            public static function event(string $message, ...$vars): void
+            public function info(\Stringable|string $message, array $context = []): void
             {
-                if(self::$context->isReplaying()) {
+                if ($this->context->isReplaying()) {
                     return;
                 }
-                parent::event($message, $vars); // TODO: Change the autogenerated stub
+
+                parent::info($message, $context);
             }
 
-            public static function reset()
+            public function alert(\Stringable|string $message, array $context = []): void
             {
-                if(self::$context->isReplaying()) {
+                if ($this->context->isReplaying()) {
                     return;
                 }
-                parent::reset(); // TODO: Change the autogenerated stub
+
+                parent::alert($message, $context);
+            }
+
+            public function emergency(\Stringable|string $message, array $context = []): void
+            {
+                if ($this->context->isReplaying()) {
+                    return;
+                }
+
+                parent::emergency($message, $context);
+            }
+
+            public function notice(\Stringable|string $message, array $context = []): void
+            {
+                if ($this->context->isReplaying()) {
+                    return;
+                }
+
+                parent::notice($message, $context);
             }
         };
     }

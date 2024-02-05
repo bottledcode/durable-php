@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -46,9 +46,6 @@
 |
 */
 
-use Bottledcode\DurablePhp\Config\Config;
-use Bottledcode\DurablePhp\Config\MemoryConfig;
-use Bottledcode\DurablePhp\EventDispatcherTask;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StartExecution;
@@ -70,6 +67,7 @@ expect()->extend('toBeOne', function () {
 expect()->extend('toHaveStatus', function (\Bottledcode\DurablePhp\State\RuntimeStatus $status) {
     /** @var \Bottledcode\DurablePhp\State\Status $otherStatus */
     $otherStatus = $this->value->getStatus();
+
     return expect($otherStatus->runtimeStatus)->toBe($status, "Expected status {$status->name} but got {$otherStatus->runtimeStatus->name}");
 });
 
@@ -107,14 +105,6 @@ function getStatusOutput(AbstractHistory $history): mixed
     return $history->getStatus()->output['value'] ?? null;
 }
 
-function getConfig(): Config
-{
-    return new Config(
-        currentPartition: 0,
-        storageConfig: new MemoryConfig()
-    );
-}
-
 function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $processor): array
 {
     static $fakeId = 100;
@@ -134,7 +124,7 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
         return $ids;
     };
 
-    $eventDispatcher = new class ($fire) extends EventDispatcherTask {
+    $eventDispatcher = new class ($fire) extends \Bottledcode\DurablePhp\WorkerTask {
         public function __construct(
             private Closure $fire
         ) {}
@@ -161,37 +151,40 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
     return $events;
 }
 
-function simpleFactory(string $key, Closure|null $store = null): object
+class SimpleContainer implements Psr\Container\ContainerInterface
 {
-    static $factory = [];
+    public function __construct(private array $objects) {}
 
-    if ($store) {
-        $factory[$key] = $store;
+    #[\Override]
+    public function get(string $id)
+    {
+
+
+        return $this->objects[$id];
     }
 
-    return $factory[$key]();
+    #[\Override]
+    public function has(string $id): bool
+    {
+        return isset($this->objects[$id]);
+    }
 
-    return new class ($key, $factory[$key] ?? null) {
-        public function __invoke(...$params)
-        {
-            return ($this->store)(...$params);
-        }
-
-        public function __construct(
-            private string $key,
-            private Closure|null $store
-        ) {}
-    };
+    public function set(string $id, $value): void
+    {
+        $this->objects[$id] = $value;
+    }
 }
 
-function getEntityHistory(EntityState|null $withState = null): EntityHistory
+function getEntityHistory(?EntityState $withState = null): EntityHistory
 {
     static $id = 0;
     $withState ??= new class () extends EntityState {};
     $entityId = new EntityId('test', $id++);
-    $history = new EntityHistory(StateId::fromEntityId($entityId), getConfig());
+    $history = new EntityHistory(StateId::fromEntityId($entityId));
     $reflector = new \ReflectionClass($history);
     $reflector->getProperty('state')->setValue($history, $withState);
+    $history->setContainer(new SimpleContainer(['test' => $withState]));
+
     return $history;
 }
 
@@ -199,19 +192,23 @@ function getOrchestration(
     string $id,
     callable $orchestration,
     array $input,
-    StartOrchestration|null &$nextEvent = null,
-    Event|null $startupEvent = null
+    ?StartOrchestration &$nextEvent = null,
+    ?Event $startupEvent = null
 ): OrchestrationHistory {
     static $instance = 0;
-    simpleFactory(\Bottledcode\DurablePhp\Proxy\OrchestratorProxy::class, fn() => new \Bottledcode\DurablePhp\Proxy\OrchestratorProxy());
-    simpleFactory($instance, fn() => $orchestration);
-    $history = new OrchestrationHistory(
-        StateId::fromInstance(new OrchestrationInstance($instance++, $id)),
-        getConfig()->with(factory: 'simpleFactory')
+    $container = new SimpleContainer(
+        [
+            \Bottledcode\DurablePhp\Proxy\OrchestratorProxy::class => new \Bottledcode\DurablePhp\Proxy\OrchestratorProxy(),
+            \Bottledcode\DurablePhp\Proxy\SpyProxy::class => new \Bottledcode\DurablePhp\Proxy\SpyProxy(),
+            $instance => $orchestration,
+        ]
     );
+    $history = new OrchestrationHistory(StateId::fromInstance(new OrchestrationInstance($instance++, $id)));
+    $history->setContainer($container);
     $startupEvent ??= StartExecution::asParent($input, []);
     $startupEvent = WithOrchestration::forInstance($history->id, $startupEvent);
     [$nextEvent] = processEvent($startupEvent, $history->applyStartExecution(...));
     expect($history)->toHaveStatus(RuntimeStatus::Pending);
+
     return $history;
 }
