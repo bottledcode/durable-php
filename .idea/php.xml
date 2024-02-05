@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="LaravelPint">
+    <laravel_pint_settings>
+      <LaravelPintConfiguration tool_path="$PROJECT_DIR$/vendor/bin/pint" />
+    </laravel_pint_settings>
+  </component>
   <component name="MessDetectorOptionsConfiguration">
     <option name="transferred" value="true" />
   </component>
@@ -48,7 +53,6 @@
       <path value="$PROJECT_DIR$/vendor/symfony/translation-contracts" />
       <path value="$PROJECT_DIR$/vendor/daverandom/libdns" />
       <path value="$PROJECT_DIR$/vendor/withinboredom/time" />
-      <path value="$PROJECT_DIR$/vendor/olvlvl/composer-attribute-collector" />
       <path value="$PROJECT_DIR$/vendor/bottledcode/php-rql" />
       <path value="$PROJECT_DIR$/vendor/crell/attributeutils" />
       <path value="$PROJECT_DIR$/vendor/crell/fp" />
@@ -57,7 +61,6 @@
       <path value="$PROJECT_DIR$/vendor/psr/log" />
       <path value="$PROJECT_DIR$/vendor/amphp/log" />
       <path value="$PROJECT_DIR$/vendor/monolog/monolog" />
-      <path value="$PROJECT_DIR$/vendor/dealerdirect/phpcodesniffer-composer-installer" />
       <path value="$PROJECT_DIR$/vendor/squizlabs/php_codesniffer" />
       <path value="$PROJECT_DIR$/vendor/amphp/file" />
       <path value="$PROJECT_DIR$/vendor/symfony/polyfill-php80" />
@@ -121,6 +124,7 @@
       <path value="$PROJECT_DIR$/vendor/carbonphp/carbon-doctrine-types" />
       <path value="$PROJECT_DIR$/vendor/adhocore/cli" />
       <path value="$PROJECT_DIR$/vendor/pda/pheanstalk" />
+      <path value="$PROJECT_DIR$/vendor/laravel/pint" />
     </include_path>
   </component>
   <component name="PhpInterpreters">
@@ -189,7 +193,7 @@
       </interpreter>
     </phpInfoCache>
   </component>
-  <component name="PhpProjectSharedConfiguration" php_language_level="8.2">
+  <component name="PhpProjectSharedConfiguration" php_language_level="8.3">
     <option name="suggestChangeDefaultLanguageLevel" value="false" />
   </component>
   <component name="PhpRuntimeConfiguration">
