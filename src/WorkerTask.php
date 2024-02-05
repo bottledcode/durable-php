@@ -23,7 +23,6 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Ahc\Cli\Output\Writer;
 use Amp\Cancellation;
 use Amp\Parallel\Worker\Task;
 use Amp\Sync\Channel;
@@ -52,7 +51,7 @@ class WorkerTask implements Task
 
     private Semaphore $semaphore;
 
-    private Writer $writer;
+    private DurableLogger $logger;
 
     private array $batch = [];
 
@@ -60,7 +59,7 @@ class WorkerTask implements Task
 
     public function run(Channel $channel, Cancellation $cancellation): array
     {
-        $this->writer = new Writer();
+        $this->logger = new DurableLogger();
         $this->configureProviders($this->providers);
         $this->container = include $this->bootstrap;
 
@@ -76,7 +75,7 @@ class WorkerTask implements Task
 
         foreach ($states as $state) {
             if ($state->hasAppliedEvent($this->event)) {
-                $this->writer->warn("Already applied $this->event");
+                $this->logger->warning("Already applied", ['event' => $this->event]);
                 goto finalize;
             }
 
@@ -92,7 +91,10 @@ class WorkerTask implements Task
                     }
                 }
             } catch (\Throwable $exception) {
-                echo "Failed to process $originalEvent: {$exception->getMessage()}\n{$exception->getTraceAsString()}";
+                $this->logger->critical(
+                    "Failed to process",
+                    ['event' => $originalEvent, 'exception' => $exception]
+                );
                 throw $exception;
             }
 
@@ -111,7 +113,7 @@ class WorkerTask implements Task
 
     public function getState(string $target): ApplyStateInterface&StateInterface
     {
-        $this->writer->comment("Taking lock for $target", true);
+        $this->logger->debug("Taking lock", ['target' => $target]);
         $result = $this->semaphore->wait($target, true);
         if (!$result) {
             throw new \LogicException('unable to get lock on state, manual intervention may be required');
@@ -129,7 +131,7 @@ class WorkerTask implements Task
     {
         $ids = [];
         foreach ($events as $event) {
-            $this->writer->comment("Batching: $event", true);
+            $this->logger->debug("Batching", ['event' => $event]);
             $parent = $event;
             if (empty($event->eventId)) {
                 $id = Uuid::uuid7();
@@ -147,7 +149,7 @@ class WorkerTask implements Task
 
     private function updateState(ApplyStateInterface&StateInterface $state): void
     {
-        $this->writer->comment('projecting state', true);
+        $this->logger->debug('projecting state');
         $this->projector->projectState($id = StateId::fromState($state), $state);
         $this->semaphore->signal($id->id);
     }

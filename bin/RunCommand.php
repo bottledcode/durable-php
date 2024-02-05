@@ -56,7 +56,6 @@ class RunCommand extends Command
     private Semaphore|null $semaphore = null;
 
     private string|null $namespace = null;
-    private string|null $partition = null;
 
     private array $beanstalkConnectionParams = [];
 
@@ -124,21 +123,21 @@ class RunCommand extends Command
         $this->configureProviders($projectors);
 
         if (str_contains($monitor, 'activities')) {
-            $this->io()->comment("Subscribing to activity feed...")->eol();
+            $this->logger->debug("Subscribing to activity feed...");
             $this->beanstalkClient->subscribe(QueueType::Activities);
         }
 
         if (str_contains($monitor, 'entities')) {
-            $this->io()->comment("Subscribing to entities feed...")->eol();
+            $this->logger->debug("Subscribing to entities feed...");
             $this->beanstalkClient->subscribe(QueueType::Entities);
         }
 
         if (str_contains($monitor, 'orchestrations')) {
-            $this->io()->comment("Subscribing to orchestration feed...")->eol();
+            $this->logger->debug("Subscribing to orchestration feed...");
             $this->beanstalkClient->subscribe(QueueType::Orchestrations);
         }
 
-        $this->io()->info("starting worker pool with $maxWorkers workers...")->eol();
+        $this->logger->info("starting worker pool with $maxWorkers workers...");
 
         $factory = new ContextWorkerFactory($bootstrap, new LoggingContextFactory(new DefaultContextFactory()));
         $this->workerPool = new ContextWorkerPool($maxWorkers, $factory);
@@ -153,17 +152,17 @@ class RunCommand extends Command
                 return;
             }
             if ($bEvent) {
-                $this->io()->blue("Processing event id {$bEvent->getId()}")->eol();
+                $this->logger->info("Processing event", ['bEventId' => $bEvent->getId()]);
 
                 $event = Serializer::deserialize(json_decode($bEvent->getData(), true), Event::class);
 
                 $this->handleEvent($event, $bEvent);
 
-                $this->io()->yellow("done")->eol();
+                $this->logger->debug("done", ['bEventId' => $bEvent->getId()]);
             }
         });
 
-        $this->io()->comment("Starting processing of events")->eol();
+        $this->logger->debug("Starting processing of events");
 
         EventLoop::run();
 
@@ -177,12 +176,12 @@ class RunCommand extends Command
 
     private function exit(string|Throwable $reason = "exit")
     {
-        if ($this->namespace && $this->partition >= 0) {
-            $this->io()->error("releasing locks due to $reason")->eol();
+        if ($this->namespace) {
+            $this->logger->error("releasing locks", ['reason' => $reason]);
 
             EventLoop::queue(function () {
                 $this->semaphore->signalAll();
-                $this->io()->ok("Successfully released locks")->eol();
+                $this->logger->critical("Successfully released locks");
                 exit(1);
             });
 
@@ -198,7 +197,7 @@ class RunCommand extends Command
 
     private function handleEvent(Event $event, JobIdInterface $bEvent): void
     {
-        $this->io()->info("Sending $event to worker")->eol();
+        $this->logger->info("Sending to worker", ['event' => $event, 'bEventId' => $bEvent->getId()]);
         $task = new WorkerTask($this->bootstrap, $event, $this->providers);
         $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
         $execution->getFuture()->map($this->handleTaskResult($event, $bEvent));
@@ -208,10 +207,10 @@ class RunCommand extends Command
     {
         return function (array $result) use ($originalEvent, $bEvent) {
             // mark event as successful
-            $this->io()->info("Acknowledge")->eol();
+            $this->logger->info("Acknowledge", ['bEventId' => $bEvent->getId()]);
             $this->beanstalkClient->ack($bEvent);
 
-            $this->io()->info("Firing " . count($result) . " events")->eol();
+            $this->logger->info("Firing " . count($result) . " events");
             // dispatch events
             foreach ($result as $event) {
                 $this->beanstalkClient->fire($event);
