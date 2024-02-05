@@ -38,6 +38,7 @@ use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
 use Bottledcode\DurablePhp\Abstractions\Semaphore;
 use Bottledcode\DurablePhp\Config\ProviderTrait;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\WorkerTask;
@@ -68,6 +69,8 @@ class RunCommand extends Command
 
     private EventHandlerInterface&EventQueueInterface $beanstalkClient;
 
+    private DurableLogger $logger;
+
     public function __construct()
     {
         parent::__construct("run", "Run your application");
@@ -89,6 +92,7 @@ class RunCommand extends Command
             ->onExit($this->exit(...));
 
         pcntl_signal(SIGINT, $this->exit(...));
+        $this->logger = new DurableLogger();
     }
 
     public function execute(
@@ -103,7 +107,7 @@ class RunCommand extends Command
         $this->namespace = $namespace;
         $this->workerTimeout = $executionTimeout;
         $this->bootstrap = $bootstrap;
-        $this->io()->comment('Connecting to beanstalkd... ');
+        $this->logger->debug('Connecting to beanstalkd... ');
         $this->beanstalkConnectionParams = [$host, $port] = explode(':', $beanstalk);
 
         $this->configureBeanstalk($host, $port);
