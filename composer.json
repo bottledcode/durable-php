@@ -44,13 +44,6 @@
     "mockery/mockery": "^1.6.7",
     "laravel/pint": "^1.13"
   },
-  "replace": {
-    "symfony/polyfill-intl-grapheme": "*",
-    "symfony/polyfill-intl-normalizer": "*",
-    "symfony/polyfill-mbstring": "*",
-    "symfony/polyfill-ctype": "*",
-    "symfony/polyfill-php80": "*"
-  },
   "config": {
     "allow-plugins": {
       "pestphp/pest-plugin": true
