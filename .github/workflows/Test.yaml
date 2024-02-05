@@ -17,7 +17,7 @@ jobs:
         env:
           runner: self-hosted
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: pcntl, xdebug
           tools: composer
       - name: Get composer cache directory
@@ -31,6 +31,9 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Install dependencies
         run: composer install
+      - name: Lint
+        continue-on-error: true
+        run: vendor/bin/pint --test
       - name: Run tests
         run: ./vendor/bin/pest --coverage --coverage-clover coverage.xml
       - name: Upload coverage reports to Codecov
