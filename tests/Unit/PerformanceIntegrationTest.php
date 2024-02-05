@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -28,6 +28,7 @@ use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
+use Bottledcode\DurablePhp\Tests\Common\SayHello;
 use Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities\HelloSequence;
 
 test('performance orchestration', function () {
@@ -38,7 +39,8 @@ test('performance orchestration', function () {
     expect($result)->toHaveCount(5);
     $nextEvent = [];
     foreach ($result as $item) {
-        $history = new ActivityHistory($item->innerEvent->target, getConfig());
+        $history = new ActivityHistory($item->innerEvent->target);
+        $history->setContainer(new \SimpleContainer([SayHello::class => new SayHello()]));
         $nextEvent[] = processEvent($item, $history->applyScheduleTask(...));
     }
     $nextEvent = array_merge(...$nextEvent);

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -42,7 +42,7 @@ function activity(bool $fail)
 }
 
 it('fails on an exception', function () {
-    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), getConfig());
+    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()));
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
         WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [true]))
@@ -57,7 +57,9 @@ it('fails on an exception', function () {
 });
 
 it('succeeds on no exception', function () {
-    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), getConfig());
+    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), );
+    $container = new \SimpleContainer([__NAMESPACE__ . '\activity' => activity(...)]);
+    $history->setContainer($container);
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
         WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [false]))

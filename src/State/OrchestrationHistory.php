@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
@@ -150,10 +151,13 @@ class OrchestrationHistory extends AbstractHistory
 
     private function construct(): \Generator
     {
+        $logger = new DurableLogger();
+
         try {
             $class = new \ReflectionClass($this->instance->instanceId);
         } catch (\ReflectionException) {
             // we should handle this more gracefully...
+            $logger->warning('unable to reflect on instance', [$this->instance->instanceId]);
         }
 
         $this->constructed = $this->container->get($this->instance->instanceId);
@@ -164,7 +168,7 @@ class OrchestrationHistory extends AbstractHistory
             yield static function (WorkerTask $task) use (&$taskScheduler) {
                 $taskScheduler = $task;
             };
-            $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator);
+            $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $logger);
             try {
                 $result = ($this->constructed)($context);
             } catch (Unwind) {
@@ -179,6 +183,7 @@ class OrchestrationHistory extends AbstractHistory
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
+            $logger->critical('Failed to process orchestration', ['exception' => $e]);
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Failed,
                 output: Serializer::serialize(

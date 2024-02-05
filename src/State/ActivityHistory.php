@@ -69,7 +69,9 @@ class ActivityHistory extends AbstractHistory
         }
 
         try {
-            $task = $this->container->get($task);
+            if(!is_callable($task)) {
+                $task = $this->container->get($task);
+            }
             $result = $task(...($event->input ?? []));
             $now = MonotonicClock::current()->now();
             $this->status = new Status(

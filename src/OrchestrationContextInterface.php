@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityLock;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\UuidInterface;
 
 interface OrchestrationContextInterface
@@ -55,9 +56,9 @@ interface OrchestrationContextInterface
 
     /**
      * Get a logger that only logs when not replaying
-     * @return Logger
+     * @return LoggerInterface
      */
-    public function getReplayAwareLogger(): Logger;
+    public function getReplayAwareLogger(): LoggerInterface;
 
     /**
      * @param EntityId $entityId
