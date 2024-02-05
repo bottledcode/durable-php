@@ -74,7 +74,7 @@ class DurableLogger implements LoggerInterface
                             ) => $this->colorize->error($text),
                         };
 
-                        return $color($this->innerFormat->format($record));
+                        return $color($this->innerFormat->format($record)) . "\033[0m";
                     }
 
                     #[\Override]
