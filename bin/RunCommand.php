@@ -113,11 +113,11 @@ class RunCommand extends Command
         $this->configureBeanstalk($host, $port);
         assert($this->beanstalkClient !== null);
 
-        $this->io()->ok("Connected to beanstalkd", true);
+        $this->logger->debug("Connected to beanstalkd");
 
         $projectors = explode('->', $projector);
 
-        $this->io()->comment("Configuring projectors and semaphore providers", true);
+        $this->logger->debug("Configuring projectors and semaphore providers", compact('projectors'));
 
         $this->providers = $projectors;
 
