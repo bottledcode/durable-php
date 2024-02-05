@@ -52,6 +52,7 @@ class DurableLogger implements LoggerInterface
             //$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
             $handler->setFormatter(
                 new class (new ConsoleFormatter(
+                    format: "[%datetime%] %level_name%: %message% %context% %extra%\n",
                     allowInlineLineBreaks: true,
                     ignoreEmptyContextAndExtra: true
                 )) implements FormatterInterface {
@@ -78,9 +79,9 @@ class DurableLogger implements LoggerInterface
                     }
 
                     #[\Override]
-                    public function formatBatch(array $records): array
+                    public function formatBatch(array $records): string
                     {
-                        return array_map($this->format(...), $records);
+                        return implode("", array_map($this->format(...), $records));
                     }
                 }
             );

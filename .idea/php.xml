@@ -124,6 +124,11 @@
       <path value="$PROJECT_DIR$/vendor/adhocore/cli" />
       <path value="$PROJECT_DIR$/vendor/pda/pheanstalk" />
       <path value="$PROJECT_DIR$/vendor/laravel/pint" />
+      <path value="$PROJECT_DIR$/vendor/symfony/polyfill-intl-normalizer" />
+      <path value="$PROJECT_DIR$/vendor/symfony/polyfill-php80" />
+      <path value="$PROJECT_DIR$/vendor/symfony/polyfill-ctype" />
+      <path value="$PROJECT_DIR$/vendor/symfony/polyfill-mbstring" />
+      <path value="$PROJECT_DIR$/vendor/symfony/polyfill-intl-grapheme" />
     </include_path>
   </component>
   <component name="PhpInterpreters">
