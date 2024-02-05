@@ -54,10 +54,11 @@ test('performance orchestration', function () {
 test('snapshot', function () {
     $this->markTestSkipped('snapshot requires an update');
     $state = Serializer::deserialize(
-        json_decode(file_get_contents(__DIR__ . '/snapshot.json'), true), OrchestrationHistory::class
+        json_decode(file_get_contents(__DIR__ . '/snapshot.json'), true),
+        OrchestrationHistory::class
     );
     $state->setConfig(getConfig());
-    $finalEvent = json_decode(file_get_contents(__DIR__.'/final-event.json'), true);
+    $finalEvent = json_decode(file_get_contents(__DIR__ . '/final-event.json'), true);
     $finalEvent = Serializer::deserialize($finalEvent, Event::class);
     $result = processEvent($finalEvent, $state->applyTaskCompleted(...));
     expect($state)->toHaveStatus(RuntimeStatus::Completed);

@@ -24,7 +24,6 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\Source;
 use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\EntityContextInterface;
 use Bottledcode\DurablePhp\Events\AwaitResult;
@@ -64,9 +63,7 @@ class EntityHistory extends AbstractHistory
         return $this->history[$event->eventId] ?? false;
     }
 
-    public function resetState(): void
-    {
-    }
+    public function resetState(): void {}
 
     public function ackedEvent(Event $event): void
     {
@@ -144,8 +141,7 @@ class EntityHistory extends AbstractHistory
         }
 
         $this->lockQueue ??= new LockStateMachine($this->id);
-        $this->state ??= new class extends EntityState {
-        };
+        $this->state ??= new class () extends EntityState {};
 
         $this->name = $this->id->toEntityId()->name;
         $now = MonotonicClock::current()->now();
@@ -164,8 +160,15 @@ class EntityHistory extends AbstractHistory
         };
 
         $context = new EntityContext(
-            $this->id->toEntityId(), $operation, $input, $this->state, $this, $taskDispatcher, $replyTo,
-            $original->eventId, new SpyProxy()
+            $this->id->toEntityId(),
+            $operation,
+            $input,
+            $this->state,
+            $this,
+            $taskDispatcher,
+            $replyTo,
+            $original->eventId,
+            new SpyProxy()
         );
 
         if (is_object($this->state)) {
@@ -181,7 +184,8 @@ class EntityHistory extends AbstractHistory
             $parameters = $operationReflection->getParameters();
             $input = array_map(
                 static fn(\ReflectionParameter $parameter, mixed $input) => is_array($input) ? Serializer::deserialize(
-                    $input, $parameter->getType()?->getName() ?? 'array'
+                    $input,
+                    $parameter->getType()?->getName() ?? 'array'
                 ) : $input,
                 $parameters,
                 $input
@@ -217,7 +221,9 @@ class EntityHistory extends AbstractHistory
         $cutoff = $now - 3600; // 1 hour
         $this->history[$event->eventId] = $this->debugHistory ? $event : $now;
         $this->history =
-            array_filter($this->history, static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value
+            array_filter(
+                $this->history,
+                static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value
             );
         $this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 

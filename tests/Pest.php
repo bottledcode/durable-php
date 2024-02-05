@@ -137,8 +137,7 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
     $eventDispatcher = new class ($fire) extends EventDispatcherTask {
         public function __construct(
             private Closure $fire
-        ) {
-        }
+        ) {}
 
         public function fire(\Bottledcode\DurablePhp\Events\Event ...$events): array
         {
@@ -181,16 +180,14 @@ function simpleFactory(string $key, Closure|null $store = null): object
         public function __construct(
             private string $key,
             private Closure|null $store
-        ) {
-        }
+        ) {}
     };
 }
 
 function getEntityHistory(EntityState|null $withState = null): EntityHistory
 {
     static $id = 0;
-    $withState ??= new class extends EntityState {
-    };
+    $withState ??= new class () extends EntityState {};
     $entityId = new EntityId('test', $id++);
     $history = new EntityHistory(StateId::fromEntityId($entityId), getConfig());
     $reflector = new \ReflectionClass($history);

@@ -15,18 +15,14 @@ namespace parallel {
             // TODO: Implement count() method.
         }
 
-        public function setInput(Input $input): void
-        {
-        }
+        public function setInput(Input $input): void {}
 
         /**
          * @param Channel $channel
          * @return void
          * @throws Error\Existence
          */
-        public function addChannel(Channel $channel): void
-        {
-        }
+        public function addChannel(Channel $channel): void {}
 
         /**
          * @param string $name
@@ -34,44 +30,34 @@ namespace parallel {
          * @return void
          * @throws Error\Existence
          */
-        public function addFuture(string $name, Future $future): void
-        {
-        }
+        public function addFuture(string $name, Future $future): void {}
 
         /**
          * @param string $target
          * @return void
          * @throws Error\Existence
          */
-        public function remove(string $target): void
-        {
-        }
+        public function remove(string $target): void {}
 
         /**
          * @param bool $blocking
          * @return void
          * @throws Error
          */
-        public function setBlocking(bool $blocking): void
-        {
-        }
+        public function setBlocking(bool $blocking): void {}
 
         /**
          * @param int $timeout
          * @return void
          * @throws Error
          */
-        public function setTimeout(int $timeout): void
-        {
-        }
+        public function setTimeout(int $timeout): void {}
 
         /**
          * @return Event|null
          * @throws Error\Timeout
          */
-        public function poll(): Event|null
-        {
-        }
+        public function poll(): Event|null {}
 
         public function current(): mixed
         {
@@ -115,22 +101,16 @@ namespace parallel\Events {
         public mixed $value;
     }
 
-    class Error extends Exception
-    {
-    }
+    class Error extends Exception {}
 }
 
 namespace parallel\Events\Error {
 
     use Exception;
 
-    class Existence extends Exception
-    {
-    }
+    class Existence extends Exception {}
 
-    class Timeout extends Exception
-    {
-    }
+    class Timeout extends Exception {}
 }
 
 namespace parallel\Events\Event {

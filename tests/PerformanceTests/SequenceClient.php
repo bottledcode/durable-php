@@ -37,7 +37,7 @@ $client = new OrchestrationClient($config, SourceFactory::fromConfig($config));
 $watch = new StopWatch();
 $sequence = [];
 for ($i = 0; $i < (getenv('ACTIVITY_COUNT') ?: 10); $i++) {
-	$sequence[] = $i;
+    $sequence[] = $i;
 }
 $watch->start();
 $instance = $client->startNew(Sequence::class, $sequence);

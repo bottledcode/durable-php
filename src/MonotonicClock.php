@@ -42,7 +42,7 @@ class MonotonicClock
         $offset = hrtime();
         $time = explode(' ', microtime(), 2);
         $this->secondsOffset = $time[1] - $offset[0];
-        $this->μOffset = (int)($time[0] * 1000000) - (int)($offset[1] / 1000);
+        $this->μOffset = (int) ($time[0] * 1000000) - (int) ($offset[1] / 1000);
     }
 
     public static function current(): self
@@ -61,7 +61,7 @@ class MonotonicClock
     public function now(): \DateTimeImmutable
     {
         [$s, $μs] = hrtime();
-        if (1000000 <= $μs = (int)($μs / 1000) + $this->μOffset) {
+        if (1000000 <= $μs = (int) ($μs / 1000) + $this->μOffset) {
             ++$s;
             $μs -= 1000000;
         } elseif (0 > $μs) {
@@ -69,7 +69,7 @@ class MonotonicClock
             $μs += 1000000;
         }
 
-        if (6 !== \strlen($now = (string)$μs)) {
+        if (6 !== \strlen($now = (string) $μs)) {
             $now = str_pad($now, 6, '0', \STR_PAD_LEFT);
         }
 
@@ -83,6 +83,6 @@ class MonotonicClock
         $offset = hrtime();
         $time = explode(' ', $data['now'], 2);
         $this->secondsOffset = $time[1] - $offset[0];
-        $this->μOffset = (int)($time[0]) - (int)($offset[1] / 1000);
+        $this->μOffset = (int) ($time[0]) - (int) ($offset[1] / 1000);
     }
 }

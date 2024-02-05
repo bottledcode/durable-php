@@ -101,7 +101,10 @@ interface OrchestrationContextInterface
     public function lockEntity(EntityId ...$entityId): EntityLock;
 
     public function callSubOrchestrator(
-        string $name, array $args = [], string|null $instanceId = null, RetryOptions|null $retryOptions = null
+        string $name,
+        array $args = [],
+        string|null $instanceId = null,
+        RetryOptions|null $retryOptions = null
     ): DurableFuture;
 
     public function continueAsNew(array $args = []): never;
@@ -203,8 +206,14 @@ interface OrchestrationContextInterface
      * @return \DateInterval
      */
     public function createInterval(
-        int $years = null, int $months = null, int $weeks = null, int $days = null, int $hours = null,
-        int $minutes = null, int $seconds = null, int $microseconds = null
+        int $years = null,
+        int $months = null,
+        int $weeks = null,
+        int $days = null,
+        int $hours = null,
+        int $minutes = null,
+        int $seconds = null,
+        int $microseconds = null
     ): \DateInterval;
 
     /**

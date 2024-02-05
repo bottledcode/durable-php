@@ -56,9 +56,7 @@ class WorkerTask implements Task
 
     private array $batch = [];
 
-    public function __construct(private string $bootstrap, private Event $event, private array $providers)
-    {
-    }
+    public function __construct(private string $bootstrap, private Event $event, private array $providers) {}
 
     public function run(Channel $channel, Cancellation $cancellation): array
     {

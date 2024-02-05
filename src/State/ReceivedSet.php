@@ -25,6 +25,7 @@ namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\Events\Event;
 
-class ReceivedSet {
+class ReceivedSet
+{
     public function __construct(public Event $event, public string|null $identity = null) {}
 }

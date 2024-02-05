@@ -36,9 +36,7 @@ use function Amp\ByteStream\pipe;
 
 class LoggingContextFactory implements ContextFactory
 {
-    public function __construct(private readonly ContextFactory $other)
-    {
-    }
+    public function __construct(private readonly ContextFactory $other) {}
 
     public function start(array|string $script, ?Cancellation $cancellation = null): Context
     {

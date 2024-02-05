@@ -31,6 +31,4 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
  * @mixin T
  */
 #[ClassNameTypeMap('_entity_state_type')]
-abstract class EntityState
-{
-}
+abstract class EntityState {}

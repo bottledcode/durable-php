@@ -41,8 +41,13 @@ it('can be started', function () {
 });
 
 it('returns a result to the parent', function () {
-    $instance = getOrchestration('test', fn() => true, [], $nextEvent,
-        StartExecution::asChild(new OrchestrationInstance('parent', 'parent'), [], []));
+    $instance = getOrchestration(
+        'test',
+        fn() => true,
+        [],
+        $nextEvent,
+        StartExecution::asChild(new OrchestrationInstance('parent', 'parent'), [], [])
+    );
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     expect($result)->toHaveCount(1);
     expect($instance)->toHaveStatus(RuntimeStatus::Completed);
@@ -79,19 +84,22 @@ it('can wait for a signal after starting', function () {
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
-        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])), $instance->applyRaiseEvent(...)
+        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])),
+        $instance->applyRaiseEvent(...)
     );
     $instance->resetState();
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
-        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])), $instance->applyRaiseEvent(...)
+        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])),
+        $instance->applyRaiseEvent(...)
     );
     $instance->resetState();
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
-        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])), $instance->applyRaiseEvent(...)
+        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])),
+        $instance->applyRaiseEvent(...)
     );
     $instance->resetState();
     expect($result)->toBeEmpty()

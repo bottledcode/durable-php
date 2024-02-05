@@ -35,13 +35,9 @@ class ApcuProjector implements ProjectorInterface
 {
     private ProjectorInterface|null $next = null;
 
-    public function connect(): void
-    {
-    }
+    public function connect(): void {}
 
-    public function disconnect(): void
-    {
-    }
+    public function disconnect(): void {}
 
     public function projectState(StateId $key, StateInterface|null $history): void
     {

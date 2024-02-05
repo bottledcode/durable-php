@@ -117,15 +117,17 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
 
         $document = Serializer::serialize($history);
 
-        table($table)->insert(['id' => $id, 'data' => $document, 'type' => get_debug_type($history)],
-            new TableInsertOptions(durability: Durability::Soft, conflict: 'update'))->run($this->conn);
+        table($table)->insert(
+            ['id' => $id, 'data' => $document, 'type' => get_debug_type($history)],
+            new TableInsertOptions(durability: Durability::Soft, conflict: 'update')
+        )->run($this->conn);
 
         $this->next?->projectState($key, $history);
     }
 
     private function throwIfNotConnected(): void
     {
-            $this->conn ?? throw new \LogicException('Not connected to projector');
+        $this->conn ?? throw new \LogicException('Not connected to projector');
     }
 
     /**
@@ -165,8 +167,10 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
 
         $me = gethostname() . ":" . (function_exists('posix_getpid') ? posix_getpid() : $this->instance);
         try {
-            $result = table('locks')->insert(['id' => $key, 'owner' => $me, 'at' => now()],
-                new TableInsertOptions(conflict: 'error'))->run($this->conn);
+            $result = table('locks')->insert(
+                ['id' => $key, 'owner' => $me, 'at' => now()],
+                new TableInsertOptions(conflict: 'error')
+            )->run($this->conn);
             if ($result['errors']) {
                 throw new Exception('insert failed');
             }
@@ -189,8 +193,10 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
             if ($timeout = getenv('SEMAPHORE_TIMEOUT')) {
                 $row = table('locks')->get($key)->run($this->conn);
                 if ($timeout < (new \DateTimeImmutable()) - $row['at']) {
-                    table('locks')->insert(['id' => $key, 'owner' => $me, 'at' => now()],
-                        new TableInsertOptions(conflict: 'update'))->run($this->conn);
+                    table('locks')->insert(
+                        ['id' => $key, 'owner' => $me, 'at' => now()],
+                        new TableInsertOptions(conflict: 'update')
+                    )->run($this->conn);
                 }
 
                 $this->semaphores[$key] = true;

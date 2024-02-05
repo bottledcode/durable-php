@@ -28,29 +28,27 @@ use Bottledcode\DurablePhp\State\EntityState;
 
 class Account extends EntityState implements AccountInterface
 {
-	public int $balance = 0;
+    public int $balance = 0;
 
-	public function __construct(private EntityContextInterface $context)
-	{
-	}
+    public function __construct(private EntityContextInterface $context) {}
 
-	public function add(int $amount): void
-	{
-		$this->balance += $amount;
-	}
+    public function add(int $amount): void
+    {
+        $this->balance += $amount;
+    }
 
-	public function reset(): void
-	{
-		$this->balance = 0;
-	}
+    public function reset(): void
+    {
+        $this->balance = 0;
+    }
 
-	public function get(): int
-	{
-		return $this->balance;
-	}
+    public function get(): int
+    {
+        return $this->balance;
+    }
 
-	public function delete(): void
-	{
-		$this->context->delete();
-	}
+    public function delete(): void
+    {
+        $this->context->delete();
+    }
 }

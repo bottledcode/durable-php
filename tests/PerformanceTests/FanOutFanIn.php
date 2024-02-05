@@ -29,18 +29,18 @@ use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
 class FanOutFanIn
 {
-	public function __invoke(OrchestrationContextInterface $context)
-	{
-		$count = $context->getInput()['count'];
-		$tasks = [];
-		for ($i = 0; $i < $count; $i++) {
-			$tasks[] = $context->callActivity(SayHello::class, [str_pad((string)$i, 4, '0', STR_PAD_LEFT)]);
-		}
-		$context->waitAll(...$tasks);
-		foreach ($tasks as $i => $task) {
-			$context->setCustomStatus($i);
-			$task->getResult();
-		}
-		Logger::log($i + 1);
-	}
+    public function __invoke(OrchestrationContextInterface $context)
+    {
+        $count = $context->getInput()['count'];
+        $tasks = [];
+        for ($i = 0; $i < $count; $i++) {
+            $tasks[] = $context->callActivity(SayHello::class, [str_pad((string) $i, 4, '0', STR_PAD_LEFT)]);
+        }
+        $context->waitAll(...$tasks);
+        foreach ($tasks as $i => $task) {
+            $context->setCustomStatus($i);
+            $task->getResult();
+        }
+        Logger::log($i + 1);
+    }
 }

@@ -26,6 +26,4 @@ namespace Bottledcode\DurablePhp\Exceptions;
 
 use RuntimeException;
 
-class LockException extends RuntimeException
-{
-}
+class LockException extends RuntimeException {}

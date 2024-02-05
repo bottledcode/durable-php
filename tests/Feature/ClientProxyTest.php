@@ -63,7 +63,7 @@ it('is actually callable', function () {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
     eval($proxy);
-    $instance = new class {
+    $instance = new class () {
         public function pureExample(int|float $number): string
         {
             return "Hello $number";

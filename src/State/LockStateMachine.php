@@ -38,10 +38,10 @@ use Generator;
 class LockStateMachine
 {
     public function __construct(
-        private StateId $myId, private LockStateEnum $state = LockStateEnum::ProcessEvents,
+        private StateId $myId,
+        private LockStateEnum $state = LockStateEnum::ProcessEvents,
         private array $lockQueue = [],
-    ) {
-    }
+    ) {}
 
     public function process(Event $event): Generator
     {
@@ -113,7 +113,9 @@ class LockStateMachine
                             With::id(
                                 $next,
                                 WithLock::onEntity(
-                                    $owner, RaiseEvent::forLockNotification($owner), ...$lock->participants
+                                    $owner,
+                                    RaiseEvent::forLockNotification($owner),
+                                    ...$lock->participants
                                 )
                             )
                         );
@@ -140,10 +142,11 @@ class LockStateMachine
                         yield With::id($prev, TaskCompleted::forId($this->lockQueue[$owner->id]['lockId'], true));
                     } else {
                         yield AwaitResult::forEvent(
-                            $this->myId, WithLock::onEntity(
-                            $owner,
-                            With::id($this->lockQueue[$owner->id]['previous'], RaiseEvent::forLockNotification($owner))
-                        )
+                            $this->myId,
+                            WithLock::onEntity(
+                                $owner,
+                                With::id($this->lockQueue[$owner->id]['previous'], RaiseEvent::forLockNotification($owner))
+                            )
                         );
                     }
 

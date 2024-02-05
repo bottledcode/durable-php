@@ -23,7 +23,7 @@
 
 namespace Bottledcode\DurablePhp\Proxy;
 
-class  SpyProxy extends Generator
+class SpyProxy extends Generator
 {
     protected function pureMethod(\ReflectionMethod $method): string
     {

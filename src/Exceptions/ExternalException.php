@@ -32,8 +32,7 @@ readonly class ExternalException
         public string $type,
         public string $file,
         public string $line,
-    ) {
-    }
+    ) {}
 
     public static function fromException(\Throwable $e): self
     {

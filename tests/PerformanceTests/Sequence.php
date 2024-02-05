@@ -28,14 +28,14 @@ use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
 class Sequence
 {
-	public function __invoke(OrchestrationContextInterface $context)
-	{
-		$sequence = $context->getInput();
-		$results = [];
-		foreach ($sequence as $value) {
-			$results[] = $context->waitOne($context->callActivity(SayHello::class, ['name' => $value]));
-		}
+    public function __invoke(OrchestrationContextInterface $context)
+    {
+        $sequence = $context->getInput();
+        $results = [];
+        foreach ($sequence as $value) {
+            $results[] = $context->waitOne($context->callActivity(SayHello::class, ['name' => $value]));
+        }
 
-		return $results;
-	}
+        return $results;
+    }
 }

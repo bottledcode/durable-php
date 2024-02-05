@@ -26,10 +26,12 @@ namespace Bottledcode\DurablePhp\Tests\Common;
 use Bottledcode\DurablePhp\EntityContextInterface;
 use Bottledcode\DurablePhp\State\EntityState;
 
-class LauncherEntity extends EntityState {
+class LauncherEntity extends EntityState
+{
     public function __construct(private EntityContextInterface $context) {}
 
-    public function launch(string $orchestration, int $number, int $offset) {
+    public function launch(string $orchestration, int $number, int $offset)
+    {
         for($i = 0; $i < $number; $i++) {
             $this->context->startNewOrchestration($orchestration, [], $offset + $i);
         }

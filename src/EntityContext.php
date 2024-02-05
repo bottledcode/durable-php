@@ -45,9 +45,13 @@ class EntityContext implements EntityContextInterface
     private static EntityContextInterface|null $current = null;
 
     public function __construct(
-        private readonly EntityId $id, private readonly string $operation, private readonly mixed $input,
-        private mixed $state, private readonly EntityHistory $history,
-        private readonly WorkerTask $eventDispatcher, private readonly array $caller,
+        private readonly EntityId $id,
+        private readonly string $operation,
+        private readonly mixed $input,
+        private mixed $state,
+        private readonly EntityHistory $history,
+        private readonly WorkerTask $eventDispatcher,
+        private readonly array $caller,
         private readonly string $requestingId,
         private readonly SpyProxy $spyProxy,
     ) {
@@ -92,10 +96,14 @@ class EntityContext implements EntityContextInterface
     }
 
     public function signalEntity(
-        EntityId $entityId, string $operation, array $input = [], ?\DateTimeImmutable $scheduledTime = null
+        EntityId $entityId,
+        string $operation,
+        array $input = [],
+        ?\DateTimeImmutable $scheduledTime = null
     ): void {
         $event = WithEntity::forInstance(
-            StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $input)
+            StateId::fromEntityId($entityId),
+            RaiseEvent::forOperation($operation, $input)
         );
         if ($scheduledTime) {
             $event = WithDelay::forEvent($scheduledTime, $event);
@@ -122,12 +130,16 @@ class EntityContext implements EntityContextInterface
         $instance = StateId::fromInstance(new OrchestrationInstance($orchestration, $id));
         $this->eventDispatcher->fire(
             WithOrchestration::forInstance(
-                $instance, StartExecution::asParent($input, [])
+                $instance,
+                StartExecution::asParent($input, [])
             )
         );
     }
 
-    public function delayUntil(string $operation, array $args = [], \DateTimeInterface $until = new \DateTimeImmutable()
+    public function delayUntil(
+        string $operation,
+        array $args = [],
+        \DateTimeInterface $until = new \DateTimeImmutable()
     ): void {
         $this->eventDispatcher->fire(
             WithDelay::forEvent(
@@ -137,7 +149,8 @@ class EntityContext implements EntityContextInterface
         );
     }
 
-    public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void {
+    public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void
+    {
         $classReflector = new \ReflectionClass($this->history->getState());
         $interfaces = $classReflector->getInterfaceNames();
         if(count($interfaces) > 1) {
@@ -156,7 +169,8 @@ class EntityContext implements EntityContextInterface
 
         try {
             $self();
-        } catch(\Throwable) {}
+        } catch(\Throwable) {
+        }
 
         $this->delayUntil($operationName, $arguments, $until);
     }

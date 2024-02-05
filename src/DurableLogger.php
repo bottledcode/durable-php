@@ -4,7 +4,5 @@ namespace Bottledcode\DurablePhp;
 
 class DurableLogger
 {
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 }

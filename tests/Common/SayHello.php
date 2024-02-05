@@ -25,8 +25,8 @@ namespace Bottledcode\DurablePhp\Tests\Common;
 
 class SayHello
 {
-	public function __invoke(string $name): string
-	{
-		return "Hello, $name!";
-	}
+    public function __invoke(string $name): string
+    {
+        return "Hello, $name!";
+    }
 }
