@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -30,11 +30,29 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 
 it('can be started', function () {
     $instance = getOrchestration('test', fn() => true, [], $nextEvent);
+    $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
+    expect($result)->toBeEmpty();
+    expect($instance)->toHaveStatus(RuntimeStatus::Completed);
+});
+
+it('can handle oop orchestration', function () {
+    $orchestration = new class (null) {
+        public function __construct(private OrchestrationContextInterface|null $orchestrationContext) {}
+
+        #[EntryPoint]
+        public function entry(string $test): string
+        {
+            return $test;
+        }
+    };
+
+    $instance = getOrchestration(id: 'test', orchestration: $orchestration, input: ['test' => 'hello world'], nextEvent: $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     expect($result)->toBeEmpty();
     expect($instance)->toHaveStatus(RuntimeStatus::Completed);
