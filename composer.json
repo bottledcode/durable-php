@@ -16,7 +16,13 @@
     }
   },
   "scripts": {
-    "test": "pest"
+    "test": "pest",
+    "post-package-update": [
+      "npm install"
+    ],
+    "post-package-install": [
+      "npm install"
+    ]
   },
   "bin": [
     "bin/dphp"
