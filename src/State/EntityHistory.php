@@ -40,6 +40,7 @@ use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Attributes\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Crell\Serde\Attributes\Field;
 use Generator;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -55,7 +56,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, private DurableLogger $logger)
+    public function __construct(public StateId $id, #[Field(exclude: true)] private DurableLogger $logger)
     {
         $this->entityId = $id->toEntityId();
     }
