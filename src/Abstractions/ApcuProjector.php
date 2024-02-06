@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
+use Bottledcode\DurablePhp\State\Status;
 
 class ApcuProjector implements ProjectorInterface
 {
@@ -65,8 +66,8 @@ class ApcuProjector implements ProjectorInterface
         $this->next = $next;
     }
 
-    public function watch(StateId $key, RuntimeStatus ...$for): void
+    public function watch(StateId $key, RuntimeStatus ...$for): Status|null
     {
-        $this->next?->watch($key, ...$for);
+        return $this->next?->watch($key, ...$for);
     }
 }

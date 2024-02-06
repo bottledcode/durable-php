@@ -31,6 +31,7 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
+use Bottledcode\DurablePhp\State\Status;
 use Exception;
 use r\Connection;
 use r\ConnectionOptions;
@@ -38,7 +39,6 @@ use r\Options\ChangesOptions;
 use r\Options\Durability;
 use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
-use r\ValuedQuery\RVar;
 use Revolt\EventLoop;
 
 use function r\connectAsync;
@@ -235,15 +235,21 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
         unset($this->semaphores[$key]);
     }
 
-    public function watch(StateId $key, RuntimeStatus ...$for): void
+    public function watch(StateId $key, RuntimeStatus ...$for): Status|null
     {
-        $result = table($this->getTable($key))->get($key)->filter(
-            fn(RVar $row) => (new \r\Datum\ArrayDatum(array_map(fn(RuntimeStatus $s) => $s->name, $for)))->contains(
-                $row('data')('status')('runtimeStatus')
-            )
-        )->changes()->run($this->conn);
-        foreach ($result as $r) {
-            return;
+        $cursor = table($this->getTable($key))->get($key->id)->changes(new ChangesOptions(include_initial: true))->run($this->conn);
+        foreach ($cursor as $results) {
+            $rawStatus = $results['new_val']['data']['status'] ?? null;
+            if ($rawStatus === null) {
+                continue;
+            }
+
+            $status = Serializer::deserialize($rawStatus, Status::class);
+            if (in_array($status->runtimeStatus, $for, true)) {
+                return $status;
+            }
         }
+
+        return null;
     }
 }
