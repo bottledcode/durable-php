@@ -37,8 +37,8 @@ use Bottledcode\DurablePhp\State\RuntimeStatus;
 it('can be started', function () {
     $instance = getOrchestration('test', fn() => true, [], $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
-    expect($result)->toBeEmpty();
-    expect($instance)->toHaveStatus(RuntimeStatus::Completed);
+    expect($result)->toBeEmpty()
+        ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
 it('can handle oop orchestration', function () {
@@ -54,8 +54,8 @@ it('can handle oop orchestration', function () {
 
     $instance = getOrchestration(id: 'test', orchestration: $orchestration, input: ['test' => 'hello world'], nextEvent: $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
-    expect($result)->toBeEmpty();
-    expect($instance)->toHaveStatus(RuntimeStatus::Completed);
+    expect($result)->toBeEmpty()
+        ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
 it('returns a result to the parent', function () {
@@ -67,8 +67,8 @@ it('returns a result to the parent', function () {
         StartExecution::asChild(new OrchestrationInstance('parent', 'parent'), [], [])
     );
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
-    expect($result)->toHaveCount(1);
-    expect($instance)->toHaveStatus(RuntimeStatus::Completed);
+    expect($result)->toHaveCount(1)
+        ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
 it('properly delays when using timers', function () {
