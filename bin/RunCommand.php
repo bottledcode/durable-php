@@ -83,6 +83,7 @@ class RunCommand extends Command
                 "the projector to use",
                 default: ApcuProjector::class . "->" . RethinkDbProjector::class
             )
+            ->option('--distributed-lock', 'The distributed lock implementation to use', default: RethinkDbProjector::class)
             ->option(
                 "--monitor",
                 "what queues to monitor for more fine-grained scaling",
@@ -101,7 +102,8 @@ class RunCommand extends Command
         string $projector,
         int $maxWorkers,
         int $executionTimeout,
-        string $monitor
+        string $distributedLock,
+        string $monitor,
     ): int {
         $this->namespace = $namespace;
         $this->workerTimeout = $executionTimeout;
