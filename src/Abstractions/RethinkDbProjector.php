@@ -41,7 +41,7 @@ use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
 use Revolt\EventLoop;
 
-use function r\connectAsync;
+use function r\connect;
 use function r\dbCreate;
 use function r\now;
 use function r\row;
@@ -61,7 +61,7 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
         $this->instance = random_int(PHP_INT_MIN + 1, PHP_INT_MAX - 1);
     }
 
-    public function connect(): void
+    public function connect(bool $migrate = false): void
     {
         if ($this->conn) {
             return;
@@ -69,15 +69,19 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
 
         $database = getenv('RETHINKDB_DATABASE') ?: 'durablephp';
 
-        $this->conn = connectAsync(
+        $this->conn = connect(
             new ConnectionOptions(
-                getenv('RETHINKDB_HOST') ?: 'localhost',
+                getenv('RETHINKDB_HOST') ?: '127.0.0.1',
                 getenv('RETHINKDB_PORT') ?: 28015,
                 $database,
                 getenv('RETHINKDB_USER') ?: 'admin',
                 getenv('RETHINKDB_PASSWORD') ?: '',
             )
         );
+
+        if(!$migrate) {
+            return;
+        }
 
         try {
             try {

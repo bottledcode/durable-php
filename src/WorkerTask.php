@@ -60,6 +60,7 @@ class WorkerTask implements Task
     public function run(Channel $channel, Cancellation $cancellation): array
     {
         $this->logger = new DurableLogger();
+        $this->logger->info("Running worker", ['event' => $this->event]);
         $this->configureProviders($this->providers, $this->semaphoreProvider);
         $this->container = include $this->bootstrap;
 
@@ -67,7 +68,7 @@ class WorkerTask implements Task
         $originalEvent = $this->event;
         while ($this->event instanceof HasInnerEventInterface) {
             if ($this->event instanceof StateTargetInterface) {
-                $states[] = $this->getState($this->event->getTarget(), $channel);
+                $states[] = $this->getState($this->event->getTarget());
             }
 
             $this->event = $this->event->getInnerEvent();
@@ -78,6 +79,8 @@ class WorkerTask implements Task
                 $this->logger->warning("Already applied", ['event' => $this->event]);
                 goto finalize;
             }
+
+            $this->logger->debug("Transmutating with event", ['event' => $this->event]);
 
             try {
                 foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
@@ -99,6 +102,8 @@ class WorkerTask implements Task
             }
 
             finalize:
+
+            $this->logger->debug('Finalizing state');
 
             $state->resetState();
             $this->updateState($state);
