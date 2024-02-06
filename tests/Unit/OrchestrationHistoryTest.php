@@ -33,6 +33,7 @@ use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
+use Bottledcode\DurablePhp\State\Serializer;
 
 it('can be started', function () {
     $instance = getOrchestration('test', fn() => true, [], $nextEvent);
@@ -41,18 +42,23 @@ it('can be started', function () {
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
+class SerializedType
+{
+    public function __construct(private string $data) {}
+}
+
 it('can handle oop orchestration', function () {
     $orchestration = new class (null) {
         public function __construct(private OrchestrationContextInterface|null $orchestrationContext) {}
 
         #[EntryPoint]
-        public function entry(string $test): string
+        public function entry(string $test, SerializedType $type): string
         {
             return $test;
         }
     };
 
-    $instance = getOrchestration(id: 'test', orchestration: $orchestration, input: ['test' => 'hello world'], nextEvent: $nextEvent);
+    $instance = getOrchestration(id: 'test', orchestration: $orchestration, input: ['test' => 'hello world', 'type' => Serializer::serialize(new SerializedType("test"))], nextEvent: $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
