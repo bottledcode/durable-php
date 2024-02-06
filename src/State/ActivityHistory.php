@@ -33,12 +33,13 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Crell\Serde\Attributes\Field;
 
 class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
 
-    public function __construct(private StateId $id, private DurableLogger $logger)
+    public function __construct(private StateId $id, #[Field(exclude: true)] private DurableLogger $logger)
     {
         $this->activityId = $id->toActivityId();
     }
