@@ -42,9 +42,10 @@ use Psr\Container\ContainerInterface;
 abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
     public Status|null $status = null;
-
     #[Field(exclude: true)]
     protected ContainerInterface $container;
+
+    public function test() {}
 
     public function setContainer(ContainerInterface $container): void
     {
