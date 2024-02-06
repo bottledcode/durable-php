@@ -118,7 +118,7 @@ class RunCommand extends Command
 
         $projectors = explode('->', $projector);
 
-        $this->logger->debug("Configuring projectors and semaphore providers", compact('projectors'));
+        $this->logger->debug("Configuring projectors and semaphore providers", ['projectors' => $projectors, 'semaphores' => $distributedLock]);
 
         $this->providers = $projectors;
 
