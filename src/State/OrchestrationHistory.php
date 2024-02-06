@@ -40,8 +40,10 @@ use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
+use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
+use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\WorkerTask;
 use Crell\Serde\Attributes\Field;
@@ -160,22 +162,49 @@ class OrchestrationHistory extends AbstractHistory
             $logger->warning('unable to reflect on instance', [$this->instance->instanceId]);
         }
 
-        $this->constructed = $this->container->get($this->instance->instanceId);
         $proxyGenerator = $this->container->get(OrchestratorProxy::class);
         $spyGenerator = $this->container->get(SpyProxy::class);
+
+        $taskScheduler = null;
+        yield static function (WorkerTask $task) use (&$taskScheduler) {
+            $taskScheduler = $task;
+        };
+
+        $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $logger);
+
+        if(method_exists($this->container, 'set')) {
+            $this->container->set(OrchestrationContext::class, $context);
+            $this->container->set(OrchestrationContextInterface::class, $context);
+        }
+
+        if(!is_callable($this->instance->instanceId)) {
+            $this->constructed = $this->container->get($this->instance->instanceId);
+        } else {
+            $this->constructed = $this->instance->instanceId;
+        }
+
         try {
-            $taskScheduler = null;
-            yield static function (WorkerTask $task) use (&$taskScheduler) {
-                $taskScheduler = $task;
-            };
-            $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $logger);
             try {
-                $result = ($this->constructed)($context);
+                if(is_callable($this->constructed)) {
+                    $result = ($this->constructed)($context);
+                } elseif(is_object($this->constructed)) {
+                    $reflection = new \ReflectionClass($this->constructed);
+                    foreach($reflection->getMethods() as $method) {
+                        foreach($method->getAttributes(EntryPoint::class) as $attribute) {
+                            // we have an entrypoint
+                            $result = ($method->getClosure($this->constructed))(...$context->getInput());
+                            goto done;
+                        }
+                    }
+                    $logger->critical("No entrypoint specified for {$this->instance->instanceId}");
+                    throw new \RuntimeException("No entrypoint specified for {$this->instance->instanceId}");
+                }
             } catch (Unwind) {
                 // we don't need to do anything here, we just need to catch it
                 // so that we don't throw an exception
                 return;
             }
+            done:
 
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Completed,

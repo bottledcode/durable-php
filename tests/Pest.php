@@ -190,7 +190,7 @@ function getEntityHistory(?EntityState $withState = null): EntityHistory
 
 function getOrchestration(
     string $id,
-    callable $orchestration,
+    callable|object $orchestration,
     array $input,
     ?StartOrchestration &$nextEvent = null,
     ?Event $startupEvent = null
