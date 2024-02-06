@@ -188,9 +188,9 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
                     $logger->alert('Waiting on lock for over 30 seconds');
                 });
                 $cursor = table('locks')->get($key)->changes(new ChangesOptions(include_initial: true))->run($this->conn);
-                EventLoop::cancel($alerter);
                 foreach ($cursor as $value) {
                     if ($value['new_val'] === null) {
+                        EventLoop::cancel($alerter);
                         return $this->wait($key, $block);
                     }
                 }
