@@ -199,7 +199,7 @@ class EntityHistory extends AbstractHistory
                         }
                     }
                 }
-                $logger->critical('Unknown operation: ' . $operation);
+                $logger->critical('Unknown operation', ['operation' => $operation]);
                 return;
             }
             done:
