@@ -44,7 +44,7 @@ class DurableLogger implements LoggerInterface
 
     private LogLevel $level;
 
-    public function __construct(private ?LoggerInterface $logger = null)
+    public function __construct(private ?LoggerInterface $logger = null, private string|null $name = null)
     {
         if ($logger === null) {
             $handler = new StreamHandler(getStdout());
@@ -52,13 +52,13 @@ class DurableLogger implements LoggerInterface
             //$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
             $handler->setFormatter(
                 new class (new ConsoleFormatter(
-                    format: "[%datetime%] %level_name%: %message% %context% %extra%\n",
+                    format: $this->name ? "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n" : "[%datetime%] %level_name%: %message% %context% %extra%\n",
                     allowInlineLineBreaks: true,
                     ignoreEmptyContextAndExtra: true
-                )) implements FormatterInterface {
+                ), $this->name) implements FormatterInterface {
                     private Color $colorize;
 
-                    public function __construct(private FormatterInterface $innerFormat)
+                    public function __construct(private FormatterInterface $innerFormat, private string|null $name = null)
                     {
                         $this->colorize = new Color();
                     }
@@ -75,7 +75,7 @@ class DurableLogger implements LoggerInterface
                             ) => $this->colorize->error($text),
                         };
 
-                        return $color($this->innerFormat->format($record)) . "\033[0m";
+                        return $color($this->innerFormat->format($record->with(channel: $this->name))) . "\033[0m";
                     }
 
                     #[\Override]
@@ -97,6 +97,18 @@ class DurableLogger implements LoggerInterface
     }
 
     #[\Override]
+    public function info(\Stringable|string $message, array $context = []): void
+    {
+        $this->logger->info($message, $context);
+    }
+
+    #[\Override]
+    public function error(\Stringable|string $message, array $context = []): void
+    {
+        $this->logger->error($message, $context);
+    }
+
+    #[\Override]
     public function emergency(\Stringable|string $message, array $context = []): void
     {
         $this->logger->emergency($message, $context);
@@ -115,12 +127,6 @@ class DurableLogger implements LoggerInterface
     }
 
     #[\Override]
-    public function error(\Stringable|string $message, array $context = []): void
-    {
-        $this->logger->error($message, $context);
-    }
-
-    #[\Override]
     public function warning(\Stringable|string $message, array $context = []): void
     {
         $this->logger->warning($message, $context);
@@ -130,12 +136,6 @@ class DurableLogger implements LoggerInterface
     public function notice(\Stringable|string $message, array $context = []): void
     {
         $this->logger->notice($message, $context);
-    }
-
-    #[\Override]
-    public function info(\Stringable|string $message, array $context = []): void
-    {
-        $this->logger->info($message, $context);
     }
 
     #[\Override]

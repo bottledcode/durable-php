@@ -70,6 +70,8 @@ class RunCommand extends Command
 
     private DurableLogger $logger;
 
+    private string $semaphoreProvider;
+
     public function __construct()
     {
         parent::__construct("run", "Run your application");
@@ -121,6 +123,7 @@ class RunCommand extends Command
         $this->logger->debug("Configuring projectors and semaphore providers", ['projectors' => $projectors, 'semaphores' => $distributedLock]);
 
         $this->providers = $projectors;
+        $this->semaphoreProvider = $distributedLock;
 
         $this->configureProviders($projectors, $distributedLock);
 
@@ -200,7 +203,7 @@ class RunCommand extends Command
     private function handleEvent(Event $event, JobIdInterface $bEvent): void
     {
         $this->logger->info("Sending to worker", ['event' => $event, 'bEventId' => $bEvent->getId()]);
-        $task = new WorkerTask($this->bootstrap, $event, $this->providers);
+        $task = new WorkerTask($this->bootstrap, $event, $this->providers, $this->semaphoreProvider);
         $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
         $execution->getFuture()->map($this->handleTaskResult($event, $bEvent));
     }
