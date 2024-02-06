@@ -70,4 +70,6 @@ class ApcuProjector implements ProjectorInterface
     {
         return $this->next?->watch($key, ...$for);
     }
+
+    #[\Override] public function close(): void {}
 }

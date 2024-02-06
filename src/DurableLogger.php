@@ -87,7 +87,7 @@ class DurableLogger implements LoggerInterface
             );
             $handler->pushProcessor(new MemoryPeakUsageProcessor(true, true));
             $handler->pushProcessor(new ProcessIdProcessor());
-            $handler->setLevel(Level::tryFrom(getenv('LOG_LEVEL')) ?? Level::Info);
+            $handler->setLevel(Level::tryFrom(getenv('LOG_LEVEL')) ?? Level::Warning);
 
             $logger = new Monologger('main');
             $logger->pushHandler($handler);
