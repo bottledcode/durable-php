@@ -52,6 +52,8 @@ abstract class AbstractHistory implements StateInterface, ApplyStateInterface
         $this->container = $container;
     }
 
+    public function test2() {}
+
     public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
     {
         yield null;
