@@ -51,6 +51,8 @@ use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\AbstractHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
@@ -183,7 +185,7 @@ function getEntityHistory(?EntityState $withState = null): EntityHistory
     $history = new EntityHistory(StateId::fromEntityId($entityId));
     $reflector = new \ReflectionClass($history);
     $reflector->getProperty('state')->setValue($history, $withState);
-    $history->setContainer(new SimpleContainer(['test' => $withState]));
+    $history->setContainer(new SimpleContainer(['test' => $withState, SpyProxy::class => new SpyProxy()]));
 
     return $history;
 }
@@ -198,8 +200,8 @@ function getOrchestration(
     static $instance = 0;
     $container = new SimpleContainer(
         [
-            \Bottledcode\DurablePhp\Proxy\OrchestratorProxy::class => new \Bottledcode\DurablePhp\Proxy\OrchestratorProxy(),
-            \Bottledcode\DurablePhp\Proxy\SpyProxy::class => new \Bottledcode\DurablePhp\Proxy\SpyProxy(),
+            OrchestratorProxy::class => new OrchestratorProxy(),
+            SpyProxy::class => new SpyProxy(),
             $instance => $orchestration,
         ]
     );
