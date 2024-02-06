@@ -29,6 +29,7 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\StateInterface;
+use Bottledcode\DurablePhp\State\Status;
 
 interface ProjectorInterface
 {
@@ -51,5 +52,5 @@ interface ProjectorInterface
 
     public function chain(ProjectorInterface $next): void;
 
-    public function watch(StateId $key, RuntimeStatus ...$for): void;
+    public function watch(StateId $key, RuntimeStatus ...$for): Status|null;
 }

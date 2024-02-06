@@ -1,13 +1,28 @@
-version: "3"
+version: "3.8"
 services:
-  redis:
-    image: redis
+  beanstalkd:
+    image: ghcr.io/beanstalkd/beanstalkd
     ports:
-      - "6379:6379"
+      - "11300:11300"
+      - "8080:8080" # rethinkdb
+      - "28015:28015" # rethinkdb
+  rethinkdb:
+    image: rethinkdb
+    network_mode: service:beanstalkd
   workers:
     image: workers
     depends_on:
-      - redis
+      beanstalkd:
+        condition: service_started
+    network_mode: service:beanstalkd
     build:
       context: ../../
       dockerfile: tests/PerformanceTests/Dockerfile
+    volumes:
+      - ../..:/app
+    working_dir: /app
+    command:
+      - /app/bin/dphp
+      - run
+      - --bootstrap
+      - tests/PerformanceTests/bootstrap.php

@@ -21,31 +21,28 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
-
-use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
-use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
-use Bottledcode\DurablePhp\DurableClient;
-use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\EntityClient;
-use Bottledcode\DurablePhp\OrchestrationClient;
-use Bottledcode\DurablePhp\Proxy\SpyProxy;
-use Bottledcode\DurablePhp\Tests\StopWatch;
-
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$queue = new BeanstalkEventSource();
-$projector = new RethinkDbProjector();
-$client = new DurableClient(new EntityClient(new SpyProxy(), $projector, $queue), new OrchestrationClient($queue, $projector));
-$logger = new DurableLogger();
+if(!class_exists(FakeContainer::class)) {
+    class FakeContainer implements \Psr\Container\ContainerInterface
+    {
+        public function __construct(private array $objects) {}
 
-$watch = new StopWatch();
-$watch->start();
-$instance = $client->startNew(FanOutFanIn::class, ['count' => getenv('ACTIVITY_COUNT') ?: 10]);
-$client->waitForCompletion($instance);
-$watch->stop();
+        #[\Override] public function get(string $id)
+        {
+            return $this->objects[$id] ?? new $id();
+        }
 
-var_dump($client->getStatus($instance));
-var_dump($instance);
+        #[\Override] public function has(string $id): bool
+        {
+            return isset($this->objects[$id]);
+        }
 
-$logger->alert(sprintf("Completed in %s seconds", number_format($watch->getSeconds(), 2)));
+        public function set(string $id, $value): void
+        {
+            $this->objects[$id] = $value;
+        }
+    }
+}
+
+return new FakeContainer([]);

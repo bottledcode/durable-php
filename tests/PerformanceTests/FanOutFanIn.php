@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -23,7 +23,6 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\Logger;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
@@ -41,6 +40,6 @@ class FanOutFanIn
             $context->setCustomStatus($i);
             $task->getResult();
         }
-        Logger::log($i + 1);
+        $context->getReplayAwareLogger()->alert($i + 1);
     }
 }

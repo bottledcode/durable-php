@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -23,17 +23,18 @@
 
 namespace Bottledcode\DurablePhp\Tests\Common;
 
-use Bottledcode\DurablePhp\EntityContextInterface;
+use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\State\EntityState;
 
 class LauncherEntity extends EntityState
 {
-    public function __construct(private EntityContextInterface $context) {}
+    public function __construct() {}
 
     public function launch(string $orchestration, int $number, int $offset)
     {
+        $context = EntityContext::current();
         for($i = 0; $i < $number; $i++) {
-            $this->context->startNewOrchestration($orchestration, [], $offset + $i);
+            $context->startNewOrchestration($orchestration, [], $offset + $i);
         }
     }
 }

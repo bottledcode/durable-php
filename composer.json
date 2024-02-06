@@ -43,6 +43,10 @@
     "ramsey/uuid": "^4.7.5",
     "withinboredom/time": "^2.1"
   },
+  "suggest": {
+    "ext-parallel": "*",
+    "ext-uuid": "*"
+  },
   "type": "library",
   "require-dev": {
     "squizlabs/php_codesniffer": "^3.8.1",

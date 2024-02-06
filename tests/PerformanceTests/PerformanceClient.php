@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,9 +24,13 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
+use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
+use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
+use Bottledcode\DurablePhp\DurableClient;
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\EntityClient;
-use Bottledcode\DurablePhp\Logger;
+use Bottledcode\DurablePhp\OrchestrationClient;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Tests\Common\LauncherEntity;
@@ -35,16 +39,17 @@ use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
-$client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
-$actors = new EntityClient($config, SourceFactory::fromConfig($config));
+$queue = new BeanstalkEventSource();
+$projector = new RethinkDbProjector();
+$client = new DurableClient(new EntityClient(new SpyProxy(), $projector, $queue), new OrchestrationClient($queue, $projector));
+$logger = new DurableLogger();
 
 $watch = new StopWatch();
 $watch->start();
 $numberToLaunch = getenv('ACTIVITY_COUNT') ?: 5000 / 200;
 $numberLaunchers = 200;
 for ($i = 0; $i < $numberLaunchers; $i++) {
-    $actors->signalEntity(
+    $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),
         'launch',
         ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch]
@@ -52,10 +57,10 @@ for ($i = 0; $i < $numberLaunchers; $i++) {
 }
 
 for ($i = 0; $i < $numberLaunchers * $numberToLaunch; $i++) {
-    Logger::always("Waiting for %d", $i);
+    $logger->alert(sprintf("Waiting for %d", $i));
     $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $i));
 }
 
 $watch->stop();
 
-Logger::always("Completed in %s seconds", number_format($watch->getSeconds(), 2));
+$logger->alert(sprintf("Completed in %s seconds", number_format($watch->getSeconds(), 3)));
