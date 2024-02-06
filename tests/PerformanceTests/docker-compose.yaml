@@ -51,7 +51,7 @@ services:
       - --bootstrap
       - tests/PerformanceTests/bootstrap.php
       - --monitor
-      - orchestrations,entities
+      - orchestrations
   entities:
     image: workers
     restart: on-failure
@@ -73,4 +73,4 @@ services:
       - --bootstrap
       - tests/PerformanceTests/bootstrap.php
       - --monitor
-      - entities,orchestrations
+      - entities

@@ -27,6 +27,7 @@ use Ahc\Cli\Input\Command;
 use Amp\Parallel\Context\DefaultContextFactory;
 use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
+use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\ApcuProjector;
 use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
 use Bottledcode\DurablePhp\Abstractions\EventHandlerInterface;
@@ -160,7 +161,7 @@ class RunCommand extends Command
                 if($this->backpressure > $this->maxPressure) {
                     return;
                 }
-                $bEvent = $this->beanstalkClient->getSingleEvent();
+                $bEvent = $this->beanstalkClient->getSingleEvent($this->workerPool->getIdleWorkerCount() === $this->workerPool->getWorkerCount() ? 2 : 0);
             } catch (ConnectionException $exception) {
                 $this->exit($exception->getMessage());
                 return;
@@ -219,7 +220,7 @@ class RunCommand extends Command
         $this->logger->info("Sending to worker", ['event' => $event, 'bEventId' => $bEvent->getId(),
             'idle' => $this->workerPool->getIdleWorkerCount(), 'running' => $this->workerPool->isRunning()]);
         $task = new WorkerTask($this->bootstrap, $event, $this->providers, $this->semaphoreProvider);
-        $execution = $this->workerPool->submit($task);
+        $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
         $execution->getFuture()->catch(function ($e) use ($bEvent) {
             $this->logger->error("Unable to process job", ['bEventId' => $bEvent->getId(), 'exception' => $e]);
             $this->backpressure -= 1;
@@ -228,14 +229,14 @@ class RunCommand extends Command
 
     private function handleTaskResult(JobIdInterface $bEvent): Closure
     {
-        return function (array $result) use ($bEvent) {
+        return function (array|null $result) use ($bEvent) {
             // mark event as successful
             $this->logger->info("Acknowledge", ['bEventId' => $bEvent->getId(), 'result' => $result]);
             $this->beanstalkClient->ack($bEvent);
 
-            $this->logger->info("Firing " . count($result) . " events");
+            $this->logger->info("Firing " . count($result ?? []) . " events");
             // dispatch events
-            foreach ($result as $event) {
+            foreach ($result ?? [] as $event) {
                 $this->beanstalkClient->fire($event);
             }
             $this->backpressure -= 1;

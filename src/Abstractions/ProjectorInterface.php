@@ -53,4 +53,6 @@ interface ProjectorInterface
     public function chain(ProjectorInterface $next): void;
 
     public function watch(StateId $key, RuntimeStatus ...$for): Status|null;
+
+    public function close(): void;
 }

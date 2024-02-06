@@ -45,10 +45,9 @@ class WorkerTask implements Task
     use ProviderTrait;
     use Router;
 
+    private static array $globals = [];
     private ContainerInterface $container;
-
     private ProjectorInterface $projector;
-
     private Semaphore $semaphore;
 
     private DurableLogger $logger;
@@ -59,9 +58,16 @@ class WorkerTask implements Task
 
     public function run(Channel $channel, Cancellation $cancellation): array
     {
+        gc_enable();
+        gc_collect_cycles();
         $this->logger = new DurableLogger();
         $this->logger->info("Running worker", ['event' => $this->event]);
-        $this->configureProviders($this->providers, $this->semaphoreProvider);
+        if(empty(self::$globals)) {
+            $this->configureProviders($this->providers, $this->semaphoreProvider);
+            self::$globals = [$this->projector, $this->semaphore];
+        } else {
+            [$this->projector, $this->semaphore] = self::$globals;
+        }
         $this->container = include $this->bootstrap;
 
         $states = [];
@@ -112,6 +118,9 @@ class WorkerTask implements Task
         }
 
         $this->semaphore->signalAll();
+
+        //$this->semaphore->close();
+        //$this->projector->close();
 
         return $this->batch;
     }

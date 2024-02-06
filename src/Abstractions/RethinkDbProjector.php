@@ -41,7 +41,7 @@ use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
 use Revolt\EventLoop;
 
-use function r\connect;
+use function r\connectAsync;
 use function r\dbCreate;
 use function r\now;
 use function r\row;
@@ -69,7 +69,7 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
 
         $database = getenv('RETHINKDB_DATABASE') ?: 'durablephp';
 
-        $this->conn = connect(
+        $this->conn = connectAsync(
             new ConnectionOptions(
                 getenv('RETHINKDB_HOST') ?: '127.0.0.1',
                 getenv('RETHINKDB_PORT') ?: 28015,
@@ -83,6 +83,7 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
             return;
         }
 
+        sleep(random_int(1, 5));
         try {
             try {
                 dbCreate($database)->run($this->conn);
@@ -105,6 +106,14 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
     {
         $this->conn?->close();
         unset($this->conn);
+    }
+
+    #[\Override] public function close(): void
+    {
+        if($this->conn ?? false) {
+            $this->conn->close();
+            unset($this->conn);
+        }
     }
 
     public function projectState(StateId $key, StateInterface|null $history): void
@@ -187,9 +196,10 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
             return true;
         } catch (\Throwable) {
             if ($block) {
-                $alerter = EventLoop::repeat(30, static function () {
+                $alerter = EventLoop::delay(30, function () use ($key) {
                     $logger = new DurableLogger(name: 'RethinkDbProjector');
-                    $logger->alert('Waiting on lock for over 30 seconds');
+                    $logger->alert('Waiting on lock for over 30 seconds, taking over');
+                    table('locks')->get($key)->delete()->run($this->conn);
                 });
                 $cursor = table('locks')->get($key)->changes(new ChangesOptions(include_initial: true))->run($this->conn);
                 foreach ($cursor as $value) {

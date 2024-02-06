@@ -30,7 +30,7 @@ interface EventHandlerInterface
 {
     public function subscribe(QueueType $type): void;
 
-    public function getSingleEvent(): Job|null;
+    public function getSingleEvent(int $poll): Job|null;
 
     public function ack(JobIdInterface $job): void;
 }

@@ -62,9 +62,9 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
         return $tubes[$type->value] ??= new TubeName("{$this->namespace}_{$type->value}");
     }
 
-    public function getSingleEvent(): Job|null
+    public function getSingleEvent(int $poll): Job|null
     {
-        return $this->beanstalkClient->reserveWithTimeout(0);
+        return $this->beanstalkClient->reserveWithTimeout($poll);
     }
 
     public function fire(Event $event): void
