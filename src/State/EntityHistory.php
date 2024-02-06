@@ -55,7 +55,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id)
+    public function __construct(public StateId $id, private DurableLogger $logger)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -173,8 +173,6 @@ class EntityHistory extends AbstractHistory
             $this->container->get(SpyProxy::class)
         );
 
-        $logger = new DurableLogger();
-
         if (is_object($this->state)) {
             $reflector = new ReflectionClass($this->state);
             $properties = $reflector->getProperties();
@@ -199,7 +197,7 @@ class EntityHistory extends AbstractHistory
                         }
                     }
                 }
-                $logger->critical('Unknown operation', ['operation' => $operation]);
+                $this->logger->critical('Unknown operation', ['operation' => $operation]);
                 return;
             }
             done:

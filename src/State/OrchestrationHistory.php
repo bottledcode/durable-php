@@ -78,7 +78,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(public readonly StateId $id)
+    public function __construct(public readonly StateId $id, private DurableLogger $logger)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -153,13 +153,11 @@ class OrchestrationHistory extends AbstractHistory
 
     private function construct(): \Generator
     {
-        $logger = new DurableLogger();
-
         try {
             $class = new \ReflectionClass($this->instance->instanceId);
         } catch (\ReflectionException) {
             // we should handle this more gracefully...
-            $logger->warning('unable to reflect on instance', [$this->instance->instanceId]);
+            $this->logger->warning('unable to reflect on instance', [$this->instance->instanceId]);
         }
 
         $proxyGenerator = $this->container->get(OrchestratorProxy::class);
@@ -170,7 +168,7 @@ class OrchestrationHistory extends AbstractHistory
             $taskScheduler = $task;
         };
 
-        $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $logger);
+        $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $this->logger);
 
         if(method_exists($this->container, 'set')) {
             $this->container->set(OrchestrationContext::class, $context);
@@ -221,7 +219,7 @@ class OrchestrationHistory extends AbstractHistory
                             goto done;
                         }
                     }
-                    $logger->critical("No entrypoint specified for {$this->instance->instanceId}");
+                    $this->logger->critical("No entrypoint specified for {$this->instance->instanceId}");
                     throw new \RuntimeException("No entrypoint specified for {$this->instance->instanceId}");
                 }
             } catch (Unwind) {
@@ -237,7 +235,7 @@ class OrchestrationHistory extends AbstractHistory
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
-            $logger->critical('Failed to process orchestration', ['exception' => $e]);
+            $this->logger->critical('Failed to process orchestration', ['exception' => $e]);
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Failed,
                 output: Serializer::serialize(

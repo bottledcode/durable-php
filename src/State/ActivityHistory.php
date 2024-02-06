@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
@@ -37,7 +38,7 @@ class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
 
-    public function __construct(private StateId $id)
+    public function __construct(private StateId $id, private DurableLogger $logger)
     {
         $this->activityId = $id->toActivityId();
     }

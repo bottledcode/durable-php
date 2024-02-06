@@ -55,12 +55,12 @@ class WorkerTask implements Task
 
     private array $batch = [];
 
-    public function __construct(private string $bootstrap, private Event $event, private array $providers) {}
+    public function __construct(private string $bootstrap, private Event $event, private array $providers, private string $semaphoreProvider) {}
 
     public function run(Channel $channel, Cancellation $cancellation): array
     {
         $this->logger = new DurableLogger();
-        $this->configureProviders($this->providers);
+        $this->configureProviders($this->providers, $this->semaphoreProvider);
         $this->container = include $this->bootstrap;
 
         $states = [];
@@ -122,7 +122,7 @@ class WorkerTask implements Task
         $id = new StateId($target);
 
         $currentState = $this->projector->getState($id);
-        $currentState ??= new ($id->getStateType())($id);
+        $currentState ??= new ($id->getStateType())($id, $this->logger);
         $currentState->setContainer($this->container);
         return $currentState;
     }
