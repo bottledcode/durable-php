@@ -9,8 +9,9 @@ services:
   rethinkdb:
     image: rethinkdb
     network_mode: service:beanstalkd
-  workers:
+  activities:
     image: workers
+    restart: on-failure
     depends_on:
       beanstalkd:
         condition: service_started
@@ -26,3 +27,50 @@ services:
       - run
       - --bootstrap
       - tests/PerformanceTests/bootstrap.php
+      - --monitor
+      - activities
+      - --migrate
+  orchestrations:
+    image: workers
+    restart: on-failure
+    depends_on:
+      beanstalkd:
+        condition: service_started
+      activities:
+        condition: service_started
+    network_mode: service:beanstalkd
+    build:
+      context: ../../
+      dockerfile: tests/PerformanceTests/Dockerfile
+    volumes:
+      - ../..:/app
+    working_dir: /app
+    command:
+      - /app/bin/dphp
+      - run
+      - --bootstrap
+      - tests/PerformanceTests/bootstrap.php
+      - --monitor
+      - orchestrations,entities
+  entities:
+    image: workers
+    restart: on-failure
+    depends_on:
+      beanstalkd:
+        condition: service_started
+      orchestrations:
+        condition: service_started
+    network_mode: service:beanstalkd
+    build:
+      context: ../../
+      dockerfile: tests/PerformanceTests/Dockerfile
+    volumes:
+      - ../..:/app
+    working_dir: /app
+    command:
+      - /app/bin/dphp
+      - run
+      - --bootstrap
+      - tests/PerformanceTests/bootstrap.php
+      - --monitor
+      - entities,orchestrations

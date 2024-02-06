@@ -43,5 +43,5 @@ interface Semaphore
 
     public function signalAll(): void;
 
-    public function connect(): void;
+    public function connect(bool $migrate): void;
 }

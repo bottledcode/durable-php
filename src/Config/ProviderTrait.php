@@ -28,7 +28,7 @@ use Bottledcode\DurablePhp\Abstractions\Semaphore;
 
 trait ProviderTrait
 {
-    private function configureProviders(array $projectors, string $distributedLock): void
+    private function configureProviders(array $projectors, string $distributedLock, bool $migrate = false): void
     {
         /** @var ProjectorInterface|null $previous */
         $previous = null;
@@ -41,16 +41,28 @@ trait ProviderTrait
             $projectorClass = new $p();
             $found = false;
             if ($projectorClass instanceof ProjectorInterface) {
-                $projectorClass->connect();
+                $projectorClass->connect($migrate);
                 $previous?->chain($projectorClass);
                 $previous = $projectorClass;
                 $this->projector ??= $projectorClass;
                 $found = true;
             }
 
+            if($p === $distributedLock) {
+                $projectorClass = new $distributedLock();
+                if ($projectorClass instanceof Semaphore) {
+                    $projectorClass->connect($migrate);
+                    $this->semaphore ??= $projectorClass;
+                }
+            }
+
             if (!$found) {
                 throw new \RuntimeException("$p does not implement Semaphore or Projector interface");
             }
+        }
+
+        if($this->semaphore ?? false) {
+            return;
         }
 
         if(!class_exists($distributedLock)) {
@@ -59,7 +71,7 @@ trait ProviderTrait
 
         $projectorClass = new $distributedLock();
         if ($projectorClass instanceof Semaphore) {
-            $projectorClass->connect();
+            $projectorClass->connect($migrate);
             $this->semaphore ??= $projectorClass;
         }
     }
