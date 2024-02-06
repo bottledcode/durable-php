@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\EntityContextInterface;
 use Bottledcode\DurablePhp\Events\AwaitResult;
@@ -37,6 +38,7 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
+use Bottledcode\DurablePhp\State\Attributes\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Generator;
 use ReflectionClass;
@@ -171,6 +173,8 @@ class EntityHistory extends AbstractHistory
             $this->container->get(SpyProxy::class)
         );
 
+        $logger = new DurableLogger();
+
         if (is_object($this->state)) {
             $reflector = new ReflectionClass($this->state);
             $properties = $reflector->getProperties();
@@ -180,7 +184,25 @@ class EntityHistory extends AbstractHistory
                     $property->setValue($this->state, $context);
                 }
             }
-            $operationReflection = $reflector->getMethod($operation);
+            try {
+                $operationReflection = $reflector->getMethod($operation);
+            } catch(\ReflectionException) {
+                // search attributes for matching operation
+                foreach($reflector->getMethods() as $method) {
+                    foreach($method->getAttributes(Operation::class) as $attribute) {
+                        /** @var Operation $attributeClass */
+                        $attributeClass = $attribute->newInstance();
+
+                        if($attributeClass->name === $operation) {
+                            $operationReflection = $reflector->getMethod($attributeClass->name);
+                            goto done;
+                        }
+                    }
+                }
+                $logger->critical('Unknown operation: ' . $operation);
+                return;
+            }
+            done:
             $parameters = $operationReflection->getParameters();
             $input = array_map(
                 static fn(\ReflectionParameter $parameter, mixed $input) => is_array($input) ? Serializer::deserialize(
