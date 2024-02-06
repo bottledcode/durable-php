@@ -23,6 +23,7 @@
 
 namespace Bottledcode\DurablePhp\Abstractions;
 
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -38,6 +39,7 @@ use r\Options\Durability;
 use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
 use r\ValuedQuery\RVar;
+use Revolt\EventLoop;
 
 use function r\connectAsync;
 use function r\dbCreate;
@@ -181,8 +183,12 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
             return true;
         } catch (\Throwable) {
             if ($block) {
-                $cursor =
-                    table('locks')->get($key)->changes(new ChangesOptions(include_initial: true))->run($this->conn);
+                $alerter = EventLoop::repeat(30, function () {
+                    $logger = new DurableLogger();
+                    $logger->alert('Waiting on lock for over 30 seconds');
+                });
+                $cursor = table('locks')->get($key)->changes(new ChangesOptions(include_initial: true))->run($this->conn);
+                EventLoop::cancel($alerter);
                 foreach ($cursor as $value) {
                     if ($value['new_val'] === null) {
                         return $this->wait($key, $block);
