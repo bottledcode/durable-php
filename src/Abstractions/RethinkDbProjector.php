@@ -183,7 +183,7 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
             return true;
         } catch (\Throwable) {
             if ($block) {
-                $alerter = EventLoop::repeat(30, function () {
+                $alerter = EventLoop::repeat(30, static function () {
                     $logger = new DurableLogger();
                     $logger->alert('Waiting on lock for over 30 seconds');
                 });
