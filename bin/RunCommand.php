@@ -122,7 +122,7 @@ class RunCommand extends Command
 
         $this->providers = $projectors;
 
-        $this->configureProviders($projectors);
+        $this->configureProviders($projectors, $distributedLock);
 
         if (str_contains($monitor, 'activities')) {
             $this->logger->debug("Subscribing to activity feed...");
