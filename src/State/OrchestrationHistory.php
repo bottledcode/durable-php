@@ -192,7 +192,32 @@ class OrchestrationHistory extends AbstractHistory
                     foreach($reflection->getMethods() as $method) {
                         foreach($method->getAttributes(EntryPoint::class) as $attribute) {
                             // we have an entrypoint
-                            $result = ($method->getClosure($this->constructed))(...$context->getInput());
+                            $input = $context->getInput();
+                            foreach($input as $name => &$entry) {
+                                if(!is_array($entry)) {
+                                    continue;
+                                }
+                                if(is_numeric($name)) {
+                                    $parameter = $method->getParameters()[$name];
+                                    if($parameter->getType()?->isBuiltin()) {
+                                        continue;
+                                    }
+                                    $entry = Serializer::deserialize($entry, $parameter->getType());
+                                } else {
+                                    foreach($method->getParameters() as $parameter) {
+                                        if ($parameter->getName() === $name) {
+                                            if($parameter->getType()?->isBuiltin()) {
+                                                break;
+                                            }
+                                            $entry = Serializer::deserialize($entry, $parameter->getType());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            unset($entry);
+
+                            $result = ($method->getClosure($this->constructed))(...$input);
                             goto done;
                         }
                     }
