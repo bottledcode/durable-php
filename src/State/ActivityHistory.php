@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -95,10 +96,10 @@ class ActivityHistory extends AbstractHistory
                 RuntimeStatus::Completed
             );
             foreach ($replyTo as $id) {
-                yield WithOrchestration::forInstance(
+                yield WithPriority::high(WithOrchestration::forInstance(
                     $id,
                     TaskCompleted::forId($original->eventId, $result)
-                );
+                ));
             }
         } catch (\Throwable $e) {
             $now = MonotonicClock::current()->now();

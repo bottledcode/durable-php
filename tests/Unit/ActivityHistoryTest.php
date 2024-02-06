@@ -65,7 +65,7 @@ it('succeeds on no exception', function () {
         WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [false]))
     );
     $result1 = processEvent($event, $history->applyScheduleTask(...));
-    expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent())->toBeInstanceOf(TaskCompleted::class);
+    expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent()->getInnerEvent())->toBeInstanceOf(TaskCompleted::class);
 
     $result2 = processEvent($event, $history->applyScheduleTask(...));
     expect($result2)->toHaveCount(1)

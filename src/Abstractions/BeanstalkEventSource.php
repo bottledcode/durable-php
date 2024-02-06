@@ -28,6 +28,7 @@ use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
 use Bottledcode\DurablePhp\Events\WithDelay;
+use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\State\Serializer;
 use Carbon\CarbonImmutable;
 use Pheanstalk\Contract\JobIdInterface;
@@ -68,8 +69,9 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
 
     public function fire(Event $event): void
     {
+        $priority = $event instanceof WithPriority ? $event->priority : 100;
         $this->beanstalkClient->useTube($this->getQueueForEvent($event));
-        $this->beanstalkClient->put(json_encode(Serializer::serialize($event)), 100, $this->getDelayForEvent($event), timeToRelease: 120);
+        $this->beanstalkClient->put(json_encode(Serializer::serialize($event)), $priority, $this->getDelayForEvent($event), timeToRelease: 120);
     }
 
     private function getQueueForEvent(Event $event): TubeName

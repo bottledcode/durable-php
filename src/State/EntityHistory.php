@@ -35,6 +35,7 @@ use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\With;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
@@ -108,10 +109,10 @@ class EntityHistory extends AbstractHistory
                 // reply to the lock request
                 $reply = $this->getReplyTo($original);
                 foreach ($reply as $nextEvent) {
-                    yield With::id(
+                    yield WithPriority::high(With::id(
                         $nextEvent,
                         RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target'])
-                    );
+                    ));
                 }
                 break;
             case '__unlock':
@@ -221,7 +222,7 @@ class EntityHistory extends AbstractHistory
 
         if ($replyTo) {
             foreach ($replyTo as $reply) {
-                yield WithOrchestration::forInstance($reply, TaskCompleted::forId($original->eventId, $result ?? null));
+                yield WithPriority::high(WithOrchestration::forInstance($reply, TaskCompleted::forId($original->eventId, $result ?? null)));
             }
         }
     }
