@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -24,24 +23,33 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\Serde\Attributes\ClassNameTypeMap;
-use Psr\Container\ContainerInterface;
-
-#[ClassNameTypeMap('_state_type')]
-interface StateInterface
+trait ParameterFillerTrait
 {
-    public function __construct(StateId $id, DurableLogger|null $logger = null);
+    private function fillParameters(array $arguments, \ReflectionMethod|\ReflectionFunction $method): array
+    {
+        foreach($arguments as $name => &$entry) {
+            if(!is_array($entry)) {
+                continue;
+            }
+            if(is_numeric($name)) {
+                $parameter = $method->getParameters()[$name];
+                if($parameter->getType()?->isBuiltin()) {
+                    continue;
+                }
+                $entry = Serializer::deserialize($entry, $parameter->getType());
+            } else {
+                foreach($method->getParameters() as $parameter) {
+                    if ($parameter->getName() === $name) {
+                        if($parameter->getType()?->isBuiltin()) {
+                            break;
+                        }
+                        $entry = Serializer::deserialize($entry, $parameter->getType());
+                        break;
+                    }
+                }
+            }
+        }
 
-    public function hasAppliedEvent(Event $event): bool;
-
-    public function resetState(): void;
-
-    public function ackedEvent(Event $event): void;
-
-    public function getStatus(): Status;
-
-    public function setContainer(ContainerInterface $container): void;
+        return $arguments;
+    }
 }

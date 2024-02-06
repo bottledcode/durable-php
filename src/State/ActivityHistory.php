@@ -37,9 +37,12 @@ use Crell\Serde\Attributes\Field;
 
 class ActivityHistory extends AbstractHistory
 {
+    use ParameterFillerTrait;
+    use EntrypointLocatorTrait;
+
     public string $activityId;
 
-    public function __construct(private StateId $id, #[Field(exclude: true)] public DurableLogger $logger)
+    public function __construct(private StateId $id, #[Field(exclude: true)] public DurableLogger|null $logger = null)
     {
         $this->activityId = $id->toActivityId();
     }
@@ -71,10 +74,16 @@ class ActivityHistory extends AbstractHistory
         }
 
         try {
-            if(!is_callable($task)) {
+            if(!is_object($task)) {
                 $task = $this->container->get($task);
+                $reflection = new \ReflectionClass($task);
+                $entrypoint = $this->locateEntrypoint($reflection) ?? throw new \RuntimeException("Unable to locate entrypoint for $event->name");
+                $arguments = $this->fillParameters($event->input, $entrypoint);
+            } else {
+                $arguments = $this->fillParameters($event->input, new \ReflectionFunction($task));
             }
-            $result = $task(...($event->input ?? []));
+
+            $result = $task(...$arguments);
             $now = MonotonicClock::current()->now();
             $this->status = new Status(
                 $now,

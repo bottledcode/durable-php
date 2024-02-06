@@ -43,7 +43,6 @@ use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
-use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\WorkerTask;
 use Crell\Serde\Attributes\Field;
@@ -51,6 +50,9 @@ use Crell\Serde\Attributes\SequenceField;
 
 class OrchestrationHistory extends AbstractHistory
 {
+    use ParameterFillerTrait;
+    use EntrypointLocatorTrait;
+
     public \DateTimeImmutable $now;
 
     public string $name;
@@ -78,7 +80,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public DurableLogger $logger)
+    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public DurableLogger|null $logger = null)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -187,47 +189,15 @@ class OrchestrationHistory extends AbstractHistory
                     $result = ($this->constructed)($context);
                 } elseif(is_object($this->constructed)) {
                     $reflection = new \ReflectionClass($this->constructed);
-                    foreach($reflection->getMethods() as $method) {
-                        foreach($method->getAttributes(EntryPoint::class) as $attribute) {
-                            // we have an entrypoint
-                            $input = $context->getInput();
-                            foreach($input as $name => &$entry) {
-                                if(!is_array($entry)) {
-                                    continue;
-                                }
-                                if(is_numeric($name)) {
-                                    $parameter = $method->getParameters()[$name];
-                                    if($parameter->getType()?->isBuiltin()) {
-                                        continue;
-                                    }
-                                    $entry = Serializer::deserialize($entry, $parameter->getType());
-                                } else {
-                                    foreach($method->getParameters() as $parameter) {
-                                        if ($parameter->getName() === $name) {
-                                            if($parameter->getType()?->isBuiltin()) {
-                                                break;
-                                            }
-                                            $entry = Serializer::deserialize($entry, $parameter->getType());
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            unset($entry);
-
-                            $result = ($method->getClosure($this->constructed))(...$input);
-                            goto done;
-                        }
-                    }
-                    $this->logger->critical("No entrypoint specified for {$this->instance->instanceId}");
-                    throw new \RuntimeException("No entrypoint specified for {$this->instance->instanceId}");
+                    $entrypoint = $this->locateEntrypoint($reflection) ?? throw new \RuntimeException('Missing entrypoint for ' . $this->instance->instanceId);
+                    $arguments = $this->fillParameters($context->getInput(), $entrypoint);
+                    $result = ($entrypoint->getClosure($this->constructed))(...$arguments);
                 }
             } catch (Unwind) {
                 // we don't need to do anything here, we just need to catch it
-                // so that we don't throw an exception
+                // so that we don't fail
                 return;
             }
-            done:
 
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Completed,
