@@ -39,7 +39,7 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
 {
     private Pheanstalk $beanstalkClient;
 
-    public function __construct(private string $host, private string $port, private string $namespace)
+    public function __construct(private readonly string $host, private readonly string $port, private readonly string $namespace)
     {
         $this->reconnect();
     }
