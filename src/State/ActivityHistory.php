@@ -39,7 +39,7 @@ class ActivityHistory extends AbstractHistory
 {
     public string $activityId;
 
-    public function __construct(private StateId $id, #[Field(exclude: true)] private DurableLogger $logger)
+    public function __construct(private StateId $id, #[Field(exclude: true)] public DurableLogger $logger)
     {
         $this->activityId = $id->toActivityId();
     }
