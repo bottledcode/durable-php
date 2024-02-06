@@ -168,7 +168,7 @@ class EntityHistory extends AbstractHistory
             $taskDispatcher,
             $replyTo,
             $original->eventId,
-            new SpyProxy()
+            $this->container->get(SpyProxy::class)
         );
 
         if (is_object($this->state)) {
