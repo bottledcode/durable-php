@@ -123,6 +123,7 @@ class WorkerTask implements Task
 
         $currentState = $this->projector->getState($id);
         $currentState ??= new ($id->getStateType())($id, $this->logger);
+        $currentState->logger = $this->logger;
         $currentState->setContainer($this->container);
         return $currentState;
     }

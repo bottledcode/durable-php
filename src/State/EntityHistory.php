@@ -56,7 +56,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, #[Field(exclude: true)] private DurableLogger $logger)
+    public function __construct(public StateId $id, #[Field(exclude: true)] public DurableLogger $logger)
     {
         $this->entityId = $id->toEntityId();
     }

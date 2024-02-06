@@ -78,7 +78,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(public readonly StateId $id, #[Field(exclude: true)] private DurableLogger $logger)
+    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public DurableLogger $logger)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
