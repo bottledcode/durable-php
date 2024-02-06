@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -24,24 +23,22 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\Events\Event;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Crell\Serde\Attributes\ClassNameTypeMap;
-use Psr\Container\ContainerInterface;
+use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
 
-#[ClassNameTypeMap('_state_type')]
-interface StateInterface
+trait EntrypointLocatorTrait
 {
-    public function __construct(StateId $id, DurableLogger|null $logger = null);
+    private function locateEntrypoint(\ReflectionClass $class): \ReflectionMethod|null
+    {
+        foreach($class->getMethods() as $method) {
+            foreach($method->getAttributes(EntryPoint::class) as $attribute) {
+                return $method;
+            }
+        }
 
-    public function hasAppliedEvent(Event $event): bool;
-
-    public function resetState(): void;
-
-    public function ackedEvent(Event $event): void;
-
-    public function getStatus(): Status;
-
-    public function setContainer(ContainerInterface $container): void;
+        try {
+            return $class->getMethod('__invoke');
+        } catch(\ReflectionException) {
+            return null;
+        }
+    }
 }

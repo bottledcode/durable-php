@@ -47,6 +47,8 @@ use ReflectionNamedType;
 
 class EntityHistory extends AbstractHistory
 {
+    use ParameterFillerTrait;
+
     public EntityId $entityId;
 
     public string $name;
@@ -56,7 +58,7 @@ class EntityHistory extends AbstractHistory
     private EntityState|null $state = null;
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, #[Field(exclude: true)] public DurableLogger $logger)
+    public function __construct(public StateId $id, #[Field(exclude: true)] public DurableLogger|null $logger = null)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -202,17 +204,10 @@ class EntityHistory extends AbstractHistory
                 return;
             }
             done:
-            $parameters = $operationReflection->getParameters();
-            $input = array_map(
-                static fn(\ReflectionParameter $parameter, mixed $input) => is_array($input) ? Serializer::deserialize(
-                    $input,
-                    $parameter->getType()?->getName() ?? 'array'
-                ) : $input,
-                $parameters,
-                $input
-            );
+            $input = $this->fillParameters($input, $operationReflection);
             try {
-                $result = $this->state->$operation(...$input);
+                $result = $operationReflection->getClosure($this->state);
+                $result = $result(...$input);
             } catch (Unwind) {
                 return;
             }
