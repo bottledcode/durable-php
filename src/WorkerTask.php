@@ -72,8 +72,10 @@ class WorkerTask implements Task
 
         $states = [];
         $originalEvent = $this->event;
+        $semaphoreKey = [];
         while ($this->event instanceof HasInnerEventInterface) {
             if ($this->event instanceof StateTargetInterface) {
+                $this->semaphore->wait($semaphoreKey[] = $this->event->getTarget(), true);
                 $states[] = $this->getState($this->event->getTarget());
             }
 
@@ -112,12 +114,14 @@ class WorkerTask implements Task
             $this->logger->debug('Finalizing state');
 
             $state->resetState();
-            $this->updateState($state);
 
             $state->ackedEvent($originalEvent);
+            $this->updateState($state);
         }
 
-        $this->semaphore->signalAll();
+        foreach($semaphoreKey as $key) {
+            $this->semaphore->signal($key);
+        }
 
         //$this->semaphore->close();
         //$this->projector->close();
@@ -127,12 +131,6 @@ class WorkerTask implements Task
 
     public function getState(string $target): ApplyStateInterface&StateInterface
     {
-        $this->logger->debug("Taking lock", ['target' => $target]);
-        $result = $this->semaphore->wait($target, true);
-        if (!$result) {
-            throw new \LogicException('unable to get lock on state, manual intervention may be required');
-        }
-
         $id = new StateId($target);
 
         $currentState = $this->projector->getState($id);
@@ -166,6 +164,5 @@ class WorkerTask implements Task
     {
         $this->logger->debug('projecting state');
         $this->projector->projectState($id = StateId::fromState($state), $state);
-        $this->semaphore->signal($id->id);
     }
 }

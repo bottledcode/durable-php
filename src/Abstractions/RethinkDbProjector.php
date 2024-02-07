@@ -23,7 +23,6 @@
 
 namespace Bottledcode\DurablePhp\Abstractions;
 
-use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -39,8 +38,8 @@ use r\Options\ChangesOptions;
 use r\Options\Durability;
 use r\Options\TableCreateOptions;
 use r\Options\TableInsertOptions;
-use Revolt\EventLoop;
 
+use function Amp\delay;
 use function r\connectAsync;
 use function r\dbCreate;
 use function r\now;
@@ -182,6 +181,11 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
 
         $me = gethostname() . ":" . (function_exists('posix_getpid') ? posix_getpid() : $this->instance);
         try {
+            if($this->semaphores[$key] ?? false) {
+                table('locks')->get($key)->update(['at' => now()])->run($this->conn);
+                return true;
+            }
+
             $result = table('locks')->insert(
                 ['id' => $key, 'owner' => $me, 'at' => now()],
                 new TableInsertOptions(conflict: 'error')
@@ -189,25 +193,15 @@ class RethinkDbProjector implements ProjectorInterface, Semaphore
             if ($result['errors']) {
                 throw new Exception('insert failed');
             }
-            table('locks')->get($key)->update(['at' => now()])->run($this->conn);
 
             $this->semaphores[$key] = true;
 
             return true;
         } catch (\Throwable) {
             if ($block) {
-                $alerter = EventLoop::delay(30, function () use ($key) {
-                    $logger = new DurableLogger(name: 'RethinkDbProjector');
-                    $logger->alert('Waiting on lock for over 30 seconds, taking over');
-                    table('locks')->get($key)->delete()->run($this->conn);
-                });
-                $cursor = table('locks')->get($key)->changes(new ChangesOptions(include_initial: true))->run($this->conn);
-                foreach ($cursor as $value) {
-                    if ($value['new_val'] === null) {
-                        EventLoop::cancel($alerter);
-                        return $this->wait($key, $block);
-                    }
-                }
+
+                delay(2);
+                return $this->wait($key, $block);
             }
 
             if ($timeout = getenv('SEMAPHORE_TIMEOUT')) {

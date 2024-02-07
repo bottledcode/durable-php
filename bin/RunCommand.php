@@ -27,6 +27,7 @@ use Ahc\Cli\Input\Command;
 use Amp\Parallel\Context\DefaultContextFactory;
 use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
+use Amp\Parallel\Worker\Execution;
 use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\ApcuProjector;
 use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
@@ -40,11 +41,13 @@ use Bottledcode\DurablePhp\Config\ProviderTrait;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\QueueTask;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\WorkerTask;
 use Closure;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Exception\ConnectionException;
+use Pheanstalk\Values\Job;
 use Pheanstalk\Values\JobId;
 use Revolt\EventLoop;
 use Throwable;
@@ -76,12 +79,14 @@ class RunCommand extends Command
     private int $backpressure = 0;
     private int $maxPressure = 0;
 
+    private Execution $q;
+
     public function __construct()
     {
         parent::__construct("run", "Run your application");
         $this->option("--bootstrap", "A file to load before execution", default: 'bootstrap.php')
             ->option("--namespace", "A short name for isolation", default: 'dphp')
-            ->option("--beanstalk", "host:port of a beanstalkd server to connect to", default: 'localhost:11300')
+            ->option("--beanstalk", "host:port of a beanstalkd server to connect to", default: '127.0.0.1:11300')
             ->option("--max-workers", "maximum number of workers to run", default: "32")
             ->option("--execution-timeout", "maximum amount of time allowed to run code", default: '60')
             ->option("--migrate", "migrate the db", default: true)
@@ -152,9 +157,19 @@ class RunCommand extends Command
         $this->logger->info("starting worker pool with $maxWorkers workers...");
 
         $factory = new ContextWorkerFactory($bootstrap, new LoggingContextFactory(new DefaultContextFactory()));
-        $this->workerPool = new ContextWorkerPool($maxWorkers, $factory);
+        $this->workerPool = new ContextWorkerPool($maxWorkers + 1, $factory);
+        $this->q = $this->workerPool->submit(new QueueTask($host, $port, $namespace, $monitor, $maxWorkers * 20));
 
         EventLoop::setErrorHandler($this->exit(...));
+
+        $this->logger->alert("Ready");
+
+        /** @var Job $bEvent */
+        while($bEvent = $this->q->getChannel()->receive()) {
+            $this->logger->info("Processing event", ['bEventId' => $bEvent->getId()]);
+            $event = Serializer::deserialize(json_decode($bEvent->getData(), true), Event::class);
+            $this->handleEvent($event, $bEvent);
+        }
 
         EventLoop::repeat(0.001, function () use ($executionTimeout): void {
             try {
@@ -194,6 +209,35 @@ class RunCommand extends Command
         $this->beanstalkClient = new BeanstalkEventSource($host, $port, $this->namespace);
     }
 
+    private function handleEvent(Event $event, JobIdInterface $bEvent): void
+    {
+        $this->logger->info("Sending to worker", ['event' => $event, 'bEventId' => $bEvent->getId(),
+            'idle' => $this->workerPool->getIdleWorkerCount(), 'running' => $this->workerPool->isRunning()]);
+        $task = new WorkerTask($this->bootstrap, $event, $this->providers, $this->semaphoreProvider);
+        $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
+        $execution->getFuture()->catch(function ($e) use ($bEvent) {
+            $this->logger->error("Unable to process job", ['bEventId' => $bEvent->getId(), 'exception' => $e]);
+            $this->backpressure -= 1;
+        })->map($this->handleTaskResult(new JobId($bEvent->getId())));
+    }
+
+    private function handleTaskResult(JobIdInterface $bEvent): Closure
+    {
+        return function (array|null $result) use ($bEvent) {
+            // mark event as successful
+            $this->logger->info("Acknowledge", ['bEventId' => $bEvent->getId(), 'result' => $result]);
+            $this->q->getChannel()->send($bEvent->getId());
+            //$this->beanstalkClient->ack($bEvent);
+
+            $this->logger->info("Firing " . count($result ?? []) . " events");
+            // dispatch events
+            foreach ($result ?? [] as $event) {
+                $this->beanstalkClient->fire($event);
+            }
+            $this->backpressure -= 1;
+        };
+    }
+
     private function exit(string|Throwable $reason = "exit")
     {
         if ($this->namespace) {
@@ -213,33 +257,5 @@ class RunCommand extends Command
         }
 
         exit(1);
-    }
-
-    private function handleEvent(Event $event, JobIdInterface $bEvent): void
-    {
-        $this->logger->info("Sending to worker", ['event' => $event, 'bEventId' => $bEvent->getId(),
-            'idle' => $this->workerPool->getIdleWorkerCount(), 'running' => $this->workerPool->isRunning()]);
-        $task = new WorkerTask($this->bootstrap, $event, $this->providers, $this->semaphoreProvider);
-        $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
-        $execution->getFuture()->catch(function ($e) use ($bEvent) {
-            $this->logger->error("Unable to process job", ['bEventId' => $bEvent->getId(), 'exception' => $e]);
-            $this->backpressure -= 1;
-        })->map($this->handleTaskResult(new JobId($bEvent->getId())));
-    }
-
-    private function handleTaskResult(JobIdInterface $bEvent): Closure
-    {
-        return function (array|null $result) use ($bEvent) {
-            // mark event as successful
-            $this->logger->info("Acknowledge", ['bEventId' => $bEvent->getId(), 'result' => $result]);
-            $this->beanstalkClient->ack($bEvent);
-
-            $this->logger->info("Firing " . count($result ?? []) . " events");
-            // dispatch events
-            foreach ($result ?? [] as $event) {
-                $this->beanstalkClient->fire($event);
-            }
-            $this->backpressure -= 1;
-        };
     }
 }

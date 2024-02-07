@@ -44,7 +44,7 @@ class DurableLogger implements LoggerInterface
 
     private LogLevel $level;
 
-    public function __construct(private ?LoggerInterface $logger = null, private string|null $name = null)
+    public function __construct(private ?LoggerInterface $logger = null, private string|null $name = null, Level|null $level = null)
     {
         if ($logger === null) {
             $handler = new StreamHandler(getStdout());
@@ -87,7 +87,7 @@ class DurableLogger implements LoggerInterface
             );
             $handler->pushProcessor(new MemoryPeakUsageProcessor(true, true));
             $handler->pushProcessor(new ProcessIdProcessor());
-            $handler->setLevel(Level::tryFrom(getenv('LOG_LEVEL')) ?? Level::Warning);
+            $handler->setLevel(getenv('LOG_LEVEL') ?: ($level ?? Level::Warning));
 
             $logger = new Monologger('main');
             $logger->pushHandler($handler);
