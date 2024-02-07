@@ -82,18 +82,18 @@ class RunCommand extends Command
     public function __construct()
     {
         parent::__construct("run", "Run your application");
-        $this->option("--bootstrap", "A file to load before execution", default: 'bootstrap.php')
-            ->option("--namespace", "A short name for isolation", default: 'dphp')
+        $this->option("-b|--bootstrap", "A file to load before execution", default: 'bootstrap.php')
+            ->option("-n|--namespace", "A short name for isolation", default: 'dphp')
             ->option("--beanstalk", "host:port of a beanstalkd server to connect to", default: '127.0.0.1:11300')
             ->option("--max-workers", "maximum number of workers to run", default: "32")
             ->option("--execution-timeout", "maximum amount of time allowed to run code", default: '60')
-            ->option("--migrate", "migrate the db", default: true)
+            ->option("-m|--migrate", "migrate the db", default: true)
             ->option(
-                "--projector",
+                "-p|--projector",
                 "the projector to use",
-                RethinkDbProjector::class
+                default: RethinkDbProjector::class
             )
-            ->option('--distributed-lock', 'The distributed lock implementation to use', default: RethinkDbProjector::class)
+            ->option('-l|--distributed-lock', 'The distributed lock implementation to use', default: RethinkDbProjector::class)
             ->option(
                 "--monitor",
                 "what queues to monitor for more fine-grained scaling",
