@@ -158,7 +158,7 @@ class RunCommand extends Command
 
         $factory = new ContextWorkerFactory($bootstrap, new LoggingContextFactory(new DefaultContextFactory()));
         $this->workerPool = new ContextWorkerPool($maxWorkers + 1, $factory);
-        $this->q = $this->workerPool->submit(new QueueTask($host, $port, $namespace, $monitor, $maxWorkers * 20));
+        $this->q = $this->workerPool->submit(new QueueTask($host, $port, $namespace, $monitor, $maxWorkers * 12));
 
         EventLoop::setErrorHandler($this->exit(...));
 
