@@ -29,7 +29,6 @@ use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\Execution;
 use Amp\TimeoutCancellation;
-use Bottledcode\DurablePhp\Abstractions\ApcuProjector;
 use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
 use Bottledcode\DurablePhp\Abstractions\EventHandlerInterface;
 use Bottledcode\DurablePhp\Abstractions\EventQueueInterface;
@@ -92,7 +91,7 @@ class RunCommand extends Command
             ->option(
                 "--projector",
                 "the projector to use",
-                default: ApcuProjector::class . "->" . RethinkDbProjector::class
+                RethinkDbProjector::class
             )
             ->option('--distributed-lock', 'The distributed lock implementation to use', default: RethinkDbProjector::class)
             ->option(
