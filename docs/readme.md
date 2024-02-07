@@ -7,13 +7,13 @@ and [entities](entities.md)
 
 ## Infrastructure Requirements
 
-| Requirement  | Provides                                            |
-|--------------|-----------------------------------------------------|
-| PHP 8.3      | Language                                            |
-| Beanstalkd   | Stores and orders events in-transit                 |
-| Rethinkdb    | Provides distributed locks and state storage        |
-| Kubernetes¹² | Provides distributed locks                          |
-| Redis¹²      | Provides state storage and stores events in-transit |
+| Requirement                              | Provides                                            |
+| ---------------------------------------- | --------------------------------------------------- |
+| PHP 8.3                                  | Language                                            |
+| [Beanstalkd](./Components/beanstalkd.md) | Stores and orders events in-transit                 |
+| [Rethinkdb](./Components/rethinkdb.md)   | Provides distributed locks and state storage        |
+| Kubernetes¹²                             | Provides distributed locks                          |
+| Redis¹²                                  | Provides state storage and stores events in-transit |
 
 (¹) optional, replaces other requirement
 (²) not implemented yet
