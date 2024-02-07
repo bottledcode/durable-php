@@ -68,7 +68,6 @@ class QueueTask implements Task
 
         $this->logger->debug('Starting event subscription');
         $eventsInFlight = 0;
-        // todo: dynamic tuning
         while (true) {
             if ($eventsInFlight > $this->maxEventsInFlight) {
                 $timeout = 3;
@@ -78,7 +77,8 @@ class QueueTask implements Task
 
             try {
                 if ($eventsInFlight < $this->maxEventsInFlight) {
-                    $event = $this->queue->getSingleEvent(10);
+                    // when full, be fast, when empty, be slow
+                    $event = $this->queue->getSingleEvent((int) ((1 - ($eventsInFlight / $this->maxEventsInFlight)) * 10));
                 }
 
                 if (! empty($event)) {
