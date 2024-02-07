@@ -47,4 +47,8 @@ function orchestration(\Bottledcode\DurablePhp\OrchestrationContext $context) {
 
 ## Sending Events
 
-not implemented
+Clients may send events via the `DurableClient`'s `raiseEvent` method:
+
+```php
+$client->raiseEvent($instance, 'approved', ['by' => 'me']);
+```

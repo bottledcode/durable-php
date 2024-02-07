@@ -92,8 +92,6 @@ production.
 
 After every invocation, the current execution state is snapshotted and stored in the `orchestrations` table.
 
-todo.
-
 ## Features
 
 ### Sub-orchestrations
