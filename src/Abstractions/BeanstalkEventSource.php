@@ -117,4 +117,9 @@ class BeanstalkEventSource implements EventQueueInterface, EventHandlerInterface
     {
         $this->beanstalkClient->delete($job);
     }
+
+    public function deadLetter(JobIdInterface $job): void
+    {
+        $this->beanstalkClient->bury($job);
+    }
 }

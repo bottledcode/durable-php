@@ -33,4 +33,6 @@ interface EventHandlerInterface
     public function getSingleEvent(int $poll): Job|null;
 
     public function ack(JobIdInterface $job): void;
+
+    public function deadLetter(JobIdInterface $job): void;
 }

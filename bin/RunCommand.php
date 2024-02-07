@@ -46,7 +46,6 @@ use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\WorkerTask;
 use Closure;
 use Pheanstalk\Contract\JobIdInterface;
-use Pheanstalk\Exception\ConnectionException;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\JobId;
 use Revolt\EventLoop;
@@ -171,34 +170,6 @@ class RunCommand extends Command
             $this->handleEvent($event, $bEvent);
         }
 
-        EventLoop::repeat(0.001, function () use ($executionTimeout): void {
-            try {
-                if($this->backpressure > $this->maxPressure) {
-                    return;
-                }
-                $bEvent = $this->beanstalkClient->getSingleEvent($this->workerPool->getIdleWorkerCount() === $this->workerPool->getWorkerCount() ? 2 : 0);
-            } catch (ConnectionException $exception) {
-                $this->exit($exception->getMessage());
-                return;
-            }
-            if ($bEvent) {
-                $this->backpressure += 1;
-                $this->logger->info("Processing event", ['bEventId' => $bEvent->getId()]);
-
-                $event = Serializer::deserialize(json_decode($bEvent->getData(), true), Event::class);
-
-                try {
-                    $this->handleEvent($event, $bEvent);
-                } catch(Throwable $exception) {
-                    $this->logger->error("Failed to handle event", ['exception' => $exception]);
-                }
-
-                $this->logger->debug("done", ['bEventId' => $bEvent->getId()]);
-            }
-        });
-
-        $this->logger->debug("Starting processing of events");
-
         EventLoop::run();
 
         return 0;
@@ -217,7 +188,7 @@ class RunCommand extends Command
         $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
         $execution->getFuture()->catch(function ($e) use ($bEvent) {
             $this->logger->error("Unable to process job", ['bEventId' => $bEvent->getId(), 'exception' => $e]);
-            $this->backpressure -= 1;
+            $this->q->getChannel()->send(['dead', $bEvent->getId()]);
         })->map($this->handleTaskResult(new JobId($bEvent->getId())));
     }
 
@@ -226,7 +197,7 @@ class RunCommand extends Command
         return function (array|null $result) use ($bEvent) {
             // mark event as successful
             $this->logger->info("Acknowledge", ['bEventId' => $bEvent->getId(), 'result' => $result]);
-            $this->q->getChannel()->send($bEvent->getId());
+            $this->q->getChannel()->send(['ack', $bEvent->getId()]);
             //$this->beanstalkClient->ack($bEvent);
 
             $this->logger->info("Firing " . count($result ?? []) . " events");
@@ -234,7 +205,6 @@ class RunCommand extends Command
             foreach ($result ?? [] as $event) {
                 $this->beanstalkClient->fire($event);
             }
-            $this->backpressure -= 1;
         };
     }
 
