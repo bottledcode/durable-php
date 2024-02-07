@@ -147,8 +147,12 @@ final class OrchestrationContext implements OrchestrationContextInterface
         throw new Unwind();
     }
 
-    public function createTimer(\DateTimeImmutable $fireAt): DurableFuture
+    public function createTimer(\DateTimeImmutable|\DateInterval $fireAt): DurableFuture
     {
+        if($fireAt instanceof \DateInterval) {
+            $fireAt = $this->getCurrentTime()->add($fireAt);
+        }
+
         $this->durableLogger->debug('Creating durable timer', ['fireAt' => $fireAt]);
         $identity = sha1($fireAt->format('c'));
         return $this->createFuture(

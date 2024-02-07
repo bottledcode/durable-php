@@ -43,4 +43,5 @@ function chain(\Bottledcode\DurablePhp\OrchestrationContext $context): object {
 ```
 
 You can use the context parameter to invoke other functions/objects by name, pass parameters, and return the output.
-Each time you call `->waitOne`
+Each time you call `->waitOne`, Durable PHP checkpoints your execution and unloads your code until the result is
+completed.
