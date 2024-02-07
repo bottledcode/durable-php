@@ -89,8 +89,11 @@ class QueueTask implements Task
 
                 try {
                     while (true) {
-                        $delete = $channel->receive(new TimeoutCancellation($timeout, 'ack timeout'));
-                        $this->queue->ack(new JobId($delete));
+                        [$action, $id] = $channel->receive(new TimeoutCancellation($timeout, 'ack timeout'));
+                        match($action) {
+                            'ack' => $this->queue->ack(new JobId($id)),
+                            'dead' => $this->queue->deadLetter(new JobId($id)),
+                        };
                         $eventsInFlight -= 1;
                     }
                 } catch (\Throwable) {
