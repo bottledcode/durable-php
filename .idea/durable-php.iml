@@ -4,7 +4,6 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="Bottledcode\DurablePhp\" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" packagePrefix="Bottledcode\DurablePhp\Tests\" />
-      <sourceFolder url="file://$MODULE_DIR$/spec" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/brick/math" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/collection" />
@@ -100,7 +99,6 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/psr/http-factory" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/carbonphp/carbon-doctrine-types" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/adhocore/cli" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/pda/pheanstalk" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/pint" />
     </content>
     <orderEntry type="inheritedJdk" />

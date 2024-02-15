@@ -31,8 +31,7 @@
     "bottledcode/php-rql": "dev-master",
     "crell/serde": "^1.1.0",
     "ext-pcntl": "*",
-    "nesbot/carbon": "^2.72.3",
-    "pda/pheanstalk": "^5.0",
+    "nesbot/carbon": "^3.0",
     "php": ">=8.3",
     "ramsey/uuid": "^4.7.5",
     "withinboredom/time": "^2.1"
@@ -44,9 +43,9 @@
   "type": "library",
   "require-dev": {
     "squizlabs/php_codesniffer": "^3.8.1",
-    "pestphp/pest": "^2.33.4",
+    "pestphp/pest": "^2.33.6",
     "mockery/mockery": "^1.6.7",
-    "laravel/pint": "^1.13"
+    "laravel/pint": "^1.13.11"
   },
   "config": {
     "allow-plugins": {
