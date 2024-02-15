@@ -84,7 +84,7 @@ class RunCommand extends Command
         parent::__construct("run", "Run your application");
         $this->option("-b|--bootstrap", "A file to load before execution", default: 'bootstrap.php')
             ->option("-n|--namespace", "A short name for isolation", default: 'dphp')
-            ->option("--beanstalk", "host:port of a beanstalkd server to connect to", default: '127.0.0.1:11300')
+            ->option("--nats", "host:port of a nats server to connect to", default: '127.0.0.1:4222')
             ->option("--max-workers", "maximum number of workers to run", default: "32")
             ->option("--execution-timeout", "maximum amount of time allowed to run code", default: '60')
             ->option("-m|--migrate", "migrate the db", default: true)
