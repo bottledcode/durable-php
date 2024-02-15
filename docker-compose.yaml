@@ -1,10 +1,10 @@
 version: "3.9"
 services:
-  rethinkdb:
-    image: rethinkdb:2.4.2
+  nats:
+    image: nats
     ports:
-      - "0.0.0.0:28015:28015"
-      - "0.0.0.0:8070:8080"
+      - "4222:4222"
+    command: ["--jetstream"]
   dev:
     build: .
     command: sleep 1000000000
@@ -13,7 +13,7 @@ services:
     working_dir: /app
     user: "1000:1000"
     depends_on:
-      - rethinkdb
+      - nats
   runner1:
     build:
       context: .
