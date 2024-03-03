@@ -123,6 +123,7 @@ fi
 if [ -z "${NO_COMPRESS}" ]; then
   if type "upx" > /dev/null; then
       upx --best "dist/${bin}"
+      #echo "would compress"
   fi
 fi
 

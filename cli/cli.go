@@ -26,6 +26,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"github.com/dunglas/frankenphp"
 	"github.com/nats-io/nats.go"
@@ -41,12 +42,14 @@ import (
 	"time"
 )
 
-var routerScript string = "/index.php"
+// todo: update to vendored src
+var routerScript string = "/src/Task.php"
 
 type DummyLoggingResponseWriter struct {
 	logger  zap.Logger
 	isError bool
 	status  int
+	events  []*nats.Msg
 }
 
 func (w *DummyLoggingResponseWriter) Header() http.Header {
@@ -56,7 +59,26 @@ func (w *DummyLoggingResponseWriter) Header() http.Header {
 func (w *DummyLoggingResponseWriter) Write(b []byte) (int, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
-		if w.isError {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "EVENT~!~") {
+			w.logger.Info("Detected event", zap.String("line", line))
+			parts := strings.Split(line, "~!~")
+			subject := parts[1]
+			delay := parts[2]
+			body := parts[3]
+
+			msg := &nats.Msg{
+				Subject: subject,
+				Data:    []byte(body),
+				Header:  make(nats.Header),
+			}
+
+			if delay != "" {
+				msg.Header.Add("Delay", delay)
+			}
+
+			w.events = append(w.events, msg)
+		} else if w.isError {
 			w.logger.Error(scanner.Text())
 		} else {
 			w.logger.Info(scanner.Text())
@@ -77,7 +99,7 @@ func (w *DummyLoggingResponseWriter) WriteHeader(statusCode int) {
 	w.status = statusCode
 }
 
-func buildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger) {
+func buildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger, js jetstream.JetStream) {
 	logger.Info("Creating consumer", zap.String("stream", streamName), zap.String("kind", kind))
 
 	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
@@ -110,31 +132,148 @@ func buildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 
 			if msg.Headers().Get("Delay") != "" && meta.NumDelivered == 1 {
 				logger.Info("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("headers", meta))
-				delay, err := time.ParseDuration(msg.Headers().Get("Delay"))
+				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 				if err != nil {
 					panic(err)
 				}
+
+				delay := time.Until(schedule)
 				if err := msg.NakWithDelay(delay); err != nil {
 					panic(err)
 				}
 				return
 			}
 
-			processMsg(logger, msg)
+			if err := processMsg(logger, msg, js); err != nil {
+				panic(err)
+			}
 		}()
 	}
 }
 
-func processMsg(logger *zap.Logger, msg jetstream.Msg) {
+func getLockableSubject(subject string) string {
+	return strings.ReplaceAll(subject, ".", "_")
+}
+
+func lockSubject(subject string, js jetstream.JetStream, logger *zap.Logger) {
+	ctx := context.Background()
+	logger.Info("Attempting to take lock", zap.String("subject", subject))
+	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket: getLockableSubject(subject),
+		TTL:    5 * time.Minute,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	value, err := kv.Get(ctx, "lock")
+	if err != nil || value.Value() == nil {
+		// a lock is free
+		logger.Info("Freely taking lock", zap.String("subject", subject))
+		_, err := kv.Create(ctx, "lock", []byte("locked"))
+		if err != nil {
+			lockSubject(subject, js, logger)
+			return
+		}
+		return
+	}
+
+	// is the value locked
+	if string(value.Value()) == "locked" {
+		logger.Info("Currently waiting for lock", zap.String("subject", subject))
+		// watch for updates
+		watcher, err := kv.Watch(ctx, "lock", jetstream.ResumeFromRevision(value.Revision()+1))
+		if err != nil {
+			panic(err)
+		}
+		var update jetstream.KeyValueEntry
+		for update == nil {
+			update = <-watcher.Updates()
+		}
+		logger.Info("Update detected", zap.Any("update", update))
+		lockSubject(subject, js, logger)
+		return
+	}
+
+	logger.Info("Freely taking lock", zap.String("subject", subject))
+	// looks like we can take the lock
+	_, err = kv.Update(ctx, "lock", []byte("locked"), value.Revision())
+	if err != nil {
+		lockSubject(subject, js, logger)
+		return
+	}
+}
+
+func unlockSubject(subject string, js jetstream.JetStream, logger *zap.Logger) {
+	logger.Info("Unlocking", zap.String("subject", subject))
+	ctx := context.Background()
+	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket: getLockableSubject(subject),
+		TTL:    5 * time.Minute,
+	})
+	if err != nil {
+		panic(err)
+	}
+	_, err = kv.PutString(ctx, "lock", "unlocked")
+	if err != nil {
+		return
+	}
+}
+
+func getObjectStoreName(subject string) string {
+	return strings.Split(subject, ".")[1]
+}
+
+func getObjectStoreId(subject string) string {
+	return strings.Split(subject, ".")[2]
+}
+
+// processMsg is responsible for processing a message received from JetStream.
+// It takes a logger, msg, and JetStream as parameters. Do not panic!
+func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) error {
 	logger.Info("Received message", zap.Any("msg", msg))
 
-	writer := DummyLoggingResponseWriter{
+	// take a lock on the state bucket
+	lockSubject(msg.Subject(), js, logger)
+	defer unlockSubject(msg.Subject(), js, logger)
+
+	osctx := context.Background()
+	// load the state from object storage
+	logger.Info("Creating object store for context")
+	obj, err := js.CreateOrUpdateObjectStore(osctx, jetstream.ObjectStoreConfig{
+		Bucket: getObjectStoreName(msg.Subject()),
+	})
+	if err != nil {
+		return err
+	}
+	stateFile, err := os.CreateTemp("", getObjectStoreId(msg.Subject()))
+	if err != nil {
+		return err
+	}
+	defer os.Remove(stateFile.Name())
+	if err := obj.GetFile(osctx, getObjectStoreId(msg.Subject()), stateFile.Name()); err != nil {
+		file, err := os.OpenFile(stateFile.Name(), os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			return err
+		}
+		file.Close()
+	}
+	logger.Info("Created state file for handoff", zap.String("file", stateFile.Name()))
+
+	writer := &DummyLoggingResponseWriter{
 		logger:  *logger,
 		isError: false,
+		events:  make([]*nats.Msg, 0),
 	}
 
 	body := io.NopCloser(strings.NewReader(string(msg.Data())))
 	u, _ := url.Parse("http://localhost/event/" + msg.Subject())
+
+	headers := http.Header(msg.Headers())
+	if headers == nil {
+		headers = make(http.Header)
+	}
+	headers.Add("State-File", stateFile.Name())
 
 	req := &http.Request{
 		Method:           "POST",
@@ -142,7 +281,7 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg) {
 		Proto:            "http://",
 		ProtoMajor:       0,
 		ProtoMinor:       0,
-		Header:           http.Header(msg.Headers()),
+		Header:           headers,
 		Body:             body,
 		GetBody:          nil,
 		ContentLength:    int64(len(msg.Data())),
@@ -176,33 +315,68 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg) {
 
 	request, err := frankenphp.NewRequestWithContext(req, frankenphp.WithRequestLogger(logger), frankenphp.WithRequestEnv(env))
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	logger.Info("Consuming message")
-	if err := frankenphp.ServeHTTP(&writer, request); err != nil {
-		panic(err)
+	if err := frankenphp.ServeHTTP(writer, request); err != nil {
+		return err
 	}
 
-	if writer.status >= 300 {
+	if writer.status >= 400 {
 		logger.Error(fmt.Sprintf("Received error %d from Task", writer.status))
 		err := msg.TermWithReason(fmt.Sprintf("Received error %d from Task", writer.status))
 		if err != nil {
-			panic(err)
+			return err
 		}
-		return
+		return nil
 	}
 
-	logger.Info("Ack message")
-	if err := msg.Ack(); err != nil {
-		panic(err)
+	logger.Info("Events to send", zap.Int("count", len(writer.events)))
+
+	// we want to fire buffered events before committing state, in case this event is replayed for whatever reason,
+	// there is a good chance the refired events from whatever is executed will be caught by duplicate detection
+	for _, event := range writer.events {
+		logger.Info("Sending event", zap.String("subject", event.Subject))
+		_, err := js.PublishMsg(osctx, event)
+		if err != nil {
+			return err
+		}
 	}
+
+	// store the state into the object store
+	status, err := obj.PutFile(osctx, stateFile.Name())
+	if err != nil {
+		return err
+	}
+	logger.Info("Wrote state to store", zap.Uint64("size", status.Size))
+
+	oid := getObjectStoreId(msg.Subject())
+
+	prev, _ := obj.GetInfo(osctx, oid)
+	d, err := obj.AddLink(osctx, oid, status)
+	logger.Info("linked", zap.Any("link", d), zap.String("now", stateFile.Name()))
+	if err != nil {
+		return err
+	}
+	if prev != nil {
+		err := obj.Delete(osctx, prev.Opts.Link.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	// now, even if the event is refired, we are protected from reprocessing the event
+	if err := msg.Ack(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func setEnv(options map[string]string) {
 	env = make(map[string]string)
-	env["NATS_STREAM"] = options["stream"]
-	env["NATS_SERVER"] = options["nats-server"]
+	env["BOOTSTRAP_FILE"] = options["bootstrap"]
 }
 
 func execute(args []string, options map[string]string) int {
@@ -256,16 +430,16 @@ func execute(args []string, options map[string]string) int {
 		panic(err)
 	}
 
-	if options["no-activities"] != "false" {
-		go buildConsumer(stream, ctx, streamName, "activities", logger)
+	if options["no-activities"] != "true" {
+		go buildConsumer(stream, ctx, streamName, "activities", logger, js)
 	}
 
-	if options["no-entities"] != "false" {
-		go buildConsumer(stream, ctx, streamName, "entities", logger)
+	if options["no-entities"] != "true" {
+		go buildConsumer(stream, ctx, streamName, "entities", logger, js)
 	}
 
-	if options["no-orchestrations"] != "false" {
-		go buildConsumer(stream, ctx, streamName, "orchestrations", logger)
+	if options["no-orchestrations"] != "true" {
+		go buildConsumer(stream, ctx, streamName, "orchestrations", logger, js)
 	}
 
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -320,6 +494,96 @@ func main() {
 
 		return 0
 	})
+	inspect := cli.NewCommand("inspect", "Inspect the state store").
+		WithArg(cli.NewArg("type", "One of orchestration|activity|entity").WithType(cli.TypeString)).
+		WithArg(cli.NewArg("id", "The id of the type to inspect or leave empty to list all ids").AsOptional().WithType(cli.TypeString)).
+		WithOption(cli.NewOption("format", "json is currently the only supported format").WithType(cli.TypeString)).
+		WithOption(cli.NewOption("all", "Show even hidden states").WithType(cli.TypeBool)).
+		WithAction(func(args []string, options map[string]string) int {
+			nurl := nats.DefaultURL
+			if options["nats-server"] == "" {
+				nurl = options["nats-server"]
+			}
+
+			ns, err := nats.Connect(nurl)
+			if err != nil {
+				panic(err)
+			}
+			js, err := jetstream.New(ns)
+			if err != nil {
+				panic(err)
+			}
+
+			store := ""
+			if args[0] == "orchestration" {
+				store = "orchestrations"
+			} else if args[0] == "activity" {
+				store = "activities"
+			} else if args[0] == "entity" {
+				store = "entities"
+			} else {
+				panic(fmt.Errorf("Invalid type: %s", args[0]))
+			}
+
+			ctx := context.Background()
+
+			obj, err := js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
+				Bucket: store,
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			if len(args) == 1 {
+				list, err := obj.List(ctx)
+				if err != nil {
+					return 0
+				}
+
+				for _, entry := range list {
+					name := entry.Name
+
+					if strings.HasPrefix(name, "/") && options["all"] != "true" {
+						continue
+					} else if strings.HasPrefix(name, "/") && options["all"] == "true" {
+						fmt.Println(name)
+						continue
+					}
+
+					switch len(name) % 4 {
+					case 2:
+						name += "=="
+					case 3:
+						name += "="
+					}
+					data, err := base64.StdEncoding.DecodeString(name)
+					if err != nil {
+						panic(err)
+					}
+
+					fmt.Println(string(data))
+				}
+
+				return 0
+			}
+
+			id := args[1]
+			if !strings.HasPrefix(id, "/") {
+				id = base64.StdEncoding.EncodeToString([]byte(id))
+				id = strings.TrimRight(id, "=")
+			}
+			file, err := obj.GetString(ctx, id)
+			if err != nil {
+				panic(err)
+			}
+			body, err := base64.StdEncoding.DecodeString(file)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(string(body))
+
+			return 0
+		})
 
 	app := cli.New("Durable PHP").
 		WithOption(cli.NewOption("port", "The port to listen to (default 8080)").
@@ -333,9 +597,11 @@ func main() {
 		WithOption(cli.NewOption("no-orchestrations", "Do not parse orchestrations").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("router", "The router script").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString)).
+		WithOption(cli.NewOption("bootstrap", "A file that initializes a container, otherwise one will be generated for you").WithChar('b').WithType(cli.TypeString)).
 		WithCommand(run).
 		WithCommand(init).
 		WithCommand(version).
+		WithCommand(inspect).
 		WithAction(execute)
 
 	os.Exit(app.Run(os.Args, os.Stdout))

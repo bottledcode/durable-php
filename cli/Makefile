@@ -4,7 +4,7 @@ DOCKER_IMAGE := builder
 DOCKER_TARGET := cli-base-alpine
 BUILD_PATH := /go/src/app/dist
 
-${BIN_PATH}/${TARGET}: cli.go go.mod .vendor_modified
+${BIN_PATH}/${TARGET}: cli.go go.mod .vendor_modified build.sh
 	cd .. && docker build --pull --target ${DOCKER_TARGET} -t ${DOCKER_IMAGE} .
 	docker create --name builder builder || ( docker rm -f builder && false )
 	docker cp ${DOCKER_IMAGE}:${BUILD_PATH}/${TARGET} ${BIN_PATH}/${TARGET} || ( docker rm -f builder && false )

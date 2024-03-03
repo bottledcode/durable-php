@@ -38,12 +38,12 @@ use Crell\Serde\Attributes\Field;
 
 class ActivityHistory extends AbstractHistory
 {
-    use ParameterFillerTrait;
     use EntrypointLocatorTrait;
+    use ParameterFillerTrait;
 
     public string $activityId;
 
-    public function __construct(private StateId $id, #[Field(exclude: true)] public DurableLogger|null $logger = null)
+    public function __construct(private StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger = null)
     {
         $this->activityId = $id->toActivityId();
     }
@@ -75,13 +75,15 @@ class ActivityHistory extends AbstractHistory
         }
 
         try {
-            if(!is_object($task)) {
+            if (is_callable($task)) {
+                $arguments = $this->fillParameters($event->input, new \ReflectionFunction($task));
+            } elseif (! is_object($task)) {
                 $task = $this->container->get($task);
                 $reflection = new \ReflectionClass($task);
                 $entrypoint = $this->locateEntrypoint($reflection) ?? throw new \RuntimeException("Unable to locate entrypoint for $event->name");
                 $arguments = $this->fillParameters($event->input, $entrypoint);
             } else {
-                $arguments = $this->fillParameters($event->input, new \ReflectionFunction($task));
+                throw new \LogicException('Activity must be callable or a class');
             }
 
             $result = $task(...$arguments);
