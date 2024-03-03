@@ -45,6 +45,8 @@ readonly class EventDescription
 
     public TargetType $targetType;
 
+    public Event $innerEvent;
+
     public function __construct(public Event $event)
     {
         $this->describe($event);
@@ -73,6 +75,8 @@ readonly class EventDescription
 
             $event = $event->getInnerEvent();
         }
+
+        $this->innerEvent = $event;
 
         $this->locks ??= false;
         $this->isPoisoned ??= false;
