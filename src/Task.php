@@ -40,6 +40,7 @@ use Bottledcode\DurablePhp\Transmutation\Router;
 use JsonException;
 use Monolog\Level;
 use Psr\Container\ContainerInterface;
+use r\Query;
 use Ramsey\Uuid\Uuid;
 
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
@@ -56,13 +57,44 @@ class Task
     use Router;
 
     private string $stream;
+    private $bodyStream;
 
     public function __construct(private DurableLogger $logger) {}
+
+    /**
+     * Query for state
+     *
+     * @param StateId $id
+     * @return StateInterface
+     * @throws JsonException
+     */
+    public function getState(StateId $id): StateInterface
+    {
+        echo implode("~!~", ["QUERY", match(true) {
+            $id->isEntityId() => 'entities',
+            $id->isOrchestrationId() => 'orchestrations',
+            $id->isActivityId() => 'activities',
+        }, $id->id]);
+        $stateFile = $this->readData();
+        $state = file_get_contents($stateFile);
+        unlink($stateFile);
+        $state = base64_decode($state);
+        $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
+        return Serializer::deserialize($state, StateInterface::class);
+    }
+
+    private function readData(): string
+    {
+        $data = '';
+        while(!str_ends_with($data, "\n\n")) {
+            $data .= fread($this->bodyStream, 8096);
+        }
+        return $data;
+    }
 
     public function run(): void
     {
         $route = array_values(array_filter(explode('/', $_SERVER['REQUEST_URI'])));
-        sleep(10);
 
         switch ($route[0] ?? null) {
             case 'event':
@@ -73,7 +105,8 @@ class Task
                 [$stream, $type, $_] = explode('.', $subject);
                 $this->stream = $stream;
                 try {
-                    $event = EventDescription::fromJson(base64_decode(file_get_contents('php://input')));
+                    $this->bodyStream = fopen("php://input", "rb");
+                    $event = $this->readEvent();
                 } catch (\JsonException $e) {
                     $this->emitError(400, 'json decoding error', ['exception' => $e]);
                 }
@@ -220,6 +253,11 @@ class Task
         };
         $logger($message, $context);
         exit();
+    }
+
+    private function readEvent(): EventDescription
+    {
+        return EventDescription::fromJson(base64_decode($this->readData()));
     }
 
     /**

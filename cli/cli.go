@@ -50,6 +50,7 @@ type DummyLoggingResponseWriter struct {
 	isError bool
 	status  int
 	events  []*nats.Msg
+	query   chan []string
 }
 
 func (w *DummyLoggingResponseWriter) Header() http.Header {
@@ -78,6 +79,10 @@ func (w *DummyLoggingResponseWriter) Write(b []byte) (int, error) {
 			}
 
 			w.events = append(w.events, msg)
+		} else if strings.HasPrefix(line, "QUERY~!~") {
+			w.logger.Info("Performing Query", zap.String("line", line))
+			parts := strings.Split(line, "~!~")
+			w.query <- parts[1:]
 		} else if w.isError {
 			w.logger.Error(scanner.Text())
 		} else {
@@ -228,6 +233,14 @@ func getObjectStoreId(subject string) string {
 	return strings.Split(subject, ".")[2]
 }
 
+func getObjectStore(kind string, js jetstream.JetStream, ctx context.Context) (jetstream.ObjectStore, error) {
+	obj, err := js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
+		Bucket: kind,
+	})
+
+	return obj, err
+}
+
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
 func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) error {
@@ -240,9 +253,8 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 	osctx := context.Background()
 	// load the state from object storage
 	logger.Info("Creating object store for context")
-	obj, err := js.CreateOrUpdateObjectStore(osctx, jetstream.ObjectStoreConfig{
-		Bucket: getObjectStoreName(msg.Subject()),
-	})
+
+	obj, err := getObjectStore(getObjectStoreName(msg.Subject()), js, osctx)
 	if err != nil {
 		return err
 	}
@@ -264,9 +276,27 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 		logger:  *logger,
 		isError: false,
 		events:  make([]*nats.Msg, 0),
+		query:   make(chan []string),
 	}
 
-	body := io.NopCloser(strings.NewReader(string(msg.Data())))
+	bodyBuf := bytes.NewBufferString(string(msg.Data()) + "\n\n")
+	body := io.NopCloser(bodyBuf)
+
+	go func() {
+		query := <-writer.query
+		obj, err := getObjectStore(query[0], js, context.Background())
+		if err != nil {
+			panic(err)
+		}
+		stateFile, err := os.CreateTemp("", "state")
+		if err != nil {
+			panic(err)
+		}
+		_, err = obj.PutFile(context.Background(), stateFile.Name())
+
+		bodyBuf.WriteString(base64.StdEncoding.EncodeToString([]byte(stateFile.Name())))
+	}()
+
 	u, _ := url.Parse("http://localhost/event/" + msg.Subject())
 
 	headers := http.Header(msg.Headers())

@@ -44,7 +44,7 @@ use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\WorkerTask;
+use Bottledcode\DurablePhp\Task;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
 
@@ -166,7 +166,7 @@ class OrchestrationHistory extends AbstractHistory
         $spyGenerator = $this->container->get(SpyProxy::class);
 
         $taskScheduler = null;
-        yield static function (WorkerTask $task) use (&$taskScheduler) {
+        yield static function (Task $task) use (&$taskScheduler) {
             $taskScheduler = $task;
         };
 
