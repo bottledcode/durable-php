@@ -13,7 +13,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListOfStrings'
-  /activity/{id}:
+  /activity/{id}: # done
     parameters:
       - in: path
         name: id
@@ -27,7 +27,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Status"
-  /entities:
+  /entities: # done
     get:
       summary: List all entities the current user has access to
       responses:
@@ -36,7 +36,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListOfStrings"
-  /entity/{id}:
+  /entity/{id}: # partial
     parameters:
       - in: path
         name: id
@@ -56,7 +56,7 @@ paths:
                   state:
                     type: object
                     additionalProperties: true
-  /entity/{id}/{method}:
+  /entity/{id}/{method}: # partial
     parameters:
       - in: path
         name: id
@@ -80,7 +80,7 @@ paths:
                 type: any
       responses:
         202: { }
-  /orchestrations:
+  /orchestrations: # done
     get:
       summary: Get a list of orchestrations a user has access to
       responses:

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
 	"github.com/nats-io/nats.go"
@@ -15,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -235,24 +233,4 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 	}
 
 	return nil
-}
-
-func outputList(writer http.ResponseWriter, err error, store jetstream.ObjectStore) {
-	activities, err := store.List(context.Background())
-	if err != nil {
-		panic(err)
-	}
-	names := make([]string, 0)
-	for _, activity := range activities {
-		if strings.HasPrefix(activity.Name, "/") {
-			continue
-		}
-
-		name := GetRealNameFromEncodedName(activity.Name)
-		names = append(names, name)
-	}
-
-	if err := json.NewEncoder(writer).Encode(names); err != nil {
-		panic(err)
-	}
 }
