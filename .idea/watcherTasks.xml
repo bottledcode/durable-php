@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectTasksOptions">
+    <TaskOptions isEnabled="false">
+      <option name="arguments" value="vendor/bin/pint --dirty" />
+      <option name="checkSyntaxErrors" value="true" />
+      <option name="description" />
+      <option name="exitCodeBehavior" value="ALWAYS" />
+      <option name="fileExtension" value="php" />
+      <option name="immediateSync" value="false" />
+      <option name="name" value="reformat (WSL)" />
+      <option name="output" value="" />
+      <option name="outputFilters">
+        <array />
+      </option>
+      <option name="outputFromStdout" value="false" />
+      <option name="program" value="wsl.exe" />
+      <option name="runOnExternalChanges" value="false" />
+      <option name="scopeName" value="Project Files" />
+      <option name="trackOnlyRoot" value="false" />
+      <option name="workingDir" value="//wsl.localhost/Ubuntu-22.04/home/withinboredom/code/durable-php" />
+      <envs />
+    </TaskOptions>
+  </component>
+</project>

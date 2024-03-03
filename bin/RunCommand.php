@@ -29,6 +29,7 @@ use Amp\Parallel\Worker\ContextWorkerFactory;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\Execution;
 use Amp\TimeoutCancellation;
+use Basis\Nats\AmpClient;
 use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
 use Bottledcode\DurablePhp\Abstractions\EventHandlerInterface;
 use Bottledcode\DurablePhp\Abstractions\EventQueueInterface;
@@ -40,6 +41,8 @@ use Bottledcode\DurablePhp\Config\ProviderTrait;
 use Bottledcode\DurablePhp\Contexts\LoggingContextFactory;
 use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\JetStream\Consumer;
+use Bottledcode\DurablePhp\Nats\EnvConfiguration;
 use Bottledcode\DurablePhp\QueueTask;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\WorkerTask;
@@ -54,16 +57,18 @@ class RunCommand extends Command
 {
     use ProviderTrait;
 
-    private ProjectorInterface|null $projector = null;
-    private Semaphore|null $semaphore = null;
+    private ?ProjectorInterface $projector = null;
 
-    private string|null $namespace = null;
+    private ?Semaphore $semaphore = null;
+
+    private ?string $namespace = null;
 
     private array $beanstalkConnectionParams = [];
 
     private ContextWorkerPool $workerPool;
 
     private int $workerTimeout = 60;
+
     private string $bootstrap;
 
     private array $providers;
@@ -75,29 +80,30 @@ class RunCommand extends Command
     private string $semaphoreProvider;
 
     private int $backpressure = 0;
+
     private int $maxPressure = 0;
 
     private Execution $q;
 
     public function __construct()
     {
-        parent::__construct("run", "Run your application");
-        $this->option("-b|--bootstrap", "A file to load before execution", default: 'bootstrap.php')
-            ->option("-n|--namespace", "A short name for isolation", default: 'dphp')
-            ->option("--nats", "host:port of a nats server to connect to", default: '127.0.0.1:4222')
-            ->option("--max-workers", "maximum number of workers to run", default: "32")
-            ->option("--execution-timeout", "maximum amount of time allowed to run code", default: '60')
-            ->option("-m|--migrate", "migrate the db", default: true)
+        parent::__construct('run', 'Run your application');
+        $this->option('-b|--bootstrap', 'A file to load before execution', default: 'bootstrap.php')
+            ->option('-n|--namespace', 'A short name for isolation', default: 'dphp')
+            ->option('--nats', 'host:port of a nats server to connect to', default: '127.0.0.1:4222')
+            ->option('--max-workers', 'maximum number of workers to run', default: '32')
+            ->option('--execution-timeout', 'maximum amount of time allowed to run code', default: '60')
+            ->option('-m|--migrate', 'migrate the db', default: true)
             ->option(
-                "-p|--projector",
-                "the projector to use",
+                '-p|--projector',
+                'the projector to use',
                 default: RethinkDbProjector::class
             )
             ->option('-l|--distributed-lock', 'The distributed lock implementation to use', default: RethinkDbProjector::class)
             ->option(
-                "--monitor",
-                "what queues to monitor for more fine-grained scaling",
-                default: "activities,entities,orchestrations"
+                '--monitor',
+                'what queues to monitor for more fine-grained scaling',
+                default: 'activities,entities,orchestrations'
             )
             ->onExit($this->exit(...));
 
@@ -108,7 +114,7 @@ class RunCommand extends Command
     public function execute(
         string $bootstrap,
         string $namespace,
-        string $beanstalk,
+        string $nats,
         string $projector,
         int $maxWorkers,
         int $executionTimeout,
@@ -116,6 +122,13 @@ class RunCommand extends Command
         string $monitor,
         bool $migrate
     ): int {
+
+        $client = new AmpClient(new EnvConfiguration(), new DurableLogger());
+        $client->background(true, 1);
+        $consumer = new Consumer($client, 'test', 'test', true, [], []);
+        var_dump($consumer->info());
+        exit();
+
         $this->maxPressure = $maxWorkers * 3;
         $this->namespace = $namespace;
         $this->workerTimeout = $executionTimeout;
@@ -126,11 +139,11 @@ class RunCommand extends Command
         $this->configureBeanstalk($host, $port);
         assert($this->beanstalkClient !== null);
 
-        $this->logger->debug("Connected to beanstalkd");
+        $this->logger->debug('Connected to beanstalkd');
 
         $projectors = explode('->', $projector);
 
-        $this->logger->debug("Configuring projectors and semaphore providers", ['projectors' => $projectors, 'semaphores' => $distributedLock]);
+        $this->logger->debug('Configuring projectors and semaphore providers', ['projectors' => $projectors, 'semaphores' => $distributedLock]);
 
         $this->providers = $projectors;
         $this->semaphoreProvider = $distributedLock;
@@ -138,17 +151,17 @@ class RunCommand extends Command
         $this->configureProviders($projectors, $distributedLock, $migrate);
 
         if (str_contains($monitor, 'activities')) {
-            $this->logger->debug("Subscribing to activity feed...");
+            $this->logger->debug('Subscribing to activity feed...');
             $this->beanstalkClient->subscribe(QueueType::Activities);
         }
 
         if (str_contains($monitor, 'entities')) {
-            $this->logger->debug("Subscribing to entities feed...");
+            $this->logger->debug('Subscribing to entities feed...');
             $this->beanstalkClient->subscribe(QueueType::Entities);
         }
 
         if (str_contains($monitor, 'orchestrations')) {
-            $this->logger->debug("Subscribing to orchestration feed...");
+            $this->logger->debug('Subscribing to orchestration feed...');
             $this->beanstalkClient->subscribe(QueueType::Orchestrations);
         }
 
@@ -160,11 +173,11 @@ class RunCommand extends Command
 
         EventLoop::setErrorHandler($this->exit(...));
 
-        $this->logger->alert("Ready");
+        $this->logger->alert('Ready');
 
         /** @var Job $bEvent */
-        while($bEvent = $this->q->getChannel()->receive()) {
-            $this->logger->info("Processing event", ['bEventId' => $bEvent->getId()]);
+        while ($bEvent = $this->q->getChannel()->receive()) {
+            $this->logger->info('Processing event', ['bEventId' => $bEvent->getId()]);
             $event = Serializer::deserialize(json_decode($bEvent->getData(), true), Event::class);
             $this->handleEvent($event, $bEvent);
         }
@@ -181,25 +194,25 @@ class RunCommand extends Command
 
     private function handleEvent(Event $event, JobIdInterface $bEvent): void
     {
-        $this->logger->info("Sending to worker", ['event' => $event, 'bEventId' => $bEvent->getId(),
+        $this->logger->info('Sending to worker', ['event' => $event, 'bEventId' => $bEvent->getId(),
             'idle' => $this->workerPool->getIdleWorkerCount(), 'running' => $this->workerPool->isRunning()]);
         $task = new WorkerTask($this->bootstrap, $event, $this->providers, $this->semaphoreProvider);
         $execution = $this->workerPool->submit($task, new TimeoutCancellation($this->workerTimeout));
         $execution->getFuture()->catch(function ($e) use ($bEvent) {
-            $this->logger->error("Unable to process job", ['bEventId' => $bEvent->getId(), 'exception' => $e]);
+            $this->logger->error('Unable to process job', ['bEventId' => $bEvent->getId(), 'exception' => $e]);
             $this->q->getChannel()->send(['dead', $bEvent->getId()]);
         })->map($this->handleTaskResult(new JobId($bEvent->getId())));
     }
 
     private function handleTaskResult(JobIdInterface $bEvent): Closure
     {
-        return function (array|null $result) use ($bEvent) {
+        return function (?array $result) use ($bEvent) {
             // mark event as successful
-            $this->logger->info("Acknowledge", ['bEventId' => $bEvent->getId(), 'result' => $result]);
+            $this->logger->info('Acknowledge', ['bEventId' => $bEvent->getId(), 'result' => $result]);
             $this->q->getChannel()->send(['ack', $bEvent->getId()]);
             //$this->beanstalkClient->ack($bEvent);
 
-            $this->logger->info("Firing " . count($result ?? []) . " events");
+            $this->logger->info('Firing ' . count($result ?? []) . ' events');
             // dispatch events
             foreach ($result ?? [] as $event) {
                 $this->beanstalkClient->fire($event);
@@ -207,14 +220,14 @@ class RunCommand extends Command
         };
     }
 
-    private function exit(string|Throwable $reason = "exit")
+    private function exit(string|Throwable $reason = 'exit')
     {
         if ($this->namespace) {
-            $this->logger->error("releasing locks", ['reason' => $reason]);
+            $this->logger->error('releasing locks', ['reason' => $reason]);
 
             EventLoop::queue(function () {
                 $this->semaphore->signalAll();
-                $this->logger->critical("Successfully released locks");
+                $this->logger->critical('Successfully released locks');
                 exit(1);
             });
 

@@ -25,7 +25,7 @@
 namespace Bottledcode\DurablePhp\State\Nats;
 
 use Amp\Sync\Channel;
-use Basis\Nats\Stream\Stream;
+use Basis\Nats\AmpClient;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\ExecutionTerminated;
@@ -45,8 +45,7 @@ abstract class AbstractHistory implements ApplyStateInterface
 
     public function __construct(
         protected StateId $id,
-        protected Stream $history,
-        protected ?Stream $responder,
+        protected AmpClient $history,
         protected Channel $channel,
         protected ContainerInterface $container
     ) {}

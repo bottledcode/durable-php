@@ -1,0 +1,14 @@
+# ignored
+**/*
+
+# authorized
+!**/Caddyfile
+!**/*.go
+!**/go.*
+!**/*.c
+!**/*.h
+!testdata/*.php
+!testdata/*.txt
+!build-static.sh
+!app.tar
+!app_checksum.txt
