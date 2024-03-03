@@ -27,8 +27,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
+	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/teris-io/cli"
@@ -472,7 +474,9 @@ func execute(args []string, options map[string]string) int {
 		go buildConsumer(stream, ctx, streamName, "orchestrations", logger, js)
 	}
 
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+	r := mux.NewRouter()
+
+	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		// rewrite the request
 		request.URL = &url.URL{
 			Scheme:      request.URL.Scheme,
@@ -500,16 +504,71 @@ func execute(args []string, options map[string]string) int {
 		}
 	})
 
+	r.HandleFunc("/activities", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != "GET" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		store, err := getObjectStore("activities", js, context.Background())
+		if err != nil {
+			panic(err)
+		}
+		outputList(writer, err, store)
+	})
+
+	r.HandleFunc("/activity/{id}", func(writer http.ResponseWriter, request *http.Request) {
+		vars := mux.Vars(request)
+		id := vars["id"]
+
+		fmt.Println(id)
+	})
+
 	port := options["port"]
 	if port == "" {
 		port = "8080"
 	}
 
-	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, nil)))
+	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
 	return 0
 }
 
+func outputList(writer http.ResponseWriter, err error, store jetstream.ObjectStore) {
+	activities, err := store.List(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	names := make([]string, 0)
+	for _, activity := range activities {
+		if strings.HasPrefix(activity.Name, "/") {
+			continue
+		}
+
+		name := getRealNameFromEncodedName(activity.Name)
+		names = append(names, name)
+	}
+
+	if err := json.NewEncoder(writer).Encode(names); err != nil {
+		panic(err)
+	}
+}
+
 var env map[string]string
+
+func getRealNameFromEncodedName(name string) string {
+	switch len(name) % 4 {
+	case 2:
+		name += "=="
+	case 3:
+		name += "="
+	}
+	data, err := base64.StdEncoding.DecodeString(name)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(data)
+}
 
 func main() {
 	run := cli.NewCommand("run", "Starts a webserver and starts processing events").WithAction(execute)
@@ -580,18 +639,7 @@ func main() {
 						continue
 					}
 
-					switch len(name) % 4 {
-					case 2:
-						name += "=="
-					case 3:
-						name += "="
-					}
-					data, err := base64.StdEncoding.DecodeString(name)
-					if err != nil {
-						panic(err)
-					}
-
-					fmt.Println(string(data))
+					fmt.Println(getRealNameFromEncodedName(name))
 				}
 
 				return 0
@@ -599,17 +647,9 @@ func main() {
 
 			id := args[1]
 			if !strings.HasPrefix(id, "/") {
-				id = base64.StdEncoding.EncodeToString([]byte(id))
-				id = strings.TrimRight(id, "=")
+				id = getRealIdFromHumanId(id)
 			}
-			file, err := obj.GetString(ctx, id)
-			if err != nil {
-				panic(err)
-			}
-			body, err := base64.StdEncoding.DecodeString(file)
-			if err != nil {
-				panic(err)
-			}
+			body := getStateJson(err, obj, ctx, id)
 			fmt.Println(string(body))
 
 			return 0
@@ -635,4 +675,22 @@ func main() {
 		WithAction(execute)
 
 	os.Exit(app.Run(os.Args, os.Stdout))
+}
+
+func getStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id string) []byte {
+	file, err := obj.GetString(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	body, err := base64.StdEncoding.DecodeString(file)
+	if err != nil {
+		panic(err)
+	}
+	return body
+}
+
+func getRealIdFromHumanId(id string) string {
+	id = base64.StdEncoding.EncodeToString([]byte(id))
+	id = strings.TrimRight(id, "=")
+	return id
 }

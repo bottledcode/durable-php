@@ -235,9 +235,30 @@ class Task
                 exit();
 
             case 'activity':
-            case 'entity':
-            case 'orchestration':
+            case 'activities':
+                $type = 'activities';
                 break;
+            case 'entity':
+            case 'entities':
+                $type = 'entities';
+                break;
+            case 'orchestration':
+            case 'orchestrations':
+                $type = 'orchestrations';
+                break;
+        }
+
+        $id = $route[1] ?? null;
+        $action = $_SERVER['REQUEST_METHOD'];
+
+        if($action === 'GET' && $type !== 'entities') {
+            // get the current status
+        } elseif($action === 'GET') {
+
+        }
+
+        if($action === 'PUT') {
+            $signalName = $route[2];
         }
 
         http_response_code(404);
