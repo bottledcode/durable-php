@@ -30,7 +30,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
-	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/teris-io/cli"
@@ -474,62 +473,13 @@ func execute(args []string, options map[string]string) int {
 		go buildConsumer(stream, ctx, streamName, "orchestrations", logger, js)
 	}
 
-	r := mux.NewRouter()
-
-	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		// rewrite the request
-		request.URL = &url.URL{
-			Scheme:      request.URL.Scheme,
-			Opaque:      request.URL.RequestURI(),
-			User:        request.URL.User,
-			Host:        request.URL.Host,
-			Path:        routerScript,
-			RawPath:     routerScript,
-			OmitHost:    request.URL.OmitHost,
-			ForceQuery:  request.URL.ForceQuery,
-			RawQuery:    request.URL.RawQuery,
-			Fragment:    request.URL.Fragment,
-			RawFragment: request.URL.RawFragment,
-		}
-
-		logger.Info("Received request", zap.String("requestUri", request.URL.RequestURI()))
-
-		req, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestLogger(logger), frankenphp.WithRequestEnv(env))
-		if err != nil {
-			panic(err)
-		}
-
-		if err := frankenphp.ServeHTTP(writer, req); err != nil {
-			panic(err)
-		}
-	})
-
-	r.HandleFunc("/activities", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != "GET" {
-			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		store, err := getObjectStore("activities", js, context.Background())
-		if err != nil {
-			panic(err)
-		}
-		outputList(writer, err, store)
-	})
-
-	r.HandleFunc("/activity/{id}", func(writer http.ResponseWriter, request *http.Request) {
-		vars := mux.Vars(request)
-		id := vars["id"]
-
-		fmt.Println(id)
-	})
-
 	port := options["port"]
 	if port == "" {
 		port = "8080"
 	}
 
-	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
+	Startup(js, logger, port)
+
 	return 0
 }
 
