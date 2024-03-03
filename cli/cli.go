@@ -166,7 +166,7 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg) {
 		RawFragment: req.URL.RawFragment,
 	}
 
-	request, err := frankenphp.NewRequestWithContext(req)
+	request, err := frankenphp.NewRequestWithContext(req, frankenphp.WithRequestLogger(logger), frankenphp.WithRequestEnv(env))
 	if err != nil {
 		panic(err)
 	}
@@ -188,6 +188,12 @@ func (w *DummyLoggingResponseWriter) WriteHeader(statusCode int) {
 	}
 }
 
+func setEnv(options map[string]string) {
+	env = make(map[string]string)
+	env["NATS_STREAM"] = options["stream"]
+	env["NATS_SERVER"] = options["nats-server"]
+}
+
 func execute(args []string, options map[string]string) int {
 	logger, err := zap.NewDevelopment()
 	if options["router"] != "" {
@@ -201,6 +207,8 @@ func execute(args []string, options map[string]string) int {
 	if options["nats-server"] == "" {
 		nurl = options["nats-server"]
 	}
+
+	setEnv(options)
 
 	ns, err := nats.Connect(nurl)
 	if err != nil {
@@ -267,7 +275,7 @@ func execute(args []string, options map[string]string) int {
 
 		logger.Info("Received request", zap.String("requestUri", request.URL.RequestURI()))
 
-		req, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestLogger(logger))
+		req, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestLogger(logger), frankenphp.WithRequestEnv(env))
 		if err != nil {
 			panic(err)
 		}
@@ -285,6 +293,8 @@ func execute(args []string, options map[string]string) int {
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, nil)))
 	return 0
 }
+
+var env map[string]string
 
 func main() {
 	run := cli.NewCommand("run", "Starts a webserver and starts processing events").WithAction(execute)
