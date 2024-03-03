@@ -31,11 +31,13 @@ use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Events\TargetType;
 use Bottledcode\DurablePhp\State\AbstractHistory;
 use Bottledcode\DurablePhp\State\ActivityHistory;
+use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
-use Mockery\Container;
+use JsonException;
 use Monolog\Level;
 use Psr\Container\ContainerInterface;
 use Ramsey\Uuid\Uuid;
@@ -96,79 +98,109 @@ class Task
                         if ($state === null) {
                             $state = new ActivityHistory($activity, $this->logger);
                         }
-
-                        // initialize the container
-                        $bootstrapFile = getenv('BOOTSTRAP_FILE');
-                        if(file_exists($bootstrapFile)) {
-                            $container = include $bootstrapFile;
-                            $state->setContainer($container);
-                        } else {
-                            $container = new class () implements ContainerInterface {
-                                private array $things = [];
-
-                                #[\Override] public function get(string $id)
-                                {
-                                    if(empty($this->things[$id])) {
-                                        return $this->things[$id] = new $id();
-                                    }
-
-                                    return $this->things[$id];
-                                }
-
-                                #[\Override] public function has(string $id): bool
-                                {
-                                    return isset($this->things[$id]);
-                                }
-
-                                public function set(string $id, $value): void
-                                {
-                                    $this->things[$id] = $value;
-                                }
-                            };
-                            $state->setContainer($container);
-                        }
-
-
-                        if ($state->hasAppliedEvent($event->event)) {
-                            $this->emitError(200, 'event already applied', ['event' => $event]);
-                        }
-
-                        try {
-                            foreach ($this->transmutate($event->innerEvent, $state, $event->event) as $eventOrCallable) {
-                                if ($eventOrCallable instanceof Event) {
-                                    if ($eventOrCallable instanceof PoisonPill) {
-                                        break;
-                                    }
-                                    $this->fire($eventOrCallable);
-                                } elseif ($eventOrCallable instanceof \Closure) {
-                                    $eventOrCallable($this);
-                                }
-                            }
-                        } catch (\Throwable $exception) {
-                            $this->emitError(
-                                500,
-                                'Failed to process',
-                                ['event' => $event, 'exception' => $exception]
-                            );
-                        }
-
-                        $state->resetState();
-                        try {
-                            $this->commit($state, $stream);
-                        } catch(\JsonException $e) {
-                            $this->emitError(500, 'json encoding error when committing state', ['exception' => $e]);
-                        }
-
-                        exit();
+                        break;
                     case 'orchestrations':
-                        $this->emitError(500, "ERROR: orchestrations not implemented yet\n");
-                        // no break
+                        $orchestration = $event->destination;
+                        if (! $orchestration->isOrchestrationId()) {
+                            $this->emitError(400, 'Invalid orchestration id');
+                        }
+
+                        try {
+                            $state = $this->loadState();
+                        } catch (\JsonException $e) {
+                            $this->emitError(400, 'json decoding error', ['exception' => $e]);
+                        }
+
+                        if ($state === null) {
+                            $state = new OrchestrationHistory($orchestration, $this->logger);
+                        }
+
+                        break;
                     case 'entities':
-                        $this->emitError(500, "ERROR: entities not implemented yet\n");
-                        // no break
+                        $entity = $event->destination;
+                        if(!$entity->isEntityId()) {
+                            $this->emitError(400, 'Invalid entity id');
+                        }
+
+                        try {
+                            $state = $this->loadState();
+                        } catch (JsonException $e) {
+                            $this->emitError(400, 'json decoding error', ['exception' => $e]);
+                        }
+
+                        if($state === null) {
+                            $state = new EntityHistory($entity, $this->logger);
+                        }
+                        break;
                     default:
                         $this->emitError(404, "ERROR: unknown route type \"{$type}\"\n");
                 }
+
+                // initialize the container
+                $bootstrapFile = getenv('BOOTSTRAP_FILE');
+                if (file_exists($bootstrapFile)) {
+                    $container = include $bootstrapFile;
+                } else {
+                    $container = new class () implements ContainerInterface {
+                        private array $things = [];
+
+                        #[\Override]
+                        public function get(string $id)
+                        {
+                            if (empty($this->things[$id])) {
+                                return $this->things[$id] = new $id();
+                            }
+
+                            return $this->things[$id];
+                        }
+
+                        #[\Override]
+                        public function has(string $id): bool
+                        {
+                            return isset($this->things[$id]);
+                        }
+
+                        public function set(string $id, $value): void
+                        {
+                            $this->things[$id] = $value;
+                        }
+                    };
+                }
+                $state->setContainer($container);
+
+                if ($state->hasAppliedEvent($event->event)) {
+                    $this->emitError(200, 'event already applied', ['event' => $event]);
+                }
+
+                try {
+                    foreach ($this->transmutate($event->innerEvent, $state, $event->event) as $eventOrCallable) {
+                        if ($eventOrCallable instanceof Event) {
+                            if ($eventOrCallable instanceof PoisonPill) {
+                                break;
+                            }
+                            $this->fire($eventOrCallable);
+                        } elseif ($eventOrCallable instanceof \Closure) {
+                            $eventOrCallable($this);
+                        }
+                    }
+                } catch (\Throwable $exception) {
+                    $this->emitError(
+                        500,
+                        'Failed to process',
+                        ['event' => $event, 'exception' => $exception]
+                    );
+                }
+
+                $state->resetState();
+                $state->ackedEvent($event->event);
+                try {
+                    $this->commit($state, $stream);
+                } catch (\JsonException $e) {
+                    $this->emitError(500, 'json encoding error when committing state', ['exception' => $e]);
+                }
+
+                exit();
+
             case 'activity':
             case 'entity':
             case 'orchestration':
@@ -193,12 +225,12 @@ class Task
     /**
      * @throws \JsonException
      */
-    private function loadState(): AbstractHistory|null
+    private function loadState(): ?AbstractHistory
     {
         $file = $_SERVER['HTTP_STATE_FILE'] ?? throw new \JsonException('Missing state file');
         $state = stream_get_contents($file = fopen($file, 'rb'));
         fclose($file);
-        if(empty($state)) {
+        if (empty($state)) {
             return null;
         }
         $state = json_decode(base64_decode($state), true, 512, JSON_THROW_ON_ERROR);
@@ -222,16 +254,16 @@ class Task
             $description = new EventDescription($event);
             $serialized = [
                 'EVENT',
-                $this->stream . "." . match($description->targetType) {
+                $this->stream . '.' . match ($description->targetType) {
                     TargetType::Activity => 'activities',
                     TargetType::Entity => 'entities',
                     TargetType::Orchestration => 'orchestrations',
                     default => $this->emitError(500, 'unknown event type'),
-                } . "." . $this->sanitizeId($description->destination),
+                } . '.' . $this->sanitizeId($description->destination),
                 $description->scheduledAt?->format(DATE_ATOM) ?? '',
                 base64_encode($description->toJson()),
             ];
-            echo implode("~!~", $serialized);
+            echo implode('~!~', $serialized);
             $ids[] = $parent->eventId;
         }
 
@@ -240,14 +272,14 @@ class Task
 
     private function sanitizeId(StateId $destination): string
     {
-        return trim(base64_encode($destination->id), "=");
+        return trim(base64_encode($destination->id), '=');
     }
 
     private function commit(AbstractHistory $state, string $stream): void
     {
         $serialized = Serializer::serialize($state);
         $serialized = base64_encode(json_encode($serialized, JSON_THROW_ON_ERROR));
-        file_put_contents($_SERVER["HTTP_STATE_FILE"], $serialized);
+        file_put_contents($_SERVER['HTTP_STATE_FILE'], $serialized);
     }
 }
 
