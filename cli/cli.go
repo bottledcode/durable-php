@@ -311,8 +311,8 @@ func main() {
 		WithOption(cli.NewOption("no-entities", "Do not parse entities").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("no-orchestrations", "Do not parse orchestrations").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("router", "The router script").WithType(cli.TypeString)).
-		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString))
-	WithCommand(run).
+		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString)).
+		WithCommand(run).
 		WithCommand(init).
 		WithCommand(version).
 		WithAction(execute)
