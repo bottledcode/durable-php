@@ -1,3 +1,66 @@
+FROM golang:1.22-alpine AS cli-base-alpine
+
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+
+RUN apk update; \
+	apk add --no-cache \
+		autoconf \
+		automake \
+		bash \
+		binutils \
+        binutils-gold \
+		bison \
+		build-base \
+		cmake \
+		composer \
+		curl \
+		file \
+		flex \
+		g++ \
+		gcc \
+		git \
+		jq \
+		libgcc \
+		libstdc++ \
+		libtool \
+		linux-headers \
+		m4 \
+		make \
+		pkgconfig \
+		php83 \
+		php83-common \
+		php83-ctype \
+		php83-curl \
+		php83-dom \
+		php83-mbstring \
+		php83-openssl \
+		php83-pcntl \
+		php83-phar \
+		php83-posix \
+		php83-session \
+		php83-sodium \
+		php83-tokenizer \
+		php83-xml \
+		php83-xmlwriter \
+		upx \
+		wget \
+		xz ; \
+	ln -sf /usr/bin/php83 /usr/bin/php
+
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
+WORKDIR /go/src/app
+COPY cli/go.mod cli/go.sum ./
+RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
+COPY cli/build.sh .
+COPY cli/build-php.sh .
+
+RUN ./build-php.sh
+
+COPY cli/cli.go .
+COPY cli/vendor vendor
+RUN ./build.sh
+
 FROM php:8-zts AS base
 
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/bin/
