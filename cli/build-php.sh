@@ -29,13 +29,7 @@ if ! type "git" > /dev/null; then
     exit 1
 fi
 
-arch="$(uname -m)"
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-md5binary="md5sum"
-if [ "${os}" = "darwin" ]; then
-    os="mac"
-    md5binary="md5 -q"
-fi
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
     export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,zip,zlib"
@@ -68,8 +62,6 @@ elif [ -d ".git/" ]; then
         git checkout "${FRANKENPHP_VERSION}"
     fi
 fi
-
-bin="dphp-${os}-${arch}"
 
 if [ -n "${CLEAN}" ]; then
     rm -Rf dist/

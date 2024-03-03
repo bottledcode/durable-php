@@ -29,6 +29,8 @@ if ! type "git" > /dev/null; then
     exit 1
 fi
 
+cd dist/static-php-cli
+
 arch="$(uname -m)"
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 md5binary="md5sum"
