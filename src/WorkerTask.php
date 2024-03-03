@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Abstractions\ProjectorInterface;
 use Bottledcode\DurablePhp\Abstractions\Semaphore;
 use Bottledcode\DurablePhp\Config\ProviderTrait;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\HasInnerEventInterface;
 use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Events\StateTargetInterface;
@@ -46,23 +47,26 @@ class WorkerTask implements Task
     use Router;
 
     private static array $globals = [];
+
     private ContainerInterface $container;
+
     private ProjectorInterface $projector;
+
     private Semaphore $semaphore;
 
     private DurableLogger $logger;
 
     private array $batch = [];
 
-    public function __construct(private string $bootstrap, private Event $event, private array $providers, private string $semaphoreProvider) {}
+    public function __construct(private string $bootstrap, private EventDescription $event) {}
 
     public function run(Channel $channel, Cancellation $cancellation): array
     {
         gc_enable();
         gc_collect_cycles();
         $this->logger = new DurableLogger();
-        $this->logger->info("Running worker", ['event' => $this->event]);
-        if(empty(self::$globals)) {
+        $this->logger->info('Running worker', ['event' => $this->event]);
+        if (empty(self::$globals)) {
             $this->configureProviders($this->providers, $this->semaphoreProvider);
             self::$globals = [$this->projector, $this->semaphore];
         } else {
@@ -84,11 +88,11 @@ class WorkerTask implements Task
 
         foreach ($states as $state) {
             if ($state->hasAppliedEvent($this->event)) {
-                $this->logger->warning("Already applied", ['event' => $this->event]);
+                $this->logger->warning('Already applied', ['event' => $this->event]);
                 goto finalize;
             }
 
-            $this->logger->debug("Transmutating with event", ['event' => $this->event]);
+            $this->logger->debug('Transmutating with event', ['event' => $this->event]);
 
             try {
                 foreach ($this->transmutate($this->event, $state, $originalEvent) as $eventOrCallable) {
@@ -103,7 +107,7 @@ class WorkerTask implements Task
                 }
             } catch (\Throwable $exception) {
                 $this->logger->critical(
-                    "Failed to process",
+                    'Failed to process',
                     ['event' => $originalEvent, 'exception' => $exception]
                 );
                 throw $exception;
@@ -119,7 +123,7 @@ class WorkerTask implements Task
             $this->updateState($state);
         }
 
-        foreach($semaphoreKey as $key) {
+        foreach ($semaphoreKey as $key) {
             $this->semaphore->signal($key);
         }
 
@@ -137,6 +141,7 @@ class WorkerTask implements Task
         $currentState ??= new ($id->getStateType())($id, $this->logger);
         $currentState->logger = $this->logger;
         $currentState->setContainer($this->container);
+
         return $currentState;
     }
 
@@ -144,7 +149,7 @@ class WorkerTask implements Task
     {
         $ids = [];
         foreach ($events as $event) {
-            $this->logger->debug("Batching", ['event' => $event]);
+            $this->logger->debug('Batching', ['event' => $event]);
             $parent = $event;
             if (empty($event->eventId)) {
                 $id = Uuid::uuid7();
