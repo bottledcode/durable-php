@@ -1,4 +1,4 @@
-package main
+package lib
 
 import (
 	"bytes"
@@ -19,7 +19,10 @@ import (
 	"time"
 )
 
-func buildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger, js jetstream.JetStream) {
+// todo: update to vendored src
+var RouterScript string = "/src/Task.php"
+
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger, js jetstream.JetStream) {
 	logger.Info("Creating consumer", zap.String("stream", streamName), zap.String("kind", kind))
 
 	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
@@ -164,8 +167,8 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 		Opaque:      req.URL.RequestURI(),
 		User:        req.URL.User,
 		Host:        req.URL.Host,
-		Path:        routerScript,
-		RawPath:     routerScript,
+		Path:        RouterScript,
+		RawPath:     RouterScript,
 		OmitHost:    req.URL.OmitHost,
 		ForceQuery:  req.URL.ForceQuery,
 		RawQuery:    req.URL.RawQuery,
@@ -173,7 +176,7 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 		RawFragment: req.URL.RawFragment,
 	}
 
-	request, err := frankenphp.NewRequestWithContext(req, frankenphp.WithRequestLogger(logger), frankenphp.WithRequestEnv(env))
+	request, err := frankenphp.NewRequestWithContext(req, frankenphp.WithRequestLogger(logger))
 	if err != nil {
 		return err
 	}
@@ -245,7 +248,7 @@ func outputList(writer http.ResponseWriter, err error, store jetstream.ObjectSto
 			continue
 		}
 
-		name := getRealNameFromEncodedName(activity.Name)
+		name := GetRealNameFromEncodedName(activity.Name)
 		names = append(names, name)
 	}
 

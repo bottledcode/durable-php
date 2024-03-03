@@ -1,4 +1,4 @@
-module go_durable_php
+module durable_php
 
 go 1.22
 

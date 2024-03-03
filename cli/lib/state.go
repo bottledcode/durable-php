@@ -1,4 +1,4 @@
-package main
+package lib
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func getStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id string) []byte {
+func GetStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id string) []byte {
 	file, err := obj.GetString(ctx, id)
 	if err != nil {
 		panic(err)
@@ -19,13 +19,13 @@ func getStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id 
 	return body
 }
 
-func getRealIdFromHumanId(id string) string {
+func GetRealIdFromHumanId(id string) string {
 	id = base64.StdEncoding.EncodeToString([]byte(id))
 	id = strings.TrimRight(id, "=")
 	return id
 }
 
-func getRealNameFromEncodedName(name string) string {
+func GetRealNameFromEncodedName(name string) string {
 	switch len(name) % 4 {
 	case 2:
 		name += "=="

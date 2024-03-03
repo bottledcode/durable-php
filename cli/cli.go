@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"durable_php/lib"
 	"fmt"
 	"github.com/dunglas/frankenphp"
 	"github.com/nats-io/nats.go"
@@ -35,9 +36,6 @@ import (
 	"time"
 )
 
-// todo: update to vendored src
-var routerScript string = "/src/Task.php"
-
 func setEnv(options map[string]string) {
 	env = make(map[string]string)
 	env["BOOTSTRAP_FILE"] = options["bootstrap"]
@@ -46,7 +44,7 @@ func setEnv(options map[string]string) {
 func execute(args []string, options map[string]string) int {
 	logger, err := zap.NewDevelopment()
 	if options["router"] != "" {
-		routerScript = options["router"]
+		lib.RouterScript = options["router"]
 	}
 	if err != nil {
 		panic(err)
@@ -95,15 +93,15 @@ func execute(args []string, options map[string]string) int {
 	}
 
 	if options["no-activities"] != "true" {
-		go buildConsumer(stream, ctx, streamName, "activities", logger, js)
+		go lib.BuildConsumer(stream, ctx, streamName, "activities", logger, js)
 	}
 
 	if options["no-entities"] != "true" {
-		go buildConsumer(stream, ctx, streamName, "entities", logger, js)
+		go lib.BuildConsumer(stream, ctx, streamName, "entities", logger, js)
 	}
 
 	if options["no-orchestrations"] != "true" {
-		go buildConsumer(stream, ctx, streamName, "orchestrations", logger, js)
+		go lib.BuildConsumer(stream, ctx, streamName, "orchestrations", logger, js)
 	}
 
 	port := options["port"]
@@ -111,7 +109,7 @@ func execute(args []string, options map[string]string) int {
 		port = "8080"
 	}
 
-	Startup(js, logger, port)
+	lib.Startup(js, logger, port)
 
 	return 0
 }
@@ -187,7 +185,7 @@ func main() {
 						continue
 					}
 
-					fmt.Println(getRealNameFromEncodedName(name))
+					fmt.Println(lib.GetRealNameFromEncodedName(name))
 				}
 
 				return 0
@@ -195,9 +193,9 @@ func main() {
 
 			id := args[1]
 			if !strings.HasPrefix(id, "/") {
-				id = getRealIdFromHumanId(id)
+				id = lib.GetRealIdFromHumanId(id)
 			}
-			body := getStateJson(err, obj, ctx, id)
+			body := lib.GetStateJson(err, obj, ctx, id)
 			fmt.Println(string(body))
 
 			return 0
