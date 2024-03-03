@@ -120,8 +120,10 @@ if [ -d "${EMBED}" ]; then
     truncate -s 0 app_checksum.txt
 fi
 
-if type "upx" > /dev/null; then
-    upx --best "dist/${bin}"
+if [ -z "${NO_COMPRESS}" ]; then
+  if type "upx" > /dev/null; then
+      upx --best "dist/${bin}"
+  fi
 fi
 
 "dist/${bin}" version

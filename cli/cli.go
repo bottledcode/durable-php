@@ -46,6 +46,7 @@ var routerScript string = "/index.php"
 type DummyLoggingResponseWriter struct {
 	logger  zap.Logger
 	isError bool
+	status  int
 }
 
 func (w *DummyLoggingResponseWriter) Header() http.Header {
@@ -67,6 +68,13 @@ func (w *DummyLoggingResponseWriter) Write(b []byte) (int, error) {
 	}
 
 	return len(b), nil
+}
+
+func (w *DummyLoggingResponseWriter) WriteHeader(statusCode int) {
+	if statusCode >= 500 {
+		w.isError = true
+	}
+	w.status = statusCode
 }
 
 func buildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger) {
@@ -176,15 +184,18 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg) {
 		panic(err)
 	}
 
+	if writer.status >= 300 {
+		logger.Error(fmt.Sprintf("Received error %d from Task", writer.status))
+		err := msg.TermWithReason(fmt.Sprintf("Received error %d from Task", writer.status))
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
 	logger.Info("Ack message")
 	if err := msg.Ack(); err != nil {
 		panic(err)
-	}
-}
-
-func (w *DummyLoggingResponseWriter) WriteHeader(statusCode int) {
-	if statusCode >= 500 {
-		w.isError = true
 	}
 }
 

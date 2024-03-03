@@ -52,11 +52,11 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 WORKDIR /go/src/app
 COPY cli/go.mod cli/go.sum ./
 RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
-COPY cli/build.sh .
-COPY cli/build-php.sh .
 
+COPY cli/build-php.sh .
 RUN ./build-php.sh
 
+COPY cli/build.sh .
 COPY cli/cli.go .
 COPY cli/vendor vendor
 RUN ./build.sh
