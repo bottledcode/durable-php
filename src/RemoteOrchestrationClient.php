@@ -23,96 +23,75 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\State\EntityId;
-use Bottledcode\DurablePhp\State\EntityState;
+use Amp\Http\Client\HttpClient;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Status;
-use DateTimeImmutable;
-use Generator;
 
-final readonly class DurableClient implements DurableClientInterface
+final class RemoteOrchestrationClient implements OrchestrationClientInterface
 {
     public function __construct(
-        private EntityClientInterface $entityClient,
-        private OrchestrationClientInterface $orchestrationClient
-    ) {}
+        private string $apiHost = 'http://localhost:8080',
+        private HttpClient $client = new HttpClient(),
+        private SpyProxy $spyProxy = new SpyProxy(),
+    ) {
+        $this->apiHost = rtrim($this->apiHost, '/');
+    }
 
-    public function cleanEntityStorage(): void
+    #[\Override]
+    public function getStatus(OrchestrationInstance $instance): Status {}
+
+    #[\Override]
+    public function listInstances(): \Generator
     {
-        $this->entityClient->cleanEntityStorage();
+        // TODO: Implement listInstances() method.
     }
 
-    public function listEntities(): Generator
-    {
-        yield from $this->entityClient->listEntities();
-    }
-
-    public function signalEntity(
-        EntityId $entityId,
-        string $operationName,
-        array $input = [],
-        DateTimeImmutable $scheduledTime = null
-    ): void {
-        $this->entityClient->signalEntity($entityId, $operationName, $input, $scheduledTime);
-    }
-
-    public function getStatus(OrchestrationInstance $instance): Status
-    {
-        return $this->orchestrationClient->getStatus($instance);
-    }
-
-    public function listInstances(): Generator
-    {
-        yield from $this->orchestrationClient->listInstances();
-    }
-
+    #[\Override]
     public function purge(OrchestrationInstance $instance): void
     {
-        $this->orchestrationClient->purge($instance);
+        // TODO: Implement purge() method.
     }
 
+    #[\Override]
     public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
     {
-        $this->orchestrationClient->raiseEvent($instance, $eventName, $eventData);
+        // TODO: Implement raiseEvent() method.
     }
 
+    #[\Override]
     public function restart(OrchestrationInstance $instance): void
     {
-        $this->orchestrationClient->restart($instance);
+        // TODO: Implement restart() method.
     }
 
+    #[\Override]
     public function resume(OrchestrationInstance $instance, string $reason): void
     {
-        $this->orchestrationClient->resume($instance, $reason);
+        // TODO: Implement resume() method.
     }
 
+    #[\Override]
     public function startNew(string $name, array $args = [], ?string $id = null): OrchestrationInstance
     {
-        return $this->orchestrationClient->startNew($name, $args, $id);
+        // TODO: Implement startNew() method.
     }
 
+    #[\Override]
     public function suspend(OrchestrationInstance $instance, string $reason): void
     {
-        $this->orchestrationClient->suspend($instance, $reason);
+        // TODO: Implement suspend() method.
     }
 
+    #[\Override]
     public function terminate(OrchestrationInstance $instance, string $reason): void
     {
-        $this->orchestrationClient->terminate($instance, $reason);
+        // TODO: Implement terminate() method.
     }
 
+    #[\Override]
     public function waitForCompletion(OrchestrationInstance $instance): void
     {
-        $this->orchestrationClient->waitForCompletion($instance);
-    }
-
-    public function getEntitySnapshot(EntityId $entityId): EntityState|null
-    {
-        return $this->entityClient->getEntitySnapshot($entityId);
-    }
-
-    public function signal(EntityId|string $entityId, \Closure $signal): void
-    {
-        $this->entityClient->signal($entityId, $signal);
+        // TODO: Implement waitForCompletion() method.
     }
 }
