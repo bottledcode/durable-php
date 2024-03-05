@@ -36,7 +36,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListOfStrings"
-  /entity/{id}: # partial
+  /entity/{name}/{id}: # partial
     parameters:
       - in: path
         name: id
@@ -56,7 +56,7 @@ paths:
                   state:
                     type: object
                     additionalProperties: true
-  /entity/{id}/{method}: # partial
+  /entity/{name}/{id}/{method}: # partial
     parameters:
       - in: path
         name: id
@@ -89,7 +89,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListOfStrings"
-    put:
+    put: # done
       summary: Start a new orchestration
       requestBody:
         required: true
@@ -116,8 +116,6 @@ paths:
               description: The id of the newly created orchestration
               schema:
                 type: string
-        409:
-          description: An orchestration was previously started with the same name
   /orchestration/{id}:
     get:
       summary: Get the current status of an orchestration

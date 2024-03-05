@@ -108,7 +108,7 @@ class Task
                     $this->bodyStream = fopen("php://input", "rb");
                     $event = $this->readEvent();
                 } catch (\JsonException $e) {
-                    $this->emitError(400, 'json decoding error', ['exception' => $e]);
+                    $this->emitError(400, 'json decoding error', ['exception' => $e ]);
                 }
 
                 switch ($type) {
@@ -233,32 +233,6 @@ class Task
                 }
 
                 exit();
-
-            case 'activity':
-            case 'activities':
-                $type = 'activities';
-                break;
-            case 'entity':
-            case 'entities':
-                $type = 'entities';
-                break;
-            case 'orchestration':
-            case 'orchestrations':
-                $type = 'orchestrations';
-                break;
-        }
-
-        $id = $route[1] ?? null;
-        $action = $_SERVER['REQUEST_METHOD'];
-
-        if($action === 'GET' && $type !== 'entities') {
-            // get the current status
-        } elseif($action === 'GET') {
-
-        }
-
-        if($action === 'PUT') {
-            $signalName = $route[2];
         }
 
         http_response_code(404);
@@ -278,7 +252,7 @@ class Task
 
     private function readEvent(): EventDescription
     {
-        return EventDescription::fromJson(base64_decode($this->readData()));
+        return EventDescription::fromStream($this->readData());
     }
 
     /**
@@ -320,7 +294,7 @@ class Task
                     default => $this->emitError(500, 'unknown event type'),
                 } . '.' . $this->sanitizeId($description->destination),
                 $description->scheduledAt?->format(DATE_ATOM) ?? '',
-                base64_encode($description->toJson()),
+                $description->toStream(),
             ];
             echo implode('~!~', $serialized);
             $ids[] = $parent->eventId;

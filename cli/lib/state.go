@@ -3,9 +3,27 @@ package lib
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
+	"os"
+	"path/filepath"
 	"strings"
 )
+
+func getLibraryDir(target string) (string, error) {
+	dirs := []string{
+		filepath.Join("src", target),
+		filepath.Join("vendor", "bottledcode", "src", target),
+	}
+
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err == nil {
+			return dir, nil
+		}
+	}
+
+	return "", fmt.Errorf("target: %s no found in any src directory", target)
+}
 
 func GetStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id string) []byte {
 	file, err := obj.GetString(ctx, id)

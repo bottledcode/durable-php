@@ -9,7 +9,25 @@ import (
 	"strings"
 )
 
-type DummyLoggingResponseWriter struct {
+type ConsumingResponseWriter struct {
+	data    string
+	headers http.Header
+}
+
+func (c *ConsumingResponseWriter) Header() http.Header {
+	return c.headers
+}
+
+func (c *ConsumingResponseWriter) Write(b []byte) (int, error) {
+	// read all bytes into c.data
+	c.data += string(b)
+	return len(b), nil
+}
+
+func (c *ConsumingResponseWriter) WriteHeader(statusCode int) {
+}
+
+type InternalLoggingResponseWriter struct {
 	logger  zap.Logger
 	isError bool
 	status  int
@@ -17,11 +35,11 @@ type DummyLoggingResponseWriter struct {
 	query   chan []string
 }
 
-func (w *DummyLoggingResponseWriter) Header() http.Header {
+func (w *InternalLoggingResponseWriter) Header() http.Header {
 	return http.Header{}
 }
 
-func (w *DummyLoggingResponseWriter) Write(b []byte) (int, error) {
+func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -61,7 +79,7 @@ func (w *DummyLoggingResponseWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (w *DummyLoggingResponseWriter) WriteHeader(statusCode int) {
+func (w *InternalLoggingResponseWriter) WriteHeader(statusCode int) {
 	if statusCode >= 500 {
 		w.isError = true
 	}

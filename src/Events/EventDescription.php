@@ -92,12 +92,22 @@ readonly class EventDescription
         };
     }
 
+    public static function fromStream(string $data): self
+    {
+        return self::fromJson(gzuncompress(base64_decode($data)));
+    }
+
     /**
      * @throws \JsonException
      */
     public static function fromJson(string $json): EventDescription
     {
         return new EventDescription(Serializer::deserialize(json_decode($json, true, 512, JSON_THROW_ON_ERROR), Event::class));
+    }
+
+    public function toStream(): string
+    {
+        return base64_encode(gzcompress($this->toJson()));
     }
 
     /**

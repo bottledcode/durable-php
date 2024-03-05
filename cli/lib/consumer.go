@@ -103,7 +103,7 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 	}
 	logger.Info("Created state file for handoff", zap.String("file", stateFile.Name()))
 
-	writer := &DummyLoggingResponseWriter{
+	writer := &InternalLoggingResponseWriter{
 		logger:  *logger,
 		isError: false,
 		events:  make([]*nats.Msg, 0),

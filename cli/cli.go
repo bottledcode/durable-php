@@ -109,7 +109,7 @@ func execute(args []string, options map[string]string) int {
 		port = "8080"
 	}
 
-	lib.Startup(js, logger, port)
+	lib.Startup(js, logger, port, streamName)
 
 	return 0
 }
