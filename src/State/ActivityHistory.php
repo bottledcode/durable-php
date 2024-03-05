@@ -131,4 +131,9 @@ class ActivityHistory extends AbstractHistory
     public function resetState(): void {}
 
     public function ackedEvent(Event $event): void {}
+
+    #[\Override] public function setLogger(DurableLogger $logger): void
+    {
+        $this->logger = $logger;
+    }
 }

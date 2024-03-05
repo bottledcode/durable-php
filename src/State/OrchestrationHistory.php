@@ -331,4 +331,9 @@ class OrchestrationHistory extends AbstractHistory
     {
         unset($this->history[$event->eventId]);
     }
+
+    #[\Override] public function setLogger(DurableLogger $logger): void
+    {
+        $this->logger = $logger;
+    }
 }

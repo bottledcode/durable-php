@@ -41,7 +41,7 @@ use JsonException;
 use Psr\Container\ContainerInterface;
 use Ramsey\Uuid\Uuid;
 
-require_once __DIR__ . '/autoload.php';
+require_once __DIR__ . '/Glue/autoload.php';
 
 class Task
 {
@@ -260,7 +260,10 @@ class Task
         }
         $state = json_decode(base64_decode($state), true, 512, JSON_THROW_ON_ERROR);
 
-        return Serializer::deserialize($state, StateInterface::class);
+        $state = Serializer::deserialize($state, StateInterface::class);
+        $state->setLogger($this->logger);
+
+        return $state;
     }
 
     public function fire(Event ...$events): array
@@ -297,7 +300,11 @@ class Task
 
     private function sanitizeId(StateId $destination): string
     {
-        return trim(base64_encode($destination->id), '=');
+        $id = $destination->id;
+        $id = explode(':', $id);
+        $id = [$id[1], $id[2] ?? ''];
+        $id = str_replace(['-', '\\', '.'], '_', $id);
+        return rtrim(implode('.', $id), '.');
     }
 
     private function commit(AbstractHistory $state, string $stream): void

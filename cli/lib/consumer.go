@@ -94,6 +94,7 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 		return err
 	}
 	defer os.Remove(stateFile.Name())
+
 	if err := obj.GetFile(osctx, getObjectStoreId(msg.Subject()), stateFile.Name()); err != nil {
 		file, err := os.OpenFile(stateFile.Name(), os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {

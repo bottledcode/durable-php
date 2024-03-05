@@ -298,4 +298,9 @@ class EntityHistory extends AbstractHistory
         }
         yield from $this->finalize($event);
     }
+
+    #[\Override] public function setLogger(DurableLogger $logger): void
+    {
+        $this->logger = $logger;
+    }
 }

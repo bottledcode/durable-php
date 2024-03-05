@@ -9,7 +9,8 @@ import (
 )
 
 func getLockableSubject(subject string) string {
-	return strings.ReplaceAll(subject, ".", "_")
+	subject = strings.ReplaceAll(subject, ".", "_")
+	return strings.ReplaceAll(subject, "\\", "_")
 }
 
 func lockSubject(subject string, js jetstream.JetStream, logger *zap.Logger) {

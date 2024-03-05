@@ -43,20 +43,15 @@ func GetRealIdFromHumanId(name string, id string) string {
 	return id
 }
 
-func GetRealNameFromEncodedName(name string) (string, string) {
-	switch len(name) % 4 {
-	case 2:
-		name += "=="
-	case 3:
-		name += "="
-	}
+func GetRealNameFromEncodedName(name string, sep string) (string, string) {
+	name = repadBase64(name)
 	data, err := base64.StdEncoding.DecodeString(name)
 	if err != nil {
 		panic(err)
 	}
 
 	name = string(data)
-	name, id, found := strings.Cut(name, "./.")
+	name, id, found := strings.Cut(name, sep)
 
 	if !found {
 		return name, ""
@@ -65,12 +60,28 @@ func GetRealNameFromEncodedName(name string) (string, string) {
 	return name, id
 }
 
+func repadBase64(name string) string {
+	switch len(name) % 4 {
+	case 2:
+		name += "=="
+	case 3:
+		name += "="
+	}
+	return name
+}
+
 func getObjectStoreName(subject string) string {
 	return strings.Split(subject, ".")[1]
 }
 
 func getObjectStoreId(subject string) string {
-	return strings.Split(subject, ".")[2]
+	parts := strings.Split(subject, ".")
+	name := parts[2]
+	id := ""
+	if len(parts) == 4 {
+		id = parts[3]
+	}
+	return GetRealIdFromHumanId(name, id)
 }
 
 func getObjectStore(kind string, js jetstream.JetStream, ctx context.Context) (jetstream.ObjectStore, error) {

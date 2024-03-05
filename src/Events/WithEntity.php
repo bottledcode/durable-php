@@ -25,13 +25,12 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Ramsey\Uuid\Uuid;
 
 class WithEntity extends Event implements HasInnerEventInterface, StateTargetInterface
 {
     public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
     {
-        parent::__construct($this->innerEvent ?: Uuid::uuid7());
+        parent::__construct($eventId);
     }
 
     public static function forInstance(StateId $target, Event $innerEvent): static

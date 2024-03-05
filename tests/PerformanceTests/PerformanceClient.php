@@ -24,13 +24,8 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
-use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
 use Bottledcode\DurablePhp\DurableClient;
 use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\EntityClient;
-use Bottledcode\DurablePhp\OrchestrationClient;
-use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Tests\Common\LauncherEntity;
@@ -39,15 +34,13 @@ use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$queue = new BeanstalkEventSource();
-$projector = new RethinkDbProjector();
-$client = new DurableClient(new EntityClient(new SpyProxy(), $projector, $queue), new OrchestrationClient($queue, $projector));
+$client = DurableClient::get();
 $logger = new DurableLogger();
 
 $watch = new StopWatch();
 $watch->start();
-$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 5000 / 200;
-$numberLaunchers = 200;
+$numberToLaunch = 1;// getenv('ACTIVITY_COUNT') ?: 5000 / 200;
+$numberLaunchers = 1;
 for ($i = 0; $i < $numberLaunchers; $i++) {
     $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),

@@ -24,9 +24,14 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClient;
+use Amp\Http\Client\Request;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\Status;
+
+use function Withinboredom\Time\Hours;
+use function Withinboredom\Time\Seconds;
 
 final class RemoteOrchestrationClient implements OrchestrationClientInterface
 {
@@ -39,24 +44,43 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     }
 
     #[\Override]
-    public function getStatus(OrchestrationInstance $instance): Status {}
-
-    #[\Override]
     public function listInstances(): \Generator
     {
-        // TODO: Implement listInstances() method.
+        $req = new Request("$this->apiHost/orchestrations");
+        $result = $this->client->request($req);
+        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
+        yield from $result;
     }
 
     #[\Override]
     public function purge(OrchestrationInstance $instance): void
     {
-        // TODO: Implement purge() method.
+        throw new \LogicException('not implemented yet');
     }
 
     #[\Override]
     public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
     {
-        // TODO: Implement raiseEvent() method.
+        $name = rawurlencode($instance->instanceId);
+        $id = rawurlencode($instance->executionId);
+        $signal = rawurlencode($eventName);
+        $req = new Request("$this->apiHost/orchestration/$name/$id/$signal", 'PUT', json_encode(Serializer::serialize($eventData), JSON_THROW_ON_ERROR));
+        $result = $this->client->request($req);
+        if ($result->getStatus() >= 300) {
+            throw new \Exception($result->getBody()->read());
+        }
+    }
+
+    #[\Override]
+    public function getStatus(OrchestrationInstance $instance): Status
+    {
+        $name = rawurlencode($instance->instanceId);
+        $id = rawurlencode($instance->executionId);
+        $req = new Request("$this->apiHost/orchestration/$name/$id");
+        $result = $this->client->request($req);
+        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
+
+        return Serializer::deserialize($result, Status::class);
     }
 
     #[\Override]
@@ -74,7 +98,19 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     #[\Override]
     public function startNew(string $name, array $args = [], ?string $id = null): OrchestrationInstance
     {
-        // TODO: Implement startNew() method.
+        $data = [
+            'name' => $name,
+            ...($id ? ['id' => $id] : []),
+            'input' => $args,
+        ];
+        $data = json_encode(Serializer::serialize($data), JSON_THROW_ON_ERROR);
+        $req = new Request("$this->apiHost/orchestrations", 'PUT', $data);
+        $result = $this->client->request($req);
+        if ($result->getStatus() >= 300) {
+            throw new \Exception($result->getBody()->read());
+        }
+
+        return new OrchestrationInstance($name, $result->getHeader('X-Id'));
     }
 
     #[\Override]
@@ -92,6 +128,13 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     #[\Override]
     public function waitForCompletion(OrchestrationInstance $instance): void
     {
-        // TODO: Implement waitForCompletion() method.
+        $name = rawurlencode($instance->instanceId);
+        $id = rawurlencode($instance->executionId);
+        $req = new Request("$this->apiHost/orchestration/$name/$id?wait=1");
+        $req->setInactivityTimeout(Hours(1)->inSeconds());
+        $req->setTcpConnectTimeout(Seconds(1)->inSeconds());
+        $req->setTransferTimeout(Hours(1)->inSeconds());
+        $result = $this->client->request($req);
+        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
     }
 }

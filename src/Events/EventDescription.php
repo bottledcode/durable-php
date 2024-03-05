@@ -94,7 +94,11 @@ readonly class EventDescription
 
     public static function fromStream(string $data): self
     {
-        return self::fromJson(gzuncompress(base64_decode($data)));
+        $data = base64_decode($data);
+        $data = function_exists('gzdecode') ? gzdecode($data) : $data;
+        $data = function_exists('igbinary_unserialize') ? igbinary_unserialize($data) : unserialize($data);
+
+        return new self($data);
     }
 
     /**
@@ -107,7 +111,10 @@ readonly class EventDescription
 
     public function toStream(): string
     {
-        return base64_encode(gzcompress($this->toJson()));
+        $serialized = function_exists('igbinary_serialize') ? igbinary_serialize($this->event) : serialize($this->event);
+        $serialized = function_exists('gzencode') ? gzencode($serialized) : $serialized;
+
+        return base64_encode($serialized);
     }
 
     /**
@@ -115,6 +122,6 @@ readonly class EventDescription
      */
     public function toJson(): string
     {
-        return json_encode(Serializer::serialize($this->event), JSON_THROW_ON_ERROR);
+        return json_encode(Serializer::serialize($this->event), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT);
     }
 }

@@ -25,13 +25,13 @@
 use Bottledcode\DurablePhp\DurableLogger;
 use Monolog\Level;
 
-if(file_exists(__DIR__ . '/../vendor/autoload.php')) {
+if(file_exists(__DIR__ . '/../../vendor/autoload.php')) {
     require_once __DIR__ . '/../../vendor/autoload.php';
     goto verify_protocol;
 }
 
 // fast check for standard installs
-if(file_exists(__DIR__ . '/../../../autoload.php')) {
+if(file_exists(__DIR__ . '/../../../../autoload.php')) {
     require_once __DIR__ . '/../../../../autoload.php';
     goto verify_protocol;
 }
@@ -47,8 +47,8 @@ $logger = new DurableLogger(level: match (getenv('LOG_LEVEL') ?: 'INFO') {
     'ERROR' => Level::Error,
 });
 
-if($_SERVER['SERVER_PROTOCOL'] !== 'DPHP/1.0') {
+if(($_SERVER['SERVER_PROTOCOL'] ?? null) !== 'DPHP/1.0') {
     http_response_code(400);
-    $logger->critical("Invalid request protocol", [$_SERVER['SERVER_PROTOCOL']]);
+    $logger->critical("Invalid request protocol", [$_SERVER['SERVER_PROTOCOL'] ?? null]);
     die();
 }

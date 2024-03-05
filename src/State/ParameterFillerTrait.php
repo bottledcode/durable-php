@@ -40,10 +40,11 @@ trait ParameterFillerTrait
             } else {
                 foreach($method->getParameters() as $parameter) {
                     if ($parameter->getName() === $name) {
-                        if($parameter->getType()?->isBuiltin()) {
+                        if($parameter->getType()?->isBuiltin() && $parameter->getType()?->getName() === 'array') {
+                            // todo: deserialize arrays
                             break;
                         }
-                        $entry = Serializer::deserialize($entry, $parameter->getType());
+                        $entry = Serializer::deserialize($entry, $parameter->getType()?->getName());
                         break;
                     }
                 }

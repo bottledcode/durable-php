@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName string) {
@@ -41,7 +42,9 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 
 		vars := mux.Vars(request)
 		id := vars["id"]
+		id = getLockableSubject(id)
 		name := vars["name"]
+		name = getLockableSubject(name)
 
 		store, err := getObjectStore("activities", js, context.Background())
 		if err != nil {
@@ -102,7 +105,7 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		req := &http.Request{
 			Method: "PUT",
 			URL:    ue,
-			Proto:  "http",
+			Proto:  "DPHP/1.0",
 			Body:   io.NopCloser(strings.NewReader(string(stateJson))),
 			Header: headers,
 		}
@@ -139,7 +142,9 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 
 		vars := mux.Vars(request)
 		name := vars["name"]
+		name = getLockableSubject(name)
 		id := vars["id"]
+		id = getLockableSubject(id)
 		method := vars["method"]
 
 		libraryDir, err := getLibraryDir("SendSignalEvent.php")
@@ -162,7 +167,7 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		req := &http.Request{
 			Method:           "PUT",
 			URL:              ue,
-			Proto:            "http",
+			Proto:            "DPHP/1.0",
 			ProtoMajor:       0,
 			ProtoMinor:       0,
 			Header:           headers,
@@ -309,6 +314,8 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		vars := mux.Vars(request)
 		id := vars["id"]
 		name := vars["name"]
+		name = getLockableSubject(name)
+		id = getLockableSubject(id)
 
 		store, err := getObjectStore("orchestrations", js, context.Background())
 		if err != nil {
@@ -317,20 +324,32 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 
 		if request.URL.Query().Has("wait") {
 
-			watch, err := store.Watch(context.Background(), jetstream.UpdatesOnly())
+			realId := GetRealIdFromHumanId(name, id)
+
+			logger.Debug("Waiting for key change", zap.String("key", realId))
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*60)
+			watch, err := store.Watch(ctx, jetstream.IncludeHistory())
 			if err != nil {
+				cancel()
 				panic(err)
 				return
 			}
 
-			realId := GetRealIdFromHumanId(name, id)
-
 			for update := range watch.Updates() {
+				logger.Debug("Got update", zap.Any("update", update))
+				if update == nil {
+					logger.Debug("Skipping change")
+					continue
+				}
+
 				if update.Name == realId {
+					logger.Debug("Got change", zap.String("name", realId), zap.Any("update", update))
 					jsonBytes := GetStateJson(store, context.Background(), realId)
 					var obj map[string]interface{}
 					if err := json.Unmarshal(jsonBytes, &obj); err != nil {
 						http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+						cancel()
+						return
 					}
 
 					if status, ok := obj["status"].(map[string]interface{}); ok {
@@ -341,6 +360,7 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 							case "Canceled":
 							case "Terminated":
 								writer.Write(jsonBytes)
+								cancel()
 								return
 							default:
 								continue
@@ -490,7 +510,7 @@ func outputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 			continue
 		}
 
-		name, id := GetRealNameFromEncodedName(activity.Name)
+		name, id := GetRealNameFromEncodedName(activity.Name, "./.")
 		names = append(names, name+":"+id)
 	}
 

@@ -186,7 +186,8 @@ func main() {
 						continue
 					}
 
-					fmt.Println(lib.GetRealNameFromEncodedName(name))
+					fmt.Println(name)
+					fmt.Println(lib.GetRealNameFromEncodedName(name, "./."))
 				}
 
 				return 0

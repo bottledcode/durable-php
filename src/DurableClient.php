@@ -23,6 +23,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\Http\Client\HttpClientBuilder;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -36,6 +37,13 @@ final readonly class DurableClient implements DurableClientInterface
         private EntityClientInterface $entityClient,
         private OrchestrationClientInterface $orchestrationClient
     ) {}
+
+    public static function get(string $apiHost = 'http://localhost:8080'): self
+    {
+        $httpClient = HttpClientBuilder::buildDefault();
+
+        return new self(new RemoteEntityClient($apiHost, $httpClient), new RemoteOrchestrationClient($apiHost, $httpClient));
+    }
 
     public function cleanEntityStorage(): void
     {
@@ -51,7 +59,7 @@ final readonly class DurableClient implements DurableClientInterface
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null
     ): void {
         $this->entityClient->signalEntity($entityId, $operationName, $input, $scheduledTime);
     }
@@ -106,7 +114,7 @@ final readonly class DurableClient implements DurableClientInterface
         $this->orchestrationClient->waitForCompletion($instance);
     }
 
-    public function getEntitySnapshot(EntityId $entityId): EntityState|null
+    public function getEntitySnapshot(EntityId $entityId): ?EntityState
     {
         return $this->entityClient->getEntitySnapshot($entityId);
     }

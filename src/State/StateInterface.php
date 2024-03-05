@@ -33,7 +33,9 @@ use Psr\Container\ContainerInterface;
 #[ClassNameTypeMap('_state_type')]
 interface StateInterface
 {
-    public function __construct(StateId $id, DurableLogger|null $logger = null);
+    public function __construct(StateId $id, DurableLogger $logger = null);
+
+    public function setLogger(DurableLogger $logger): void;
 
     public function hasAppliedEvent(Event $event): bool;
 
