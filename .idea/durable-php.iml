@@ -103,6 +103,10 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/basis-company/nats" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/clock" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-php83" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/amphp/hpack" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/amphp/http" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/amphp/http-client" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/league/uri-components" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

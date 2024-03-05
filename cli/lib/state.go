@@ -12,8 +12,8 @@ import (
 
 func getLibraryDir(target string) (string, error) {
 	dirs := []string{
-		filepath.Join("src", target),
-		filepath.Join("vendor", "bottledcode", "src", target),
+		filepath.Join("src", "Glue", target),
+		filepath.Join("vendor", "bottledcode", "src", "Glue", target),
 	}
 
 	for _, dir := range dirs {

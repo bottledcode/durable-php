@@ -51,6 +51,7 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 	})
 
 	// GET /entities
+	// DELETE /entities
 	r.HandleFunc("/entities", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)

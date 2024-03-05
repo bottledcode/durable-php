@@ -44,8 +44,8 @@
     "php": ">=8.3",
     "ramsey/uuid": "^4.7.5",
     "withinboredom/time": "^2.1",
-    "ext-igbinary": "*",
-    "ext-zlib": "*"
+    "ext-zlib": "*",
+    "amphp/http-client": "^v5.0.1"
   },
   "require-dev": {
     "laravel/pint": "^1.13.11",

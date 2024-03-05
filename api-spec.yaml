@@ -67,6 +67,11 @@ paths:
         schema:
           type: string
         description: The name of the method to call
+      - in: header
+        name: At
+        schema:
+          type: string
+        description: Schedule at a specific time
     put:
       summary: Send a signal to an entity
       requestBody:
