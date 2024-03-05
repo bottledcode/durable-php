@@ -202,7 +202,7 @@ func main() {
 			if !strings.HasPrefix(id, "/") {
 				id = lib.GetRealIdFromHumanId(name, id)
 			}
-			body := lib.GetStateJson(err, obj, ctx, id)
+			body := lib.GetStateJson(obj, ctx, id)
 			fmt.Println(string(body))
 
 			return 0

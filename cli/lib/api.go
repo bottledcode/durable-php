@@ -51,7 +51,6 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 	})
 
 	// GET /entities
-	// DELETE /entities
 	r.HandleFunc("/entities", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -315,6 +314,43 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		if err != nil {
 			panic(err)
 		}
+
+		if request.URL.Query().Has("wait") {
+
+			watch, err := store.Watch(context.Background(), jetstream.UpdatesOnly())
+			if err != nil {
+				panic(err)
+				return
+			}
+
+			realId := GetRealIdFromHumanId(name, id)
+
+			for update := range watch.Updates() {
+				if update.Name == realId {
+					jsonBytes := GetStateJson(store, context.Background(), realId)
+					var obj map[string]interface{}
+					if err := json.Unmarshal(jsonBytes, &obj); err != nil {
+						http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+					}
+
+					if status, ok := obj["status"].(map[string]interface{}); ok {
+						if runtimeStatus, ok := status["runtimeStatus"].(string); ok {
+							switch runtimeStatus {
+							case "Completed":
+							case "Failed":
+							case "Canceled":
+							case "Terminated":
+								writer.Write(jsonBytes)
+								return
+							default:
+								continue
+							}
+						}
+					}
+				}
+			}
+		}
+
 		outputStatus(writer, store, name, id, logger)
 	})
 

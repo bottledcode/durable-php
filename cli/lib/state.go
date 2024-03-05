@@ -25,7 +25,7 @@ func getLibraryDir(target string) (string, error) {
 	return "", fmt.Errorf("target: %s no found in any src directory", target)
 }
 
-func GetStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id string) []byte {
+func GetStateJson(obj jetstream.ObjectStore, ctx context.Context, id string) []byte {
 	file, err := obj.GetString(ctx, id)
 	if err != nil {
 		panic(err)
