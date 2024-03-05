@@ -21,29 +21,34 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp;
+// fast check for development
+use Bottledcode\DurablePhp\DurableLogger;
+use Monolog\Level;
 
-require_once __DIR__ . '/autoload.php';
+if(file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+    goto verify_protocol;
+}
 
-use Bottledcode\DurablePhp\Events\EventDescription;
-use Bottledcode\DurablePhp\Events\StartExecution;
-use Bottledcode\DurablePhp\Events\WithOrchestration;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Ramsey\Uuid\Uuid;
+// fast check for standard installs
+if(file_exists(__DIR__ . '/../../../autoload.php')) {
+    require_once __DIR__ . '/../../../autoload.php';
+    goto verify_protocol;
+}
 
-$data = file_get_contents('php://input');
-$data = json_decode($data, true);
+echo "ERROR: FAILED TO LOCATE AUTOLOADER\n";
+return;
 
-$name = $data['name'];
-$name = base64_encode($name);
-$name = rtrim($name, "=");
+verify_protocol:
 
-$id = new OrchestrationInstance($name, $data['id'] ?? Uuid::uuid7());
-header("Id: $id->instanceId.$id->executionId");
-$id = StateId::fromInstance($id);
+$logger = new DurableLogger(level: match (getenv('LOG_LEVEL') ?: 'INFO') {
+    'DEBUG' => Level::Debug,
+    'INFO' => Level::Info,
+    'ERROR' => Level::Error,
+});
 
-$event = WithOrchestration::forInstance($id, StartExecution::asParent($data['input'], []));
-$description = new EventDescription($event);
-
-echo $description->toStream();
+if($_SERVER['SERVER_PROTOCOL'] !== 'DPHP/1.0') {
+    http_response_code(400);
+    $logger->critical("Invalid request protocol", [$_SERVER['SERVER_PROTOCOL']]);
+    die();
+}

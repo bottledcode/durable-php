@@ -18,7 +18,7 @@ func getLibraryDir(target string) (string, error) {
 
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); err == nil {
-			return dir, nil
+			return "/" + dir, nil
 		}
 	}
 
@@ -37,13 +37,13 @@ func GetStateJson(err error, obj jetstream.ObjectStore, ctx context.Context, id 
 	return body
 }
 
-func GetRealIdFromHumanId(id string) string {
-	id = base64.StdEncoding.EncodeToString([]byte(id))
+func GetRealIdFromHumanId(name string, id string) string {
+	id = base64.StdEncoding.EncodeToString([]byte(name + "./." + id))
 	id = strings.TrimRight(id, "=")
 	return id
 }
 
-func GetRealNameFromEncodedName(name string) string {
+func GetRealNameFromEncodedName(name string) (string, string) {
 	switch len(name) % 4 {
 	case 2:
 		name += "=="
@@ -55,7 +55,14 @@ func GetRealNameFromEncodedName(name string) string {
 		panic(err)
 	}
 
-	return string(data)
+	name = string(data)
+	name, id, found := strings.Cut(name, "./.")
+
+	if !found {
+		return name, ""
+	}
+
+	return name, id
 }
 
 func getObjectStoreName(subject string) string {

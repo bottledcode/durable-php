@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -32,15 +32,15 @@ abstract class Serializer
 {
     private static mixed $serializer = null;
 
-    public static function serialize(mixed $value): array
+    public static function serialize(mixed $value, array $scopes = []): array
     {
         if (is_object($value)) {
-            return self::get()->serialize($value, 'array');
+            return self::get()->serialize($value, 'array', scopes: $scopes);
         }
         if (is_array($value)) {
             $result = [];
             foreach ($value as $k => $v) {
-                $result[$k] = self::serialize($v);
+                $result[$k] = self::serialize($v, $scopes);
             }
             return $result;
         }

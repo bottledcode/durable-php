@@ -23,27 +23,15 @@
 
 namespace Bottledcode\DurablePhp;
 
-require_once __DIR__ . '/autoload.php';
+use Bottledcode\DurablePhp\State\EntityHistory;
+use Bottledcode\DurablePhp\State\Serializer;
+use Bottledcode\DurablePhp\State\StateInterface;
 
-use Bottledcode\DurablePhp\Events\EventDescription;
-use Bottledcode\DurablePhp\Events\StartExecution;
-use Bottledcode\DurablePhp\Events\WithOrchestration;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Ramsey\Uuid\Uuid;
+require_once __DIR__ . '/autoload.php';
 
 $data = file_get_contents('php://input');
 $data = json_decode($data, true);
+/** @var EntityHistory $state */
+$state = Serializer::deserialize($data, StateInterface::class);
 
-$name = $data['name'];
-$name = base64_encode($name);
-$name = rtrim($name, "=");
-
-$id = new OrchestrationInstance($name, $data['id'] ?? Uuid::uuid7());
-header("Id: $id->instanceId.$id->executionId");
-$id = StateId::fromInstance($id);
-
-$event = WithOrchestration::forInstance($id, StartExecution::asParent($data['input'], []));
-$description = new EventDescription($event);
-
-echo $description->toStream();
+echo json_encode(Serializer::serialize($state->getState(), ['API']), JSON_UNESCAPED_SLASHES);

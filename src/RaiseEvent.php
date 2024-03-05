@@ -26,24 +26,22 @@ namespace Bottledcode\DurablePhp;
 require_once __DIR__ . '/autoload.php';
 
 use Bottledcode\DurablePhp\Events\EventDescription;
-use Bottledcode\DurablePhp\Events\StartExecution;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Ramsey\Uuid\Uuid;
 
 $data = file_get_contents('php://input');
-$data = json_decode($data, true);
+$eventData = json_decode($data, true);
 
-$name = $data['name'];
-$name = base64_encode($name);
-$name = rtrim($name, "=");
+$name = $_SERVER['HTTP_NAME'];
+$id = $_SERVER['HTTP_ID'];
+$eventName = $_SERVER['HTTP_EVENT_NAME'];
 
-$id = new OrchestrationInstance($name, $data['id'] ?? Uuid::uuid7());
+$id = new OrchestrationInstance($name, $id);
 header("Id: $id->instanceId.$id->executionId");
-$id = StateId::fromInstance($id);
 
-$event = WithOrchestration::forInstance($id, StartExecution::asParent($data['input'], []));
+$event = WithOrchestration::forInstance(StateId::fromInstance($id), new RaiseEvent('', $eventName, $eventData));
 $description = new EventDescription($event);
 
 echo $description->toStream();

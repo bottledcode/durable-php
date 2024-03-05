@@ -131,6 +131,7 @@ func main() {
 	})
 	inspect := cli.NewCommand("inspect", "Inspect the state store").
 		WithArg(cli.NewArg("type", "One of orchestration|activity|entity").WithType(cli.TypeString)).
+		WithArg(cli.NewArg("name", "The name of the class").AsOptional().WithType(cli.TypeString)).
 		WithArg(cli.NewArg("id", "The id of the type to inspect or leave empty to list all ids").AsOptional().WithType(cli.TypeString)).
 		WithOption(cli.NewOption("format", "json is currently the only supported format").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("all", "Show even hidden states").WithType(cli.TypeBool)).
@@ -191,9 +192,15 @@ func main() {
 				return 0
 			}
 
-			id := args[1]
+			if len(args) < 3 {
+				fmt.Println("Must specify a name and id")
+				return 1
+			}
+
+			name := args[1]
+			id := args[2]
 			if !strings.HasPrefix(id, "/") {
-				id = lib.GetRealIdFromHumanId(id)
+				id = lib.GetRealIdFromHumanId(name, id)
 			}
 			body := lib.GetStateJson(err, obj, ctx, id)
 			fmt.Println(string(body))

@@ -139,8 +139,8 @@ func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) e
 	req := &http.Request{
 		Method:           "POST",
 		URL:              u,
-		Proto:            "http://",
-		ProtoMajor:       0,
+		Proto:            "DPHP/1.0",
+		ProtoMajor:       1,
 		ProtoMinor:       0,
 		Header:           headers,
 		Body:             body,

@@ -38,25 +38,17 @@ use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
 use JsonException;
-use Monolog\Level;
 use Psr\Container\ContainerInterface;
-use r\Query;
 use Ramsey\Uuid\Uuid;
 
-if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
-    require_once __DIR__ . '/../vendor/autoload.php';
-}
-
-// we are in the context of a project
-if (file_exists(__DIR__ . '/../../../vendor/autoload.php')) {
-    require_once __DIR__ . '/../../../vendor/autoload.php';
-}
+require_once __DIR__ . '/autoload.php';
 
 class Task
 {
     use Router;
 
     private string $stream;
+
     private $bodyStream;
 
     public function __construct(private DurableLogger $logger) {}
@@ -64,13 +56,11 @@ class Task
     /**
      * Query for state
      *
-     * @param StateId $id
-     * @return StateInterface
      * @throws JsonException
      */
     public function getState(StateId $id): StateInterface
     {
-        echo implode("~!~", ["QUERY", match(true) {
+        echo implode('~!~', ['QUERY', match (true) {
             $id->isEntityId() => 'entities',
             $id->isOrchestrationId() => 'orchestrations',
             $id->isActivityId() => 'activities',
@@ -80,15 +70,17 @@ class Task
         unlink($stateFile);
         $state = base64_decode($state);
         $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
+
         return Serializer::deserialize($state, StateInterface::class);
     }
 
     private function readData(): string
     {
         $data = '';
-        while(!str_ends_with($data, "\n\n")) {
+        while (! str_ends_with($data, "\n\n")) {
             $data .= fread($this->bodyStream, 8096);
         }
+
         return $data;
     }
 
@@ -105,10 +97,10 @@ class Task
                 [$stream, $type, $_] = explode('.', $subject);
                 $this->stream = $stream;
                 try {
-                    $this->bodyStream = fopen("php://input", "rb");
+                    $this->bodyStream = fopen('php://input', 'rb');
                     $event = $this->readEvent();
                 } catch (\JsonException $e) {
-                    $this->emitError(400, 'json decoding error', ['exception' => $e ]);
+                    $this->emitError(400, 'json decoding error', ['exception' => $e]);
                 }
 
                 switch ($type) {
@@ -151,7 +143,7 @@ class Task
                         break;
                     case 'entities':
                         $entity = $event->destination;
-                        if(!$entity->isEntityId()) {
+                        if (! $entity->isEntityId()) {
                             $this->emitError(400, 'Invalid entity id');
                         }
 
@@ -161,7 +153,7 @@ class Task
                             $this->emitError(400, 'json decoding error', ['exception' => $e]);
                         }
 
-                        if($state === null) {
+                        if ($state === null) {
                             $state = new EntityHistory($entity, $this->logger);
                         }
                         break;
@@ -315,12 +307,6 @@ class Task
         file_put_contents($_SERVER['HTTP_STATE_FILE'], $serialized);
     }
 }
-
-$logger = new DurableLogger(level: match (getenv('LOG_LEVEL') ?: 'INFO') {
-    'DEBUG' => Level::Debug,
-    'INFO' => Level::Info,
-    'ERROR' => Level::Error,
-});
 
 error_reporting(E_ALL);
 ini_set('display_errors', true);
