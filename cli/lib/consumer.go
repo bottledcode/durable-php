@@ -1,18 +1,10 @@
 package lib
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"fmt"
-	"github.com/dunglas/frankenphp"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
-	"io"
 	"net/http"
-	"net/url"
-	"os"
 	"runtime"
 	"time"
 )
@@ -65,7 +57,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 				return
 			}
 
-			if err := processMsg(logger, msg, js); err != nil {
+			if err := processMsg(ctx, logger, msg, js); err != nil {
 				panic(err)
 			}
 		}()
@@ -74,162 +66,49 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
-func processMsg(logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) error {
+func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) error {
 	logger.Info("Received message", zap.Any("msg", msg))
 
-	// take a lock on the state bucket
-	lockSubject(msg.Subject(), js, logger)
-	defer unlockSubject(msg.Subject(), js, logger)
-
-	osctx := context.Background()
-	// load the state from object storage
-	logger.Info("Creating object store for context")
-
-	obj, err := getObjectStore(getObjectStoreName(msg.Subject()), js, osctx)
-	if err != nil {
-		return err
-	}
-	stateFile, err := os.CreateTemp("", getObjectStoreId(msg.Subject()))
-	if err != nil {
-		return err
-	}
-	defer os.Remove(stateFile.Name())
-
-	if err := obj.GetFile(osctx, getObjectStoreId(msg.Subject()), stateFile.Name()); err != nil {
-		file, err := os.OpenFile(stateFile.Name(), os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return err
-		}
-		file.Close()
-	}
-	logger.Info("Created state file for handoff", zap.String("file", stateFile.Name()))
-
-	writer := &InternalLoggingResponseWriter{
-		logger:  *logger,
-		isError: false,
-		events:  make([]*nats.Msg, 0),
-		query:   make(chan []string),
+	// lock the subject, if it is a lockable subject
+	id := parseStateId(msg.Headers().Get(string(HeaderStateId)))
+	if id.kind == Entity || id.kind == Orchestration {
+		lockSubject(id.toSubject(), js, logger)
+		defer unlockSubject(id.toSubject(), js, logger)
 	}
 
-	bodyBuf := bytes.NewBufferString(string(msg.Data()) + "\n\n")
-	body := io.NopCloser(bodyBuf)
+	ctx, cancelCtx := context.WithCancel(ctx)
+	defer cancelCtx()
 
-	go func() {
-		query := <-writer.query
-		obj, err := getObjectStore(query[0], js, context.Background())
-		if err != nil {
-			panic(err)
-		}
-		stateFile, err := os.CreateTemp("", "state")
-		if err != nil {
-			panic(err)
-		}
-		_, err = obj.PutFile(context.Background(), stateFile.Name())
+	// get the object
+	stateFile := getStateFile(id, js, ctx, logger)
 
-		bodyBuf.WriteString(base64.StdEncoding.EncodeToString([]byte(stateFile.Name())))
-	}()
-
-	u, _ := url.Parse("http://localhost/event/" + msg.Subject())
-
-	headers := http.Header(msg.Headers())
-	if headers == nil {
-		headers = make(http.Header)
-	}
-	headers.Add("State-File", stateFile.Name())
-
-	req := &http.Request{
-		Method:           "POST",
-		URL:              u,
-		Proto:            "DPHP/1.0",
-		ProtoMajor:       1,
-		ProtoMinor:       0,
-		Header:           headers,
-		Body:             body,
-		GetBody:          nil,
-		ContentLength:    int64(len(msg.Data())),
-		TransferEncoding: nil,
-		Close:            false,
-		Host:             msg.Subject(),
-		Form:             nil,
-		PostForm:         nil,
-		MultipartForm:    nil,
-		Trailer:          nil,
-		RemoteAddr:       "",
-		RequestURI:       "",
-		TLS:              nil,
-		Cancel:           nil,
-		Response:         nil,
+	// call glue with the associated bits
+	glu := &glue{
+		bootstrap: ctx.Value("bootstrap").(string),
+		function:  "processMsg",
+		input:     make([]any, 0),
+		payload:   stateFile.Name(),
 	}
 
-	req.URL = &url.URL{
-		Scheme:      req.URL.Scheme,
-		Opaque:      req.URL.RequestURI(),
-		User:        req.URL.User,
-		Host:        req.URL.Host,
-		Path:        RouterScript,
-		RawPath:     RouterScript,
-		OmitHost:    req.URL.OmitHost,
-		ForceQuery:  req.URL.ForceQuery,
-		RawQuery:    req.URL.RawQuery,
-		Fragment:    req.URL.Fragment,
-		RawFragment: req.URL.RawFragment,
-	}
+	var headers = http.Header{}
+	var env = make(map[string]string)
 
-	request, err := frankenphp.NewRequestWithContext(req, frankenphp.WithRequestLogger(logger))
-	if err != nil {
-		return err
-	}
+	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js)
 
-	logger.Info("Consuming message")
-	if err := frankenphp.ServeHTTP(writer, request); err != nil {
-		return err
-	}
+	// now update the stored state
+	updateStateFile(id, stateFile, js, ctx, logger)
 
-	if writer.status >= 400 {
-		logger.Error(fmt.Sprintf("Received error %d from Task", writer.status))
-		err := msg.TermWithReason(fmt.Sprintf("Received error %d from Task", writer.status))
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	logger.Info("Events to send", zap.Int("count", len(writer.events)))
-
-	// we want to fire buffered events before committing state, in case this event is replayed for whatever reason,
-	// there is a good chance the refired events from whatever is executed will be caught by duplicate detection
-	for _, event := range writer.events {
-		logger.Info("Sending event", zap.String("subject", event.Subject))
-		_, err := js.PublishMsg(osctx, event)
+	// now we send our messages before acknowledging
+	for _, msg := range msgs {
+		_, err := js.PublishMsg(ctx, msg)
 		if err != nil {
 			return err
 		}
 	}
 
-	// store the state into the object store
-	status, err := obj.PutFile(osctx, stateFile.Name())
+	// and finally, ack the message
+	err := msg.Ack()
 	if err != nil {
-		return err
-	}
-	logger.Info("Wrote state to store", zap.Uint64("size", status.Size))
-
-	oid := getObjectStoreId(msg.Subject())
-
-	prev, _ := obj.GetInfo(osctx, oid)
-	d, err := obj.AddLink(osctx, oid, status)
-	logger.Info("linked", zap.Any("link", d), zap.String("now", stateFile.Name()))
-	if err != nil {
-		return err
-	}
-	if prev != nil {
-		err := obj.Delete(osctx, prev.Opts.Link.Name)
-		if err != nil {
-			return err
-		}
-	}
-
-	// now, even if the event is refired, we are protected from reprocessing the event
-	if err := msg.Ack(); err != nil {
 		return err
 	}
 

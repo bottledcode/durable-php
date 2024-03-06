@@ -12,11 +12,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
 
-func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName string) {
+func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, streamName string) {
 	r := mux.NewRouter()
 
 	// GET /activities
@@ -33,24 +34,23 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		outputList(writer, store)
 	})
 
-	// GET /activity/{name}/{id}
-	r.HandleFunc("/activity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
+	// GET /activity/{id}
+	r.HandleFunc("/activity/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		vars := mux.Vars(request)
-		id := vars["id"]
-		id = getLockableSubject(id)
-		name := vars["name"]
-		name = getLockableSubject(name)
+		id := &activityId{
+			id: vars["id"],
+		}
 
 		store, err := getObjectStore("activities", js, context.Background())
 		if err != nil {
 			panic(err)
 		}
-		outputStatus(writer, store, name, id, logger)
+		outputStatus(writer, store, id.toStateId(), logger)
 	})
 
 	// GET /entities
@@ -73,64 +73,32 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		store, err := getObjectStore("entities", js, context.Background())
-		if err != nil {
-			panic(err)
-		}
 
 		vars := mux.Vars(request)
-		id := vars["id"]
-		name := vars["name"]
-
-		jsonStr, err := store.GetString(context.Background(), GetRealIdFromHumanId(name, id))
-		if err != nil {
-			http.Error(writer, "Not Found", http.StatusNotFound)
-			return
+		id := &entityId{
+			name: vars["name"],
+			id:   vars["id"],
 		}
 
-		stateJson, err := base64.StdEncoding.DecodeString(jsonStr)
-		if err != nil {
-			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-			return
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		stateFile := getStateFile(id.toStateId(), js, ctx, logger)
+		defer stateFile.Close()
+
+		glu := &glue{
+			bootstrap: ctx.Value("bootstrap").(string),
+			function:  "entityDecoder",
+			input:     make([]any, 0),
+			payload:   stateFile.Name(),
 		}
 
-		libraryDir, err := getLibraryDir("EntityDecoder.php")
-		if err != nil {
-			panic(err)
-		}
+		glu.execute(ctx, http.Header{}, logger, make(map[string]string), js)
 
-		ue, _ := url.ParseRequestURI(libraryDir)
-		headers := make(http.Header)
-
-		req := &http.Request{
-			Method: "PUT",
-			URL:    ue,
-			Proto:  "DPHP/1.0",
-			Body:   io.NopCloser(strings.NewReader(string(stateJson))),
-			Header: headers,
-		}
-
-		withContext, err := frankenphp.NewRequestWithContext(req)
-		if err != nil {
-			http.Error(writer, "Well shit", http.StatusInternalServerError)
-			return
-		}
-
-		eventReader := &ConsumingResponseWriter{data: "", headers: make(http.Header)}
-
-		err = frankenphp.ServeHTTP(eventReader, withContext)
-		if err != nil {
-			http.Error(writer, "Invalid body", http.StatusBadRequest)
-			return
-		}
-
-		writer.WriteHeader(http.StatusOK)
-		_, err = writer.Write([]byte(eventReader.data))
+		_, err := io.Copy(writer, stateFile)
 		if err != nil {
 			return
 		}
-
-		http.Error(writer, "Not found", http.StatusNotFound)
 	})
 
 	// PUT /entity/{name}/{id}/{method}
@@ -141,81 +109,40 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		}
 
 		vars := mux.Vars(request)
-		name := vars["name"]
-		name = getLockableSubject(name)
-		id := vars["id"]
-		id = getLockableSubject(id)
+		id := &entityId{name: vars["name"], id: vars["id"]}
 		method := vars["method"]
 
-		libraryDir, err := getLibraryDir("SendSignalEvent.php")
-		if err != nil {
-			panic(err)
-		}
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-		ue, err := url.ParseRequestURI(libraryDir)
+		payload, err := os.CreateTemp("", "body")
 		if err != nil {
-			http.Error(writer, "Script not found", http.StatusInternalServerError)
-			logger.Error("Unable to construct url", zap.Error(err))
+			// bleh
 			return
 		}
-		logger.Info("Calling", zap.Any("url", ue))
-		headers := make(http.Header)
-		headers.Add("Name", name)
-		headers.Add("Id", id)
-		headers.Add("Method", method)
+		defer os.Remove(payload.Name())
 
-		req := &http.Request{
-			Method:           "PUT",
-			URL:              ue,
-			Proto:            "DPHP/1.0",
-			ProtoMajor:       0,
-			ProtoMinor:       0,
-			Header:           headers,
-			Body:             request.Body,
-			GetBody:          nil,
-			ContentLength:    0,
-			TransferEncoding: nil,
-			Close:            false,
-			Host:             "",
-			Form:             nil,
-			PostForm:         nil,
-			MultipartForm:    nil,
-			Trailer:          nil,
-			RemoteAddr:       "",
-			RequestURI:       "",
-			TLS:              nil,
-			Cancel:           nil,
-			Response:         nil,
-		}
-
-		withContext, err := frankenphp.NewRequestWithContext(req)
+		_, err = io.Copy(payload, request.Body)
 		if err != nil {
-			http.Error(writer, "Well shit", http.StatusInternalServerError)
 			return
 		}
+		payload.Close()
 
-		eventReader := &ConsumingResponseWriter{data: "", headers: make(http.Header)}
-
-		err = frankenphp.ServeHTTP(eventReader, withContext)
-		if err != nil {
-			http.Error(writer, "Invalid body", http.StatusBadRequest)
-			return
+		glu := &glue{
+			bootstrap: ctx.Value("bootstrap").(string),
+			function:  "sendSignal",
+			input:     []any{id, method},
+			payload:   payload.Name(),
 		}
 
-		id = eventReader.headers.Get("Id")
-		subject := streamName + ".entities." + id
+		msgs, _, _ := glu.execute(ctx, http.Header{}, logger, make(map[string]string), js)
 
-		logger.Info("Got event", zap.String("data", eventReader.data))
-
-		msg := &nats.Msg{
-			Subject: subject,
-			Data:    []byte(eventReader.data),
-		}
-
-		_, err = js.PublishMsg(context.Background(), msg)
-		if err != nil {
-			http.Error(writer, "Failed to publish", http.StatusInternalServerError)
-			return
+		for _, msg := range msgs {
+			_, err := js.PublishMsg(ctx, msg)
+			if err != nil {
+				//todo: display error
+				return
+			}
 		}
 
 		writer.WriteHeader(http.StatusNoContent)
@@ -312,10 +239,10 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		}
 
 		vars := mux.Vars(request)
-		id := vars["id"]
-		name := vars["name"]
-		name = getLockableSubject(name)
-		id = getLockableSubject(id)
+		id := orchestrationId{
+			instanceId:  vars["name"],
+			executionId: vars["id"],
+		}
 
 		store, err := getObjectStore("orchestrations", js, context.Background())
 		if err != nil {
@@ -323,10 +250,7 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 		}
 
 		if request.URL.Query().Has("wait") {
-
-			realId := GetRealIdFromHumanId(name, id)
-
-			logger.Debug("Waiting for key change", zap.String("key", realId))
+			logger.Debug("Waiting for key change", zap.String("key", id.String()))
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*60)
 			watch, err := store.Watch(ctx, jetstream.IncludeHistory())
 			if err != nil {
@@ -371,7 +295,7 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 			}
 		}
 
-		outputStatus(writer, store, name, id, logger)
+		outputStatus(writer, store, id.toStateId(), logger)
 	})
 
 	// PUT /orchestration/{name}/{id}/{signal}
@@ -463,8 +387,8 @@ func Startup(js jetstream.JetStream, logger *zap.Logger, port string, streamName
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
 }
 
-func getStatus(writer http.ResponseWriter, store jetstream.ObjectStore, name string, id string) (interface{}, error) {
-	jsonStr, err := store.GetString(context.Background(), GetRealIdFromHumanId(name, id))
+func getStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *stateId) (interface{}, error) {
+	jsonStr, err := store.GetString(context.Background(), id.toSubject().String())
 	if err != nil {
 		http.Error(writer, "Not Found", http.StatusNotFound)
 		return nil, err
@@ -485,8 +409,8 @@ func getStatus(writer http.ResponseWriter, store jetstream.ObjectStore, name str
 	return state["status"], nil
 }
 
-func outputStatus(writer http.ResponseWriter, store jetstream.ObjectStore, name string, id string, logger *zap.Logger) {
-	status, _ := getStatus(writer, store, name, id)
+func outputStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *stateId, logger *zap.Logger) {
+	status, _ := getStatus(writer, store, id)
 	if status == nil {
 		return
 	}
@@ -504,14 +428,14 @@ func outputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	if err != nil {
 		panic(err)
 	}
-	names := make([]string, 0)
+	names := make([]*stateId, 0)
 	for _, activity := range activities {
 		if strings.HasPrefix(activity.Name, "/") {
 			continue
 		}
 
-		name, id := GetRealNameFromEncodedName(activity.Name, "./.")
-		names = append(names, name+":"+id)
+		id := parseStateId(activity.Headers.Get(string(HeaderStateId)))
+		names = append(names, id)
 	}
 
 	writer.Header().Add("Content-Type", "application/json")
