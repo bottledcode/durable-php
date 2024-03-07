@@ -48,8 +48,38 @@ type glue struct {
 	input []any
 	// payload file that the script can read if needed
 	payload string
-	// raw body to stream to php
-	raw *io.ReadCloser
+}
+
+func glueFromApiRequest(ctx context.Context, r *http.Request, function string, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error) {
+	temp, err := os.CreateTemp("", "reqbody")
+	if err != nil {
+		return nil, "", err
+	}
+	go func() {
+		<-ctx.Done()
+		os.Remove(temp.Name())
+	}()
+
+	_, err = io.Copy(temp, r.Body)
+	temp.Close()
+	if err != nil {
+		return nil, "", err
+	}
+
+	glu := &glue{
+		bootstrap: ctx.Value("bootstrap").(string),
+		function:  function,
+		input:     make([]any, 0),
+		payload:   temp.Name(),
+	}
+
+	env := make(map[string]string)
+	env["FROM_REQUEST"] = "1"
+	env["STATE_ID"] = id.String()
+
+	msgs, _, _ := glu.execute(ctx, headers, logger, env, stream)
+
+	return msgs, temp.Name(), nil
 }
 
 func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream) ([]*nats.Msg, http.Header, int) {
@@ -67,23 +97,12 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 	headers.Add("DPHP_FUNCTION", g.function)
 	headers.Add("DPHP_PAYLOAD", g.payload)
 
-	var bodyBuf *bytes.Buffer
-
-	if g.raw != nil {
-		//todo: make this more efficient
-		data, err := io.ReadAll(*g.raw)
-		if err != nil {
-			panic(err)
-		}
-		bodyBuf = bytes.NewBuffer(data)
-	} else {
-		jsonData, err := json.Marshal(g.input)
-		if err != nil {
-			logger.Warn("Unable to marshal input to json", zap.Any("input", g.input))
-		}
-
-		bodyBuf = bytes.NewBufferString(string(jsonData) + "\n\n")
+	jsonData, err := json.Marshal(g.input)
+	if err != nil {
+		logger.Warn("Unable to marshal input to json", zap.Any("input", g.input))
 	}
+
+	bodyBuf := bytes.NewBufferString(string(jsonData) + "\n\n")
 	body := io.NopCloser(bodyBuf)
 
 	r := &http.Request{
@@ -95,7 +114,7 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 		Header:           headers,
 		Body:             body,
 		GetBody:          nil,
-		ContentLength:    int64(len(jsonData)),
+		ContentLength:    0,
 		TransferEncoding: nil,
 		Close:            false,
 		Host:             "localhost",
@@ -130,7 +149,7 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 	go func() {
 		mu := sync.RWMutex{}
 		for query := range writer.query {
-			id := parseStateId(query[0])
+			id := ParseStateId(query[0])
 			qid := query[1]
 			wg.Add(1)
 			go func() {
@@ -155,8 +174,8 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 	return writer.events, writer.Header(), writer.status
 }
 
-func getStateFile(id *stateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) *os.File {
-	obj, err := getObjectStore(id.kind, stream, ctx)
+func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) *os.File {
+	obj, err := GetObjectStore(id.kind, stream, ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -182,8 +201,8 @@ func getStateFile(id *stateId, stream jetstream.JetStream, ctx context.Context, 
 	return stateFile
 }
 
-func updateStateFile(id *stateId, stateFile *os.File, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) {
-	obj, err := getObjectStore(id.kind, stream, ctx)
+func updateStateFile(id *StateId, stateFile *os.File, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) {
+	obj, err := GetObjectStore(id.kind, stream, ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -205,5 +224,5 @@ func updateStateFile(id *stateId, stateFile *os.File, stream jetstream.JetStream
 		}
 	}
 
-	logger.Info("State file updated", zap.String("name", stateFile.Name()), zap.String("subject", id.toSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
+	logger.Info("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
 }

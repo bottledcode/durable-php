@@ -32,7 +32,6 @@ import (
 	"github.com/teris-io/cli"
 	"go.uber.org/zap"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -109,7 +108,7 @@ func execute(args []string, options map[string]string) int {
 		port = "8080"
 	}
 
-	lib.Startup(js, logger, port, streamName)
+	lib.Startup(ctx, js, logger, port, streamName)
 
 	return 0
 }
@@ -150,62 +149,35 @@ func main() {
 				panic(err)
 			}
 
-			store := ""
+			var store lib.IdKind
 			if args[0] == "orchestration" {
-				store = "orchestrations"
+				store = lib.Orchestration
 			} else if args[0] == "activity" {
-				store = "activities"
+				store = lib.Activity
 			} else if args[0] == "entity" {
-				store = "entities"
+				store = lib.Entity
 			} else {
-				panic(fmt.Errorf("Invalid type: %s", args[0]))
+				panic(fmt.Errorf("invalid type: %s", args[0]))
 			}
 
-			ctx := context.Background()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-			obj, err := js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
-				Bucket: store,
-			})
+			objectStore, err := lib.GetObjectStore(store, js, ctx)
 			if err != nil {
 				panic(err)
 			}
 
+			writer := &lib.ConsumingResponseWriter{}
+
 			if len(args) == 1 {
-				list, err := obj.List(ctx)
-				if err != nil {
-					return 0
-				}
-
-				for _, entry := range list {
-					name := entry.Name
-
-					if strings.HasPrefix(name, "/") && options["all"] != "true" {
-						continue
-					} else if strings.HasPrefix(name, "/") && options["all"] == "true" {
-						fmt.Println(name)
-						continue
-					}
-
-					fmt.Println(name)
-					fmt.Println(lib.GetRealNameFromEncodedName(name, "./."))
-				}
-
+				lib.OutputList(writer, objectStore)
+				fmt.Println(writer.Data)
 				return 0
 			}
 
-			if len(args) < 3 {
-				fmt.Println("Must specify a name and id")
-				return 1
-			}
-
-			name := args[1]
-			id := args[2]
-			if !strings.HasPrefix(id, "/") {
-				id = lib.GetRealIdFromHumanId(name, id)
-			}
-			body := lib.GetStateJson(obj, ctx, id)
-			fmt.Println(string(body))
-
+			lib.OutputList(writer, objectStore)
+			fmt.Println(writer.Data)
 			return 0
 		})
 

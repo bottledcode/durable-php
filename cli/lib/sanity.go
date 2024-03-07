@@ -16,17 +16,17 @@ const (
 
 // subjects
 
-type subject struct {
-	id *stateId
+type Subject struct {
+	id *StateId
 }
 
-func fromStateId(id stateId) subject {
-	return subject{
+func fromStateId(id StateId) Subject {
+	return Subject{
 		id: &id,
 	}
 }
 
-func (subj *subject) String() string {
+func (subj *Subject) String() string {
 	pieces := strings.Split(subj.id.id, ":")
 	reg := regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 	for i := range pieces {
@@ -38,43 +38,43 @@ func (subj *subject) String() string {
 
 // state ids
 
-type stateId struct {
+type StateId struct {
 	id   string
 	kind IdKind
 }
 
-func fromEntityId(entity *entityId) *stateId {
-	return &stateId{
+func fromEntityId(entity *entityId) *StateId {
+	return &StateId{
 		id:   entity.String(),
 		kind: Entity,
 	}
 }
 
-func fromOrchestrationId(id *orchestrationId) *stateId {
-	return &stateId{
+func fromOrchestrationId(id *orchestrationId) *StateId {
+	return &StateId{
 		id:   id.String(),
 		kind: Orchestration,
 	}
 }
 
-func fromActivityId(id *activityId) *stateId {
-	return &stateId{
+func fromActivityId(id *activityId) *StateId {
+	return &StateId{
 		id:   id.String(),
 		kind: Activity,
 	}
 }
 
-func (id stateId) toSubject() *subject {
-	return &subject{
+func (id StateId) toSubject() *Subject {
+	return &Subject{
 		id: &id,
 	}
 }
 
-func (id stateId) String() string {
+func (id StateId) String() string {
 	return fmt.Sprintf("%s:%s", id.kind, id.id)
 }
 
-func (id stateId) toEntityId() (*entityId, bool) {
+func (id StateId) toEntityId() (*entityId, bool) {
 	if id.kind != Entity {
 		return nil, false
 	}
@@ -87,7 +87,7 @@ func (id stateId) toEntityId() (*entityId, bool) {
 	}, true
 }
 
-func (id stateId) toOrchestrationId() (*orchestrationId, bool) {
+func (id StateId) toOrchestrationId() (*orchestrationId, bool) {
 	if id.kind != Orchestration {
 		return nil, false
 	}
@@ -100,7 +100,7 @@ func (id stateId) toOrchestrationId() (*orchestrationId, bool) {
 	}, true
 }
 
-func (id stateId) toActivityId() (*activityId, bool) {
+func (id StateId) toActivityId() (*activityId, bool) {
 	if id.kind != Activity {
 		return nil, false
 	}
@@ -108,7 +108,7 @@ func (id stateId) toActivityId() (*activityId, bool) {
 	return &activityId{id: id.id}, true
 }
 
-func parseStateId(str string) *stateId {
+func ParseStateId(str string) *StateId {
 	parts := strings.Split(str, ":")
 	switch parts[0] {
 	case string(Activity):
@@ -133,7 +133,7 @@ func (id *entityId) String() string {
 	return fmt.Sprintf("%s:%s", id.name, id.id)
 }
 
-func (id *entityId) toStateId() *stateId {
+func (id *entityId) toStateId() *StateId {
 	return fromEntityId(id)
 }
 
@@ -143,7 +143,7 @@ type activityId struct {
 	id string
 }
 
-func (id *activityId) toStateId() *stateId {
+func (id *activityId) toStateId() *StateId {
 	return fromActivityId(id)
 }
 
@@ -162,6 +162,6 @@ func (id *orchestrationId) String() string {
 	return fmt.Sprintf("%s:%s", id.instanceId, id.executionId)
 }
 
-func (id *orchestrationId) toStateId() *stateId {
+func (id *orchestrationId) toStateId() *StateId {
 	return fromOrchestrationId(id)
 }

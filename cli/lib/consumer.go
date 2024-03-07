@@ -69,8 +69,8 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) error {
 	logger.Info("Received message", zap.Any("msg", msg))
 
-	// lock the subject, if it is a lockable subject
-	id := parseStateId(msg.Headers().Get(string(HeaderStateId)))
+	// lock the Subject, if it is a lockable Subject
+	id := ParseStateId(msg.Headers().Get(string(HeaderStateId)))
 	if id.kind == Entity || id.kind == Orchestration {
 		lockSubject(id.toSubject(), js, logger)
 		defer unlockSubject(id.toSubject(), js, logger)

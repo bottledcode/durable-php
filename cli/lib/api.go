@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/dunglas/frankenphp"
 	"github.com/gorilla/mux"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -21,20 +18,22 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	r := mux.NewRouter()
 
 	// GET /activities
+	// list all activities
 	r.HandleFunc("/activities", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		store, err := getObjectStore("activities", js, context.Background())
+		store, err := GetObjectStore("activities", js, context.Background())
 		if err != nil {
 			panic(err)
 		}
-		outputList(writer, store)
+		OutputList(writer, store)
 	})
 
 	// GET /activity/{id}
+	// get the activity status
 	r.HandleFunc("/activity/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -46,184 +45,96 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			id: vars["id"],
 		}
 
-		store, err := getObjectStore("activities", js, context.Background())
+		store, err := GetObjectStore("activities", js, context.Background())
 		if err != nil {
 			panic(err)
 		}
-		outputStatus(writer, store, id.toStateId(), logger)
+		OutputStatus(writer, store, id.toStateId(), logger)
 	})
 
 	// GET /entities
+	// list all entities
 	r.HandleFunc("/entities", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		store, err := getObjectStore("entities", js, context.Background())
+		store, err := GetObjectStore("entities", js, context.Background())
 		if err != nil {
 			panic(err)
 		}
-		outputList(writer, store)
+		OutputList(writer, store)
 	})
 
-	// GET /entity/{name}/{id}
-	r.HandleFunc("/entity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != "GET" {
-			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+	processReq := func(writer http.ResponseWriter, request *http.Request, id *StateId, function string, headers http.Header) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		msgs, body, err := glueFromApiRequest(ctx, request, function, logger, js, id, headers)
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to glue", zap.Error(err))
 			return
 		}
 
+		for _, msg := range msgs {
+			_, err := js.PublishMsg(ctx, msg)
+			if err != nil {
+				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+				logger.Error("Failed to glue", zap.Error(err))
+				return
+			}
+		}
+
+		f, err := os.Open(body)
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to glue", zap.Error(err))
+			return
+		}
+
+		_, err = io.Copy(writer, f)
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to glue", zap.Error(err))
+			return
+		}
+	}
+
+	// GET /entity/{name}/{id}
+	// get an entity state and status
+	// PUT /entity/{name}/{id}
+	// signal an entity
+	r.HandleFunc("/entity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		vars := mux.Vars(request)
 		id := &entityId{
 			name: vars["name"],
 			id:   vars["id"],
 		}
 
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		stateFile := getStateFile(id.toStateId(), js, ctx, logger)
-		defer stateFile.Close()
-
-		glu := &glue{
-			bootstrap: ctx.Value("bootstrap").(string),
-			function:  "entityDecoder",
-			input:     make([]any, 0),
-			payload:   stateFile.Name(),
-		}
-
-		glu.execute(ctx, http.Header{}, logger, make(map[string]string), js)
-
-		_, err := io.Copy(writer, stateFile)
-		if err != nil {
-			return
-		}
-	})
-
-	// PUT /entity/{name}/{id}/{method}
-	r.HandleFunc("/entity/{name}/{id}/{method}", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != "PUT" {
-			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		vars := mux.Vars(request)
-		id := &entityId{name: vars["name"], id: vars["id"]}
-		method := vars["method"]
-
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		payload, err := os.CreateTemp("", "body")
-		if err != nil {
-			// bleh
-			return
-		}
-		defer os.Remove(payload.Name())
-
-		_, err = io.Copy(payload, request.Body)
-		if err != nil {
-			return
-		}
-		payload.Close()
-
-		glu := &glue{
-			bootstrap: ctx.Value("bootstrap").(string),
-			function:  "sendSignal",
-			input:     []any{id, method},
-			payload:   payload.Name(),
-		}
-
-		msgs, _, _ := glu.execute(ctx, http.Header{}, logger, make(map[string]string), js)
-
-		for _, msg := range msgs {
-			_, err := js.PublishMsg(ctx, msg)
-			if err != nil {
-				//todo: display error
-				return
-			}
-		}
-
-		writer.WriteHeader(http.StatusNoContent)
-	})
-
-	// GET /orchestrations
-	// PUT /orchestrations
-	r.HandleFunc("/orchestrations", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method == "GET" {
-			store, err := getObjectStore("orchestrations", js, context.Background())
-			if err != nil {
-				panic(err)
-			}
-			outputList(writer, store)
+			processReq(writer, request, id.toStateId(), "entityDecoder", make(http.Header))
 			return
 		}
 
 		if request.Method == "PUT" {
-			// todo: detect library directory
-			libraryDir, err := getLibraryDir("StartOrchestrationEvent.php")
+			processReq(writer, request, id.toStateId(), "entitySignal", make(http.Header))
+			return
+		}
+
+		http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+	})
+
+	// GET /orchestrations
+	// get list of orchestrations
+	r.HandleFunc("/orchestrations", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method == "GET" {
+			store, err := GetObjectStore("orchestrations", js, context.Background())
 			if err != nil {
 				panic(err)
 			}
-
-			ue, _ := url.ParseRequestURI(libraryDir)
-
-			req := &http.Request{
-				Method:           "PUT",
-				URL:              ue,
-				Proto:            "DPHP/1.0",
-				ProtoMajor:       1,
-				ProtoMinor:       0,
-				Header:           nil,
-				Body:             request.Body,
-				GetBody:          nil,
-				ContentLength:    0,
-				TransferEncoding: nil,
-				Close:            false,
-				Host:             "",
-				Form:             nil,
-				PostForm:         nil,
-				MultipartForm:    nil,
-				Trailer:          nil,
-				RemoteAddr:       "",
-				RequestURI:       "",
-				TLS:              nil,
-				Cancel:           nil,
-				Response:         nil,
-			}
-
-			withContext, err := frankenphp.NewRequestWithContext(req)
-			if err != nil {
-				http.Error(writer, "Well shit", http.StatusInternalServerError)
-				return
-			}
-
-			eventReader := &ConsumingResponseWriter{data: "", headers: make(http.Header)}
-
-			err = frankenphp.ServeHTTP(eventReader, withContext)
-			if err != nil {
-				http.Error(writer, "Invalid body", http.StatusBadRequest)
-				return
-			}
-
-			id := eventReader.headers.Get("Id")
-			subject := streamName + "." + "orchestrations." + id
-
-			logger.Info("Got event", zap.String("data", eventReader.data))
-
-			msg := &nats.Msg{
-				Subject: subject,
-				Data:    []byte(eventReader.data),
-			}
-
-			_, err = js.PublishMsg(context.Background(), msg)
-			if err != nil {
-				http.Error(writer, "Failed to publish", http.StatusInternalServerError)
-				return
-			}
-
-			writer.WriteHeader(http.StatusNoContent)
+			OutputList(writer, store)
 			return
 		}
 
@@ -231,27 +142,60 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		return
 	})
 
-	// GET /orchestration/{name}/{id}
-	r.HandleFunc("/orchestration/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != "GET" {
+	// PUT /orchestration/{name}
+	// start a new orchestration
+	r.HandleFunc("/orchestration/{name}", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != "PUT" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		vars := mux.Vars(request)
-		id := orchestrationId{
+
+		id := &orchestrationId{
+			instanceId:  vars["name"],
+			executionId: "",
+		}
+
+		processReq(writer, request, id.toStateId(), "startOrchestration", make(http.Header))
+	})
+
+	// PUT /orchestration/{name}/{id}
+	// start a new orchestration
+	// GET /orchestration/{name}/{id}?wait=??
+	// get an orchestration status and optionally wait for it's completion
+	r.HandleFunc("/orchestration/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
+		vars := mux.Vars(request)
+
+		id := &orchestrationId{
 			instanceId:  vars["name"],
 			executionId: vars["id"],
 		}
 
-		store, err := getObjectStore("orchestrations", js, context.Background())
+		if request.Method == "PUT" {
+			processReq(writer, request, id.toStateId(), "startOrchestration", make(http.Header))
+			return
+		}
+
+		if request.Method != "GET" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		store, err := GetObjectStore("orchestrations", js, context.Background())
 		if err != nil {
 			panic(err)
+		}
+
+		if !request.URL.Query().Has("wait") {
+			OutputStatus(writer, store, id.toStateId(), logger)
+			return
 		}
 
 		if request.URL.Query().Has("wait") {
 			logger.Debug("Waiting for key change", zap.String("key", id.String()))
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*60)
+			defer cancel()
 			watch, err := store.Watch(ctx, jetstream.IncludeHistory())
 			if err != nil {
 				cancel()
@@ -266,36 +210,41 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 					continue
 				}
 
-				if update.Name == realId {
-					logger.Debug("Got change", zap.String("name", realId), zap.Any("update", update))
-					jsonBytes := GetStateJson(store, context.Background(), realId)
-					var obj map[string]interface{}
-					if err := json.Unmarshal(jsonBytes, &obj); err != nil {
+				if update.Headers.Get(string(HeaderStateId)) == id.toStateId().String() {
+					logger.Debug("Got change", zap.String("name", id.String()), zap.Any("update", update))
+					status, err := GetStatus(writer, store, id.toStateId())
+					if err != nil {
 						http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-						cancel()
 						return
 					}
 
-					if status, ok := obj["status"].(map[string]interface{}); ok {
-						if runtimeStatus, ok := status["runtimeStatus"].(string); ok {
-							switch runtimeStatus {
-							case "Completed":
-							case "Failed":
-							case "Canceled":
-							case "Terminated":
-								writer.Write(jsonBytes)
-								cancel()
+					if runtimeStatus, ok := status.(map[string]interface{})["runtimeStatus"].(string); ok {
+						switch runtimeStatus {
+						case "Completed":
+						case "Failed":
+						case "Canceled":
+						case "Terminated":
+							marshal, err := json.Marshal(status)
+							if err != nil {
+								http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 								return
-							default:
-								continue
 							}
+							_, err = writer.Write(marshal)
+							if err != nil {
+								http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+								return
+							}
+							cancel()
+							return
+						default:
+							continue
 						}
 					}
 				}
 			}
 		}
 
-		outputStatus(writer, store, id.toStateId(), logger)
+		http.Error(writer, "Invalid Request", http.StatusBadRequest)
 	})
 
 	// PUT /orchestration/{name}/{id}/{signal}
@@ -306,88 +255,22 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		name := vars["name"]
-		id := vars["id"]
+		id := &orchestrationId{
+			instanceId:  vars["name"],
+			executionId: vars["id"],
+		}
 		method := vars["signal"]
 
-		libraryDir, err := getLibraryDir("RaiseEvent.php")
-		if err != nil {
-			panic(err)
-		}
-
-		ue, err := url.ParseRequestURI(libraryDir)
-		if err != nil {
-			http.Error(writer, "Script not found", http.StatusInternalServerError)
-			logger.Error("Unable to construct url", zap.Error(err))
-			return
-		}
-		logger.Info("Calling", zap.Any("url", ue))
 		headers := make(http.Header)
-		headers.Add("Name", name)
-		headers.Add("Id", id)
-		headers.Add("Event-Name", method)
+		headers.Add("Signal", method)
 
-		req := &http.Request{
-			Method:           "PUT",
-			URL:              ue,
-			Proto:            "DPHP/1.0",
-			ProtoMajor:       1,
-			ProtoMinor:       0,
-			Header:           headers,
-			Body:             request.Body,
-			GetBody:          nil,
-			ContentLength:    0,
-			TransferEncoding: nil,
-			Close:            false,
-			Host:             "",
-			Form:             nil,
-			PostForm:         nil,
-			MultipartForm:    nil,
-			Trailer:          nil,
-			RemoteAddr:       "",
-			RequestURI:       "",
-			TLS:              nil,
-			Cancel:           nil,
-			Response:         nil,
-		}
-
-		withContext, err := frankenphp.NewRequestWithContext(req)
-		if err != nil {
-			http.Error(writer, "Well shit", http.StatusInternalServerError)
-			return
-		}
-
-		eventReader := &ConsumingResponseWriter{data: "", headers: make(http.Header)}
-
-		err = frankenphp.ServeHTTP(eventReader, withContext)
-		if err != nil {
-			http.Error(writer, "Invalid body", http.StatusBadRequest)
-			return
-		}
-
-		id = eventReader.headers.Get("Id")
-		subject := streamName + ".entities." + id
-
-		logger.Info("Got event", zap.String("data", eventReader.data))
-
-		msg := &nats.Msg{
-			Subject: subject,
-			Data:    []byte(eventReader.data),
-		}
-
-		_, err = js.PublishMsg(context.Background(), msg)
-		if err != nil {
-			http.Error(writer, "Failed to publish", http.StatusInternalServerError)
-			return
-		}
-
-		writer.WriteHeader(http.StatusNoContent)
+		processReq(writer, request, id.toStateId(), "orchestrationSignal", headers)
 	})
 
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
 }
 
-func getStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *stateId) (interface{}, error) {
+func GetStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *StateId) (interface{}, error) {
 	jsonStr, err := store.GetString(context.Background(), id.toSubject().String())
 	if err != nil {
 		http.Error(writer, "Not Found", http.StatusNotFound)
@@ -409,8 +292,8 @@ func getStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *stat
 	return state["status"], nil
 }
 
-func outputStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *stateId, logger *zap.Logger) {
-	status, _ := getStatus(writer, store, id)
+func OutputStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *StateId, logger *zap.Logger) {
+	status, _ := GetStatus(writer, store, id)
 	if status == nil {
 		return
 	}
@@ -423,18 +306,18 @@ func outputStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *s
 	}
 }
 
-func outputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
+func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	activities, err := store.List(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	names := make([]*stateId, 0)
+	names := make([]*StateId, 0)
 	for _, activity := range activities {
 		if strings.HasPrefix(activity.Name, "/") {
 			continue
 		}
 
-		id := parseStateId(activity.Headers.Get(string(HeaderStateId)))
+		id := ParseStateId(activity.Headers.Get(string(HeaderStateId)))
 		names = append(names, id)
 	}
 

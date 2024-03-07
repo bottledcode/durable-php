@@ -19,7 +19,7 @@ const (
 )
 
 type ConsumingResponseWriter struct {
-	data    string
+	Data    string
 	headers http.Header
 }
 
@@ -28,8 +28,8 @@ func (c *ConsumingResponseWriter) Header() http.Header {
 }
 
 func (c *ConsumingResponseWriter) Write(b []byte) (int, error) {
-	// read all bytes into c.data
-	c.data += string(b)
+	// read all bytes into c.Data
+	c.Data += string(b)
 	return len(b), nil
 }
 
@@ -60,10 +60,10 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 				return len(b), err
 			}
 
-			destinationId := parseStateId(body.Destination)
+			destinationId := ParseStateId(body.Destination)
 			replyTo := ""
 			if body.ReplyTo != "" {
-				replyTo = parseStateId(body.ReplyTo).toSubject().String()
+				replyTo = ParseStateId(body.ReplyTo).toSubject().String()
 			}
 
 			header := make(nats.Header)
