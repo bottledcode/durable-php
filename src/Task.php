@@ -44,19 +44,16 @@ class Task
 {
     use Router;
 
-    public $bodyStream;
-
-    private string $stream;
-
     private ContainerInterface $container;
 
-    public function __construct(private DurableLogger $logger, private Glue $glue) {}
+    public function __construct(private readonly DurableLogger $logger, private readonly Glue $glue) {}
 
     public function run(): void
     {
-        $stateId = StateId::fromString($_SERVER['HTTP_STATE_ID']);
+        $stateId = $this->glue->target;
 
         $event = EventDescription::fromStream($_SERVER['EVENT']);
+        $this->logger->debug("Invoking event $event->innerEvent");
 
         $state = $this->loadState();
 
@@ -182,8 +179,8 @@ class Task
 
     private function commit(AbstractHistory $state): void
     {
-        ftruncate($this->bodyStream, 0);
-        fwrite($this->bodyStream, json_encode(Serializer::serialize($state), JSON_THROW_ON_ERROR));
+        ftruncate($this->glue->payloadHandle, 0);
+        fwrite($this->glue->payloadHandle, json_encode(Serializer::serialize($state), JSON_THROW_ON_ERROR));
     }
 
     public function getState(string $target): StateInterface

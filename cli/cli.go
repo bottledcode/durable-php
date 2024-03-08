@@ -33,7 +33,6 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"os"
-	"time"
 )
 
 func setEnv(options map[string]string) {
@@ -62,10 +61,7 @@ func execute(args []string, options map[string]string) int {
 	if err != nil {
 		panic(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	ctx = context.WithValue(ctx, "bootstrap", options["bootstrap"])
+	ctx := context.WithValue(context.Background(), "bootstrap", options["bootstrap"])
 
 	streamName := options["stream"]
 	if streamName == "" {

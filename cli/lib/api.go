@@ -6,14 +6,49 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 )
+
+func generateCorrelationId() string {
+	bytes := make([]byte, 16)
+	for i := range bytes {
+		bytes[i] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[rand.Intn(62)]
+	}
+
+	return string(bytes)
+}
+
+func getCorrelationId(ctx context.Context, hHeaders *http.Header, nHeaders *nats.Header) context.Context {
+	if ctx.Value("cid") != nil {
+		return ctx
+	}
+
+	if nHeaders != nil && nHeaders.Get("Correlation-Id") != "" {
+		return context.WithValue(ctx, "cid", nHeaders.Get("Correlation-Id"))
+	}
+
+	if hHeaders != nil && hHeaders.Get("X-Correlation-ID") != "" {
+		return context.WithValue(ctx, "cid", hHeaders.Get("X-Correlation-ID"))
+	}
+
+	return context.WithValue(ctx, "cid", generateCorrelationId())
+}
+
+func logRequest(logger *zap.Logger, r *http.Request, ctx context.Context) {
+	template, err := mux.CurrentRoute(r).GetPathTemplate()
+	if err != nil {
+		return
+	}
+	logger.Info(template, zap.Any("cid", ctx.Value("cid")), zap.Any("vars", mux.Vars(r)))
+}
 
 func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, streamName string) {
 	r := mux.NewRouter()
@@ -25,6 +60,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
 
 		store, err := GetObjectStore("activities", js, context.Background())
 		if err != nil {
@@ -40,6 +78,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
 		id := &activityId{
@@ -61,6 +102,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		store, err := GetObjectStore("entities", js, context.Background())
 		if err != nil {
 			panic(err)
@@ -70,9 +114,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	bootstrap := ctx.Value("bootstrap").(string)
 
-	processReq := func(writer http.ResponseWriter, request *http.Request, id *StateId, function string, headers http.Header) {
+	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *StateId, function string, headers http.Header) {
 		logger.Debug("Processing request to call function", zap.String("function", function), zap.Any("Headers", headers))
-		ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "bootstrap", bootstrap))
+		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
 
 		msgs, body, err := glueFromApiRequest(ctx, request, function, logger, js, id, headers)
@@ -85,6 +129,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		for _, msg := range msgs {
 			msg.Subject = fmt.Sprintf("%s.%s", streamName, msg.Subject)
+			msg.Header.Add("Correlation-Id", ctx.Value("cid").(string))
 			_, err := js.PublishMsg(ctx, msg)
 			if err != nil {
 				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
@@ -119,15 +164,18 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			id:   strings.TrimSpace(vars["id"]),
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		if request.Method == "GET" {
 			logger.Debug("Getting entity status", zap.String("id", id.String()))
-			processReq(writer, request, id.toStateId(), "entityDecoder", make(http.Header))
+			processReq(ctx, writer, request, id.toStateId(), "entityDecoder", make(http.Header))
 			return
 		}
 
 		if request.Method == "PUT" {
 			logger.Debug("Signal entity", zap.String("id", id.String()))
-			processReq(writer, request, id.toStateId(), "entitySignal", make(http.Header))
+			processReq(ctx, writer, request, id.toStateId(), "entitySignal", make(http.Header))
 			return
 		}
 
@@ -146,6 +194,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	})
@@ -158,6 +209,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		vars := mux.Vars(request)
 
 		id := &orchestrationId{
@@ -165,7 +219,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			executionId: "",
 		}
 
-		processReq(writer, request, id.toStateId(), "startOrchestration", make(http.Header))
+		processReq(ctx, writer, request, id.toStateId(), "startOrchestration", make(http.Header))
 	})
 
 	// PUT /orchestration/{name}/{id}
@@ -175,13 +229,16 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	r.HandleFunc("/orchestration/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		vars := mux.Vars(request)
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		id := &orchestrationId{
 			instanceId:  strings.TrimSpace(vars["name"]),
 			executionId: strings.TrimSpace(vars["id"]),
 		}
 
 		if request.Method == "PUT" {
-			processReq(writer, request, id.toStateId(), "startOrchestration", make(http.Header))
+			processReq(ctx, writer, request, id.toStateId(), "startOrchestration", make(http.Header))
 			return
 		}
 
@@ -262,6 +319,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		vars := mux.Vars(request)
 		id := &orchestrationId{
 			instanceId:  vars["name"],
@@ -272,7 +332,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		headers := make(http.Header)
 		headers.Add("Signal", method)
 
-		processReq(writer, request, id.toStateId(), "orchestrationSignal", headers)
+		processReq(ctx, writer, request, id.toStateId(), "orchestrationSignal", headers)
 	})
 
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))

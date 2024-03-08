@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"net/http"
@@ -39,8 +40,9 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 			}
 
 			meta, _ := msg.Metadata()
+			headers := msg.Headers()
 
-			if msg.Headers().Get("Delay") != "" && meta.NumDelivered == 1 {
+			if headers.Get("Delay") != "" && meta.NumDelivered == 1 {
 				logger.Info("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
 				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 				if err != nil {
@@ -54,7 +56,9 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 				return
 			}
 
-			if err := processMsg(ctx, logger, msg, js); err != nil {
+			ctx := getCorrelationId(ctx, nil, &headers)
+
+			if err := processMsg(ctx, logger, msg, js, streamName); err != nil {
 				panic(err)
 			}
 		}()
@@ -63,7 +67,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
-func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream) error {
+func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, streamName string) error {
 	logger.Info("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
@@ -89,8 +93,9 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	var headers = http.Header{}
 	var env = make(map[string]string)
-	headers.Add(string(HeaderStateId), msg.Headers().Get(string(HeaderStateId)))
+	headers.Add("X-Correlation-ID", ctx.Value("cid").(string))
 	env["EVENT"] = string(msg.Data())
+	env["STATE_ID"] = msg.Headers().Get(string(HeaderStateId))
 
 	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js)
 
@@ -99,6 +104,9 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	// now we send our messages before acknowledging
 	for _, msg := range msgs {
+		msg.Header.Add("Correlation-Id", ctx.Value("cid").(string))
+		msg.Subject = fmt.Sprintf("%s.%s", streamName, msg.Subject)
+		logger.Debug("Sending event", zap.String("subject", msg.Subject))
 		_, err := js.PublishMsg(ctx, msg)
 		if err != nil {
 			return err

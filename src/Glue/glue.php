@@ -38,26 +38,24 @@ require_once __DIR__ . '/autoload.php';
 class Glue
 {
     public readonly ?string $bootstrap;
-
+    public StateId $target;
+    public $payloadHandle;
     private string $method;
-
     private array $payload = [];
-
-    private $payloadHandle;
-
     private $streamHandle;
-
-    private StateId $target;
-
     private array $queries = [];
 
     public function __construct(private DurableLogger $logger)
     {
-        $this->target = StateId::fromString($_SERVER['HTTP_STATE_ID']);
+        $this->target = StateId::fromString($_SERVER['STATE_ID']);
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
 
-        $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'rb'));
+        if(!file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
+            throw new \LogicException('Unable to load payload');
+        }
+
+        $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'r+b'));
         try {
             $this->payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -117,7 +115,7 @@ class Glue
 
     public function processMsg(): void
     {
-        $task = new Task();
+        $task = new Task($this->logger, $this);
         $task->run();
     }
 }
