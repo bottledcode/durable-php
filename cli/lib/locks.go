@@ -11,7 +11,7 @@ func lockSubject(subject *Subject, js jetstream.JetStream, logger *zap.Logger) {
 	ctx := context.Background()
 	logger.Info("Attempting to take lock", zap.String("Subject", subject.String()))
 	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket: subject.String(),
+		Bucket: subject.Bucket(),
 		TTL:    5 * time.Minute,
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func unlockSubject(subject *Subject, js jetstream.JetStream, logger *zap.Logger)
 	logger.Info("Unlocking", zap.String("Subject", subject.String()))
 	ctx := context.Background()
 	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket: subject.String(),
+		Bucket: subject.Bucket(),
 		TTL:    5 * time.Minute,
 	})
 	if err != nil {

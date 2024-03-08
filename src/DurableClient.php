@@ -40,7 +40,10 @@ final readonly class DurableClient implements DurableClientInterface
 
     public static function get(string $apiHost = 'http://localhost:8080'): self
     {
-        $httpClient = HttpClientBuilder::buildDefault();
+        $builder = new HttpClientBuilder();
+        $builder->retry(3);
+
+        $httpClient = $builder->build();
 
         return new self(new RemoteEntityClient($apiHost, $httpClient), new RemoteOrchestrationClient($apiHost, $httpClient));
     }

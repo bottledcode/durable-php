@@ -77,15 +77,19 @@ class RemoteEntityClient implements EntityClientInterface
     ): void {
         $name = rawurlencode($entityId->name);
         $id = rawurlencode($entityId->id);
-        $operationName = rawurlencode($operationName);
 
-        $req = new Request("{$this->apiHost}/entity/{$name}/{$id}/{$operationName}", 'PUT', json_encode(Serializer::serialize($input), JSON_THROW_ON_ERROR));
+        $input = [
+            'signal' => $operationName,
+            'input' => $input,
+        ];
+
+        $req = new Request("{$this->apiHost}/entity/{$name}/{$id}   ", 'PUT', json_encode(Serializer::serialize($input), JSON_THROW_ON_ERROR));
         if($scheduledTime) {
             $req->setHeader("At", $scheduledTime->format(DATE_ATOM));
         }
         $result = $this->client->request($req);
         if($result->getStatus() >= 300) {
-            throw new \Exception($result->getBody()->read());
+            throw new \Exception("error calling " . $req->getUri()->getPath() . "\n" . $result->getBody()->read());
         }
     }
 

@@ -57,14 +57,15 @@ func glueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 	}
 	go func() {
 		<-ctx.Done()
+		logger.Debug("Deleting body", zap.String("file", temp.Name()))
 		os.Remove(temp.Name())
 	}()
 
 	_, err = io.Copy(temp, r.Body)
-	temp.Close()
 	if err != nil {
 		return nil, "", err
 	}
+	temp.Close()
 
 	glu := &glue{
 		bootstrap: ctx.Value("bootstrap").(string),
@@ -185,10 +186,7 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 	}
 	defer stateFile.Close()
 
-	err = obj.GetFile(ctx, id.toSubject().String(), stateFile.Name())
-	if err != nil {
-		panic(err)
-	}
+	_ = obj.GetFile(ctx, id.toSubject().String(), stateFile.Name())
 
 	go func() {
 		<-ctx.Done()

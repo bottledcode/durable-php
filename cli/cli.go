@@ -42,9 +42,6 @@ func setEnv(options map[string]string) {
 
 func execute(args []string, options map[string]string) int {
 	logger, err := zap.NewDevelopment()
-	if options["router"] != "" {
-		lib.RouterScript = options["router"]
-	}
 	if err != nil {
 		panic(err)
 	}
@@ -66,6 +63,8 @@ func execute(args []string, options map[string]string) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	ctx = context.WithValue(ctx, "bootstrap", options["bootstrap"])
 
 	streamName := options["stream"]
 	if streamName == "" {
@@ -92,15 +91,15 @@ func execute(args []string, options map[string]string) int {
 	}
 
 	if options["no-activities"] != "true" {
-		go lib.BuildConsumer(stream, ctx, streamName, "activities", logger, js)
+		go lib.BuildConsumer(stream, ctx, streamName, lib.Activity, logger, js)
 	}
 
 	if options["no-entities"] != "true" {
-		go lib.BuildConsumer(stream, ctx, streamName, "entities", logger, js)
+		go lib.BuildConsumer(stream, ctx, streamName, lib.Entity, logger, js)
 	}
 
 	if options["no-orchestrations"] != "true" {
-		go lib.BuildConsumer(stream, ctx, streamName, "orchestrations", logger, js)
+		go lib.BuildConsumer(stream, ctx, streamName, lib.Orchestration, logger, js)
 	}
 
 	port := options["port"]
@@ -191,7 +190,6 @@ func main() {
 		WithOption(cli.NewOption("no-activities", "Do not parse activities").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("no-entities", "Do not parse entities").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("no-orchestrations", "Do not parse orchestrations").WithType(cli.TypeBool)).
-		WithOption(cli.NewOption("router", "The router script").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("bootstrap", "A file that initializes a container, otherwise one will be generated for you").WithChar('b').WithType(cli.TypeString)).
 		WithCommand(run).

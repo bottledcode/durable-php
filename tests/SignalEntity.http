@@ -1,0 +1,11 @@
+PUT http://localhost:8080/entity/Bottledcode%5CDurablePhp%5CTests%5CCommon%5CLauncherEntity/0
+Content-Type: application/json
+
+{
+  "signal": "launch",
+  "input": {
+    "orchestration": "test",
+    "number": 5,
+    "offset": 0
+  }
+}

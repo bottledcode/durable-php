@@ -27,13 +27,17 @@ func fromStateId(id StateId) Subject {
 }
 
 func (subj *Subject) String() string {
-	pieces := strings.Split(subj.id.id, ":")
+	pieces := strings.Split(string(subj.id.kind)+":"+subj.id.id, ":")
 	reg := regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 	for i := range pieces {
 		pieces[i] = reg.ReplaceAllString(pieces[i], "")
 	}
 
 	return strings.Join(pieces, ".")
+}
+
+func (subj *Subject) Bucket() string {
+	return strings.ReplaceAll(subj.String(), ".", "_")
 }
 
 // state ids

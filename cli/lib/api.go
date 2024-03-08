@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -67,8 +68,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		OutputList(writer, store)
 	})
 
+	bootstrap := ctx.Value("bootstrap").(string)
+
 	processReq := func(writer http.ResponseWriter, request *http.Request, id *StateId, function string, headers http.Header) {
-		ctx, cancel := context.WithCancel(ctx)
+		logger.Debug("Processing request to call function", zap.String("function", function), zap.Any("headers", headers))
+		ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "bootstrap", bootstrap))
 		defer cancel()
 
 		msgs, body, err := glueFromApiRequest(ctx, request, function, logger, js, id, headers)
@@ -77,8 +81,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			logger.Error("Failed to glue", zap.Error(err))
 			return
 		}
+		logger.Debug("Received result", zap.Int("count", len(msgs)), zap.Int("body size", len(body)))
 
 		for _, msg := range msgs {
+			msg.Subject = fmt.Sprintf("%s.%s", streamName, msg.Subject)
 			_, err := js.PublishMsg(ctx, msg)
 			if err != nil {
 				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
@@ -109,16 +115,18 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	r.HandleFunc("/entity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		vars := mux.Vars(request)
 		id := &entityId{
-			name: vars["name"],
-			id:   vars["id"],
+			name: strings.TrimSpace(vars["name"]),
+			id:   strings.TrimSpace(vars["id"]),
 		}
 
 		if request.Method == "GET" {
+			logger.Debug("Getting entity status", zap.String("id", id.String()))
 			processReq(writer, request, id.toStateId(), "entityDecoder", make(http.Header))
 			return
 		}
 
 		if request.Method == "PUT" {
+			logger.Debug("Signal entity", zap.String("id", id.String()))
 			processReq(writer, request, id.toStateId(), "entitySignal", make(http.Header))
 			return
 		}
@@ -168,8 +176,8 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		vars := mux.Vars(request)
 
 		id := &orchestrationId{
-			instanceId:  vars["name"],
-			executionId: vars["id"],
+			instanceId:  strings.TrimSpace(vars["name"]),
+			executionId: strings.TrimSpace(vars["id"]),
 		}
 
 		if request.Method == "PUT" {

@@ -114,7 +114,15 @@ readonly class EventDescription
         $serialized = function_exists('igbinary_serialize') ? igbinary_serialize($this->event) : serialize($this->event);
         $serialized = function_exists('gzencode') ? gzencode($serialized) : $serialized;
 
-        return base64_encode($serialized);
+        $event = base64_encode($serialized);
+
+        return json_encode([
+            'destination' => $this->destination->id,
+            'replyTo' => $this->replyTo?->id ?? '',
+            'scheduleAt' => $this->scheduledAt?->format(DATE_ATOM) ?? gmdate(DATE_ATOM, time() - 30),
+            'eventId' => $this->eventId,
+            'event' => $event,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 
     /**

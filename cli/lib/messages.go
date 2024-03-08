@@ -7,8 +7,5 @@ type EventMessage struct {
 	ReplyTo     string    `json:"replyTo"`
 	ScheduleAt  time.Time `json:"scheduleAt"`
 	EventId     string    `json:"eventId"`
-	Priority    int       `json:"priority"`
-	Locks       bool      `json:"locks"`
-	IsPoisoned  bool      `json:"isPoisoned"`
 	Event       string    `json:"event"`
 }

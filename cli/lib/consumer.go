@@ -9,16 +9,13 @@ import (
 	"time"
 )
 
-// todo: update to vendored src
-var RouterScript string = "/src/Task.php"
-
-func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger, js jetstream.JetStream) {
-	logger.Info("Creating consumer", zap.String("stream", streamName), zap.String("kind", kind))
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
+	logger.Info("Creating consumer", zap.String("stream", streamName), zap.String("kind", string(kind)))
 
 	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		AckPolicy:      jetstream.AckExplicitPolicy,
-		FilterSubjects: []string{streamName + "." + kind + ".>"},
-		Durable:        streamName + "-" + kind,
+		FilterSubjects: []string{streamName + "." + string(kind) + ".>"},
+		Durable:        streamName + "-" + string(kind),
 	})
 	if err != nil {
 		panic(err)
