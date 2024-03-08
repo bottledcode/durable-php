@@ -23,45 +23,105 @@
 
 namespace Bottledcode\DurablePhp\Glue;
 
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\Serializer;
+use Bottledcode\DurablePhp\State\StateInterface;
+use Bottledcode\DurablePhp\Task;
+use JsonException;
 
 require_once __DIR__ . '/autoload.php';
 
-function process(): void
+class Glue
 {
-    $bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
-    $function = $_SERVER['HTTP_DPHP_FUNCTION'];
-    $payload = stream_get_contents($payload_handle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'rb'));
-    $payload = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
+    public readonly ?string $bootstrap;
 
-    register_shutdown_function(static fn() => fclose($payload_handle));
+    private string $method;
 
-    $input = file_get_contents('php://input');
-    $input = json_decode($input, true, 512, JSON_THROW_ON_ERROR);
+    private array $payload = [];
 
-    $function = __NAMESPACE__ . '\\' . $function;
+    private $payloadHandle;
 
-    $function($bootstrap, $payload_handle, $payload, ...$input);
+    private $streamHandle;
+
+    private StateId $target;
+
+    private array $queries = [];
+
+    public function __construct(private DurableLogger $logger)
+    {
+        $this->target = StateId::fromString($_SERVER['HTTP_STATE_ID']);
+        $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
+        $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
+
+        $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'rb'));
+        try {
+            $this->payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $this->payload = [];
+        }
+
+        $this->streamHandle = fopen('php://input', 'rb');
+    }
+
+    public function __destruct()
+    {
+        fclose($this->payloadHandle);
+    }
+
+    public function process()
+    {
+        $this->{$this->method}();
+    }
+
+    public function entitySignal(): void
+    {
+        $event = WithEntity::forInstance($this->target, RaiseEvent::forOperation($this->payload['signal'], $this->payload['input']));
+        $this->outputEvent(new EventDescription($event));
+    }
+
+    public function outputEvent(EventDescription $event): void
+    {
+        echo 'EVENT~!~' . $event->toStream();
+    }
+
+    public function queryState(StateId $id): ?StateInterface
+    {
+        $this->queries[] = true;
+        echo implode('~!~', ['QUERY', $id->id, $qid = count($this->queries)]);
+
+        while (true) {
+            $result = fgets($this->streamHandle);
+            if (str_starts_with($result, "$qid://")) {
+                $file = explode('//', $result)[1];
+
+                return $this->readStateFile($file);
+            }
+        }
+    }
+
+    private function readStateFile($resource): ?StateInterface
+    {
+        $payload = stream_get_contents($resource);
+        try {
+            $payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+
+        return Serializer::deserialize($payload, StateInterface::class);
+    }
+
+    public function processMsg(): void
+    {
+        $task = new Task();
+        $task->run();
+    }
 }
 
-function outputEvent(EventDescription $event): void
-{
-    echo "EVENT~!~" . $event->toStream();
-}
+(new Glue($logger))->process();
 
-function entitySignal(string $bootstrap, $payload_handle, array $payload, ...$input): void
-{
-    $id = new StateId($_SERVER['STATE_ID']);
-
-    var_dump($payload);
-
-    $event = WithEntity::forInstance($id, RaiseEvent::forOperation($payload['signal'], $payload['input']));
-    $description = new EventDescription($event);
-    outputEvent($description);
-}
-
-process();
 exit();

@@ -20,11 +20,11 @@ const (
 
 type ConsumingResponseWriter struct {
 	Data    string
-	headers http.Header
+	Headers http.Header
 }
 
 func (c *ConsumingResponseWriter) Header() http.Header {
-	return c.headers
+	return c.Headers
 }
 
 func (c *ConsumingResponseWriter) Write(b []byte) (int, error) {

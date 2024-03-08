@@ -71,7 +71,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	bootstrap := ctx.Value("bootstrap").(string)
 
 	processReq := func(writer http.ResponseWriter, request *http.Request, id *StateId, function string, headers http.Header) {
-		logger.Debug("Processing request to call function", zap.String("function", function), zap.Any("headers", headers))
+		logger.Debug("Processing request to call function", zap.String("function", function), zap.Any("Headers", headers))
 		ctx, cancel := context.WithCancel(context.WithValue(context.Background(), "bootstrap", bootstrap))
 		defer cancel()
 

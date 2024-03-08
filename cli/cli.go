@@ -31,6 +31,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/teris-io/cli"
 	"go.uber.org/zap"
+	"net/http"
 	"os"
 	"time"
 )
@@ -167,7 +168,10 @@ func main() {
 				panic(err)
 			}
 
-			writer := &lib.ConsumingResponseWriter{}
+			writer := &lib.ConsumingResponseWriter{
+				Data:    "",
+				Headers: make(http.Header),
+			}
 
 			if len(args) == 1 {
 				lib.OutputList(writer, objectStore)

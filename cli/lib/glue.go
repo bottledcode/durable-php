@@ -160,11 +160,13 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 				mu.Lock()
 				defer mu.Unlock()
 
-				bodyBuf.WriteString(fmt.Sprintf("%s://%s", qid, stateFile.Name()))
+				bodyBuf.WriteString(fmt.Sprintf("%s://%s\n", qid, stateFile.Name()))
+				// todo: write state to file
 			}()
 		}
 	}()
 
+	logger.Debug("Executing event handler")
 	err = frankenphp.ServeHTTP(writer, r)
 	if err != nil {
 		panic(err)
@@ -185,11 +187,17 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 		panic(err)
 	}
 	defer stateFile.Close()
+	logger.Debug("Created statefile", zap.String("filename", stateFile.Name()))
 
-	_ = obj.GetFile(ctx, id.toSubject().String(), stateFile.Name())
+	err = obj.GetFile(ctx, id.toSubject().String(), stateFile.Name())
+	if err != nil {
+		// GetFile will delete the file, causing interesting things to happen, so we need to ensure it always exists
+		os.Create(stateFile.Name())
+	}
 
 	go func() {
 		<-ctx.Done()
+		logger.Debug("Deleting statefile", zap.String("filename", stateFile.Name()))
 		err := os.Remove(stateFile.Name())
 		if err != nil {
 			logger.Warn("Unable to delete stateFile", zap.String("name", stateFile.Name()))
@@ -215,6 +223,10 @@ func updateStateFile(id *StateId, stateFile *os.File, stream jetstream.JetStream
 		panic(err)
 	}
 	if link.Headers.Get(string(HeaderStateId)) == "" {
+		if link.Headers == nil {
+			link.Headers = make(nats.Header)
+		}
+
 		link.Headers.Add(string(HeaderStateId), id.String())
 		err = obj.UpdateMeta(ctx, id.toSubject().String(), link.ObjectMeta)
 		if err != nil {

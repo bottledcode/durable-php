@@ -41,7 +41,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 			meta, _ := msg.Metadata()
 
 			if msg.Headers().Get("Delay") != "" && meta.NumDelivered == 1 {
-				logger.Info("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("headers", meta))
+				logger.Info("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
 				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 				if err != nil {
 					panic(err)
@@ -89,6 +89,8 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	var headers = http.Header{}
 	var env = make(map[string]string)
+	headers.Add(string(HeaderStateId), msg.Headers().Get(string(HeaderStateId)))
+	env["EVENT"] = string(msg.Data())
 
 	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js)
 
