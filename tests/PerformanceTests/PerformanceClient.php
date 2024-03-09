@@ -32,6 +32,9 @@ use Bottledcode\DurablePhp\Tests\Common\LauncherEntity;
 use Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities\HelloSequence;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
+use function Amp\async;
+use function Amp\Future\await;
+
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $client = DurableClient::get();
@@ -49,9 +52,13 @@ for ($i = 0; $i < $numberLaunchers; $i++) {
     );
 }
 
-for ($i = 0; $i < $numberLaunchers * $numberToLaunch; $i++) {
-    $logger->alert(sprintf("Waiting for %d", $i));
-    $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $i));
+$ids = array_keys(array_fill(0, $numberToLaunch * $numberLaunchers, true));
+$ids = array_chunk($ids, 100);
+
+foreach($ids as $num => $chunk) {
+    $getters = array_map(static fn($id) => async(fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
+    $logger->alert(sprintf('Waiting for chunk %d of %d', $num, count($ids)));
+    await($getters);
 }
 
 $watch->stop();
