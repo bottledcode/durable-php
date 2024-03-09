@@ -27,6 +27,7 @@ use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
@@ -40,8 +41,8 @@ class Glue
     public readonly ?string $bootstrap;
     public StateId $target;
     public $payloadHandle;
+    public array $payload = [];
     private string $method;
-    private array $payload = [];
     private $streamHandle;
     private array $queries = [];
 
@@ -61,8 +62,9 @@ class Glue
         } catch (JsonException) {
             $this->payload = [];
         }
+        $this->logger->alert("Got payload", ['raw' => $payload, 'parsed' => $this->payload]);
 
-        $this->streamHandle = fopen('php://input', 'rb');
+        $this->streamHandle = fopen('php://input', 'r+b');
     }
 
     public function __destruct()
@@ -77,7 +79,9 @@ class Glue
 
     public function entitySignal(): void
     {
-        $event = WithEntity::forInstance($this->target, RaiseEvent::forOperation($this->payload['signal'], $this->payload['input']));
+        $input = SerializedArray::import($this->payload['input'])->toArray();
+
+        $event = WithEntity::forInstance($this->target, RaiseEvent::forOperation($this->payload['signal'], $input));
         $this->outputEvent(new EventDescription($event));
     }
 

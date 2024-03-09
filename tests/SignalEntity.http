@@ -4,8 +4,8 @@ Content-Type: application/json
 {
   "signal": "launch",
   "input": {
-    "orchestration": "test",
-    "number": 5,
+    "orchestration": "Bottledcode\\DurablePhp\\Tests\\PerformanceTests\\HelloCities\\HelloSequence",
+    "number": 1,
     "offset": 0
   }
 }

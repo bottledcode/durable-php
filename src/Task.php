@@ -53,9 +53,10 @@ class Task
         $stateId = $this->glue->target;
 
         $event = EventDescription::fromStream($_SERVER['EVENT']);
-        $this->logger->debug("Invoking event $event->innerEvent");
+        $this->logger->info("Invoking event $event->innerEvent");
 
         $state = $this->loadState();
+        $this->logger->alert('Got state', ['state' => $state]);
 
         switch ($stateId->getStateType()) {
             case ActivityHistory::class:
@@ -110,6 +111,7 @@ class Task
             };
         }
         $state->setContainer($this->container);
+        $state->setLogger($this->logger);
 
         if ($state->hasAppliedEvent($event->event)) {
             $this->emitError(200, 'event already applied', ['event' => $event]);
@@ -147,8 +149,8 @@ class Task
 
     private function loadState(): ?AbstractHistory
     {
-        if (! empty($this->payload)) {
-            return Serializer::deserialize($this->payload, StateInterface::class);
+        if (! empty($this->glue->payload)) {
+            return Serializer::deserialize($this->glue->payload, StateInterface::class);
         }
 
         return null;
@@ -179,8 +181,10 @@ class Task
 
     private function commit(AbstractHistory $state): void
     {
+        fseek($this->glue->payloadHandle, 0);
         ftruncate($this->glue->payloadHandle, 0);
-        fwrite($this->glue->payloadHandle, json_encode(Serializer::serialize($state), JSON_THROW_ON_ERROR));
+        fwrite($this->glue->payloadHandle, json_encode(Serializer::serialize($state), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $this->logger->alert('wrote state:', ['state' => $state, $_SERVER['HTTP_DPHP_PAYLOAD']]);
     }
 
     public function getState(string $target): StateInterface

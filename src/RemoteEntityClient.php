@@ -80,10 +80,10 @@ class RemoteEntityClient implements EntityClientInterface
 
         $input = [
             'signal' => $operationName,
-            'input' => $input,
+            'input' => SerializedArray::fromArray($input)
         ];
 
-        $req = new Request("{$this->apiHost}/entity/{$name}/{$id}   ", 'PUT', json_encode(Serializer::serialize($input), JSON_THROW_ON_ERROR));
+        $req = new Request("{$this->apiHost}/entity/{$name}/{$id}   ", 'PUT', json_encode($input, JSON_THROW_ON_ERROR));
         if($scheduledTime) {
             $req->setHeader("At", $scheduledTime->format(DATE_ATOM));
         }

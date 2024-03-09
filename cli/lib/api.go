@@ -261,7 +261,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			logger.Debug("Waiting for key change", zap.String("key", id.String()))
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*60)
 			defer cancel()
-			watch, err := store.Watch(ctx, jetstream.IncludeHistory())
+			watch, err := store.Watch(ctx)
 			if err != nil {
 				cancel()
 				panic(err)
@@ -333,6 +333,12 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		headers.Add("Signal", method)
 
 		processReq(ctx, writer, request, id.toStateId(), "orchestrationSignal", headers)
+	})
+
+	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		logger.Warn("Unkown endpoint")
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
 	})
 
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
