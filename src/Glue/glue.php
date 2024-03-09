@@ -26,13 +26,17 @@ namespace Bottledcode\DurablePhp\Glue;
 use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
 use JsonException;
+use Ramsey\Uuid\Uuid;
 
 require_once __DIR__ . '/autoload.php';
 
@@ -77,19 +81,6 @@ class Glue
         $this->{$this->method}();
     }
 
-    public function entitySignal(): void
-    {
-        $input = SerializedArray::import($this->payload['input'])->toArray();
-
-        $event = WithEntity::forInstance($this->target, RaiseEvent::forOperation($this->payload['signal'], $input));
-        $this->outputEvent(new EventDescription($event));
-    }
-
-    public function outputEvent(EventDescription $event): void
-    {
-        echo 'EVENT~!~' . trim($event->toStream()) . "\n";
-    }
-
     public function queryState(StateId $id): ?StateInterface
     {
         $this->queries[] = true;
@@ -121,6 +112,49 @@ class Glue
     {
         $task = new Task($this->logger, $this);
         $task->run();
+    }
+
+    private function entitySignal(): void
+    {
+        $input = SerializedArray::import($this->payload['input'])->toArray();
+
+        $event = WithEntity::forInstance($this->target, RaiseEvent::forOperation($this->payload['signal'], $input));
+        $this->outputEvent(new EventDescription($event));
+    }
+
+    public function outputEvent(EventDescription $event): void
+    {
+        echo 'EVENT~!~' . trim($event->toStream()) . "\n";
+    }
+
+    private function startOrchestration(): void
+    {
+        if(!$this->target->toOrchestrationInstance()->executionId) {
+            $this->target = StateId::fromInstance(new OrchestrationInstance($this->target->toOrchestrationInstance()->instanceId, Uuid::uuid7()->toString()));
+        }
+
+        header('X-Id: ' . $this->target->id);
+        $input = SerializedArray::import($this->payload['input'])->toArray();
+
+        $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, [], /* todo: scheduling */));
+        $this->outputEvent(new EventDescription($event));
+    }
+
+    private function orchestrationSignal(): void
+    {
+        $input = SerializedArray::import($this->payload);
+        $signal = $_SERVER['HTTP_SIGNAL'];
+        $event = WithOrchestration::forInstance($this->target, RaiseEvent::forCustom($signal, $this->payload));
+        $this->outputEvent(new EventDescription($event));
+    }
+
+    private function entityDecoder(): void
+    {
+        $state = file_get_contents($_SERVER['HTTP_ENTITY_STATE']);
+        $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
+        $state = Serializer::deserialize($state, StateInterface::class);
+
+
     }
 }
 

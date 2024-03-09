@@ -117,13 +117,13 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
 
-		msgs, body, err := glueFromApiRequest(ctx, request, function, logger, js, id, headers)
+		msgs, stateFile, err, responseHeaders := glueFromApiRequest(ctx, request, function, logger, js, id, headers)
 		if err != nil {
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			logger.Error("Failed to glue", zap.Error(err))
 			return
 		}
-		logger.Debug("Received result", zap.Int("count", len(msgs)), zap.Int("body size", len(body)))
+		logger.Debug("Received result", zap.Int("count", len(msgs)), zap.Int("stateFile size", len(stateFile)))
 
 		for _, msg := range msgs {
 			msg.Subject = fmt.Sprintf("%s.%s", streamName, msg.Subject)
@@ -136,11 +136,17 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			}
 		}
 
-		f, err := os.Open(body)
+		f, err := os.Open(stateFile)
 		if err != nil {
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			logger.Error("Failed to glue", zap.Error(err))
 			return
+		}
+
+		for name, values := range *responseHeaders {
+			for _, value := range values {
+				writer.Header().Add(name, value)
+			}
 		}
 
 		_, err = io.Copy(writer, f)
@@ -167,7 +173,15 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		if request.Method == "GET" {
 			logger.Debug("Getting entity status", zap.String("id", id.String()))
-			processReq(ctx, writer, request, id.toStateId(), "entityDecoder", make(http.Header))
+			headers := make(http.Header)
+
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			stateFile, _ := getStateFile(id.toStateId(), js, ctx, logger)
+			headers.Add("Entity-State", stateFile.Name())
+
+			processReq(ctx, writer, request, id.toStateId(), "entityDecoder", headers)
 			return
 		}
 
@@ -379,14 +393,16 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	if err != nil {
 		panic(err)
 	}
-	names := make([]*StateId, 0)
+	names := make([][]string, 0)
 	for _, activity := range activities {
 		if strings.HasPrefix(activity.Name, "/") {
 			continue
 		}
 
 		id := ParseStateId(activity.Headers.Get(string(HeaderStateId)))
-		names = append(names, id)
+		t := id.String()
+		parts := strings.Split(t, ":")[1:]
+		names = append(names, parts)
 	}
 
 	writer.Header().Add("Content-Type", "application/json")

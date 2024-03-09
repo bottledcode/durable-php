@@ -64,7 +64,8 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
         $signal = rawurlencode($eventName);
-        $req = new Request("$this->apiHost/orchestration/$name/$id/$signal", 'PUT', json_encode(Serializer::serialize($eventData), JSON_THROW_ON_ERROR));
+        $eventData = SerializedArray::fromArray($eventData);
+        $req = new Request("$this->apiHost/orchestration/$name/$id/$signal", 'PUT', json_encode($eventData, JSON_THROW_ON_ERROR));
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
             throw new \Exception($result->getBody()->read());
@@ -98,12 +99,8 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     #[\Override]
     public function startNew(string $name, array $args = [], ?string $id = null): OrchestrationInstance
     {
-        $data = [
-            'name' => $name,
-            ...($id ? ['id' => $id] : []),
-            'input' => $args,
-        ];
-        $data = json_encode(Serializer::serialize($data), JSON_THROW_ON_ERROR);
+        $data = ['input' => SerializedArray::fromArray($args)];
+        $data = json_encode($data, JSON_THROW_ON_ERROR);
         $req = new Request("$this->apiHost/orchestrations", 'PUT', $data);
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {

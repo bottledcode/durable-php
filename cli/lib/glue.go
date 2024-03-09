@@ -50,10 +50,10 @@ type glue struct {
 	payload string
 }
 
-func glueFromApiRequest(ctx context.Context, r *http.Request, function string, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error) {
+func glueFromApiRequest(ctx context.Context, r *http.Request, function string, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
-		return nil, "", err
+		return nil, "", err, nil
 	}
 	go func() {
 		<-ctx.Done()
@@ -63,7 +63,7 @@ func glueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 
 	_, err = io.Copy(temp, r.Body)
 	if err != nil {
-		return nil, "", err
+		return nil, "", err, nil
 	}
 	temp.Close()
 
@@ -78,9 +78,9 @@ func glueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 	env["FROM_REQUEST"] = "1"
 	env["STATE_ID"] = id.String()
 
-	msgs, _, _ := glu.execute(ctx, headers, logger, env, stream)
+	msgs, responseHeaders, _ := glu.execute(ctx, headers, logger, env, stream)
 
-	return msgs, temp.Name(), nil
+	return msgs, temp.Name(), nil, &responseHeaders
 }
 
 func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream) ([]*nats.Msg, http.Header, int) {

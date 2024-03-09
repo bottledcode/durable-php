@@ -25,33 +25,40 @@ package main
 import (
 	"context"
 	"durable_php/lib"
+	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/teris-io/cli"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"net/http"
 	"os"
 )
 
-func setEnv(options map[string]string) {
-	env = make(map[string]string)
-	env["BOOTSTRAP_FILE"] = options["bootstrap"]
+func getLogger(options map[string]string) *zap.Logger {
+	atom := zap.NewAtomicLevel()
+	if options["debug"] == "true" {
+		atom.SetLevel(zap.DebugLevel)
+	} else if options["verbose"] == "true" {
+		atom.SetLevel(zap.InfoLevel)
+	} else {
+		atom.SetLevel(zap.WarnLevel)
+	}
+
+	config := zap.NewDevelopmentEncoderConfig()
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(config), os.Stderr, atom)
+	return zap.New(core)
 }
 
 func execute(args []string, options map[string]string) int {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		panic(err)
-	}
+	logger := getLogger(options)
 
 	nurl := nats.DefaultURL
 	if options["nats-server"] == "" {
 		nurl = options["nats-server"]
 	}
-
-	setEnv(options)
 
 	ns, err := nats.Connect(nurl)
 	if err != nil {
@@ -139,6 +146,7 @@ func main() {
 		WithOption(cli.NewOption("format", "json is currently the only supported format").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("all", "Show even hidden states").WithType(cli.TypeBool)).
 		WithAction(func(args []string, options map[string]string) int {
+			logger := getLogger(options)
 			nurl := nats.DefaultURL
 			if options["nats-server"] == "" {
 				nurl = options["nats-server"]
@@ -153,19 +161,43 @@ func main() {
 				panic(err)
 			}
 
-			var store lib.IdKind
-			if args[0] == "orchestration" {
-				store = lib.Orchestration
-			} else if args[0] == "activity" {
-				store = lib.Activity
-			} else if args[0] == "entity" {
-				store = lib.Entity
-			} else {
-				panic(fmt.Errorf("invalid type: %s", args[0]))
-			}
-
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+
+			var store lib.IdKind
+			switch args[0] {
+			case string(lib.Orchestration):
+				store = lib.Orchestration
+
+				if len(args) == 1 {
+					kv, err := js.KeyValue(ctx, string(lib.Orchestration))
+					if err != nil {
+						fmt.Println("[]")
+						return 0
+					}
+					keys, err := kv.Keys(ctx)
+					if err != nil {
+						logger.Warn("Failure listing orchestrations", zap.Error(err))
+						fmt.Println("[]")
+						return 2
+					}
+
+					marshal, err := json.Marshal(keys)
+					if err != nil {
+						logger.Fatal("Failure marshalling keys to json")
+						return 1
+					}
+
+					fmt.Println(string(marshal))
+					return 0
+				}
+			case string(lib.Activity):
+				store = lib.Activity
+			case string(lib.Entity):
+				store = lib.Entity
+			default:
+				panic(fmt.Errorf("invalid type: %s", args[0]))
+			}
 
 			objectStore, err := lib.GetObjectStore(store, js, ctx)
 			if err != nil {
@@ -183,7 +215,21 @@ func main() {
 				return 0
 			}
 
-			lib.OutputList(writer, objectStore)
+			var id *lib.StateId
+			switch store {
+			case lib.Entity:
+				fallthrough
+			case lib.Orchestration:
+				id = lib.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
+			case lib.Activity:
+				id = lib.ParseStateId(fmt.Sprintf("%s:%s", string(lib.Activity), args[1]))
+			}
+
+			err = lib.OutputStatus(ctx, writer, id, js, logger)
+			if err != nil {
+				logger.Fatal("Failed to output state", zap.Error(err))
+				return 1
+			}
 			fmt.Println(writer.Data)
 			return 0
 		})
