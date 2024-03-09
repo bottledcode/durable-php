@@ -87,7 +87,7 @@ class Glue
 
     public function outputEvent(EventDescription $event): void
     {
-        echo 'EVENT~!~' . $event->toStream();
+        echo 'EVENT~!~' . trim($event->toStream()) . "\n";
     }
 
     public function queryState(StateId $id): ?StateInterface
