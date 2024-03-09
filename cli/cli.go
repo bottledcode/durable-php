@@ -23,179 +23,37 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
+	"durable_php/lib"
+	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/teris-io/cli"
 	"go.uber.org/zap"
-	"io"
+	"go.uber.org/zap/zapcore"
 	"net/http"
-	"net/url"
 	"os"
-	"runtime"
-	"strings"
-	"time"
 )
 
-var routerScript string = "/index.php"
-
-type DummyLoggingResponseWriter struct {
-	logger  zap.Logger
-	isError bool
-}
-
-func (w *DummyLoggingResponseWriter) Header() http.Header {
-	return http.Header{}
-}
-
-func (w *DummyLoggingResponseWriter) Write(b []byte) (int, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(b))
-	for scanner.Scan() {
-		if w.isError {
-			w.logger.Error(scanner.Text())
-		} else {
-			w.logger.Info(scanner.Text())
-		}
+func getLogger(options map[string]string) *zap.Logger {
+	atom := zap.NewAtomicLevel()
+	if options["debug"] == "true" {
+		atom.SetLevel(zap.DebugLevel)
+	} else if options["verbose"] == "true" {
+		atom.SetLevel(zap.InfoLevel)
+	} else {
+		atom.SetLevel(zap.WarnLevel)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return 0, err
-	}
-
-	return len(b), nil
-}
-
-func buildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind string, logger *zap.Logger) {
-	logger.Info("Creating consumer", zap.String("stream", streamName), zap.String("kind", kind))
-
-	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		AckPolicy:      jetstream.AckExplicitPolicy,
-		FilterSubjects: []string{streamName + "." + kind + ".>"},
-		Durable:        streamName + "-" + kind,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	iter, err := consumer.Messages(jetstream.PullMaxMessages(1))
-	if err != nil {
-		panic(err)
-	}
-	sem := make(chan struct{}, runtime.NumCPU())
-	for {
-		sem <- struct{}{}
-		go func() {
-			defer func() {
-				<-sem
-			}()
-
-			msg, err := iter.Next()
-			if err != nil {
-				panic(err)
-			}
-
-			meta, _ := msg.Metadata()
-
-			if msg.Headers().Get("Delay") != "" && meta.NumDelivered == 1 {
-				logger.Info("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("headers", meta))
-				delay, err := time.ParseDuration(msg.Headers().Get("Delay"))
-				if err != nil {
-					panic(err)
-				}
-				if err := msg.NakWithDelay(delay); err != nil {
-					panic(err)
-				}
-				return
-			}
-
-			processMsg(logger, msg)
-		}()
-	}
-}
-
-func processMsg(logger *zap.Logger, msg jetstream.Msg) {
-	logger.Info("Received message", zap.Any("msg", msg))
-
-	writer := DummyLoggingResponseWriter{
-		logger:  *logger,
-		isError: false,
-	}
-
-	body := io.NopCloser(strings.NewReader(string(msg.Data())))
-	u, _ := url.Parse("http://localhost/event/" + msg.Subject())
-
-	req := &http.Request{
-		Method:           "POST",
-		URL:              u,
-		Proto:            "http://",
-		ProtoMajor:       0,
-		ProtoMinor:       0,
-		Header:           http.Header(msg.Headers()),
-		Body:             body,
-		GetBody:          nil,
-		ContentLength:    int64(len(msg.Data())),
-		TransferEncoding: nil,
-		Close:            false,
-		Host:             msg.Subject(),
-		Form:             nil,
-		PostForm:         nil,
-		MultipartForm:    nil,
-		Trailer:          nil,
-		RemoteAddr:       "",
-		RequestURI:       "",
-		TLS:              nil,
-		Cancel:           nil,
-		Response:         nil,
-	}
-
-	req.URL = &url.URL{
-		Scheme:      req.URL.Scheme,
-		Opaque:      req.URL.RequestURI(),
-		User:        req.URL.User,
-		Host:        req.URL.Host,
-		Path:        routerScript,
-		RawPath:     routerScript,
-		OmitHost:    req.URL.OmitHost,
-		ForceQuery:  req.URL.ForceQuery,
-		RawQuery:    req.URL.RawQuery,
-		Fragment:    req.URL.Fragment,
-		RawFragment: req.URL.RawFragment,
-	}
-
-	request, err := frankenphp.NewRequestWithContext(req)
-	if err != nil {
-		panic(err)
-	}
-
-	logger.Info("Consuming message")
-	if err := frankenphp.ServeHTTP(&writer, request); err != nil {
-		panic(err)
-	}
-
-	logger.Info("Ack message")
-	if err := msg.Ack(); err != nil {
-		panic(err)
-	}
-}
-
-func (w *DummyLoggingResponseWriter) WriteHeader(statusCode int) {
-	if statusCode >= 500 {
-		w.isError = true
-	}
+	config := zap.NewDevelopmentEncoderConfig()
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(config), os.Stderr, atom)
+	return zap.New(core)
 }
 
 func execute(args []string, options map[string]string) int {
-	logger, err := zap.NewDevelopment()
-	if options["router"] != "" {
-		routerScript = options["router"]
-	}
-	if err != nil {
-		panic(err)
-	}
+	logger := getLogger(options)
 
 	nurl := nats.DefaultURL
 	if options["nats-server"] == "" {
@@ -210,8 +68,7 @@ func execute(args []string, options map[string]string) int {
 	if err != nil {
 		panic(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	ctx := context.WithValue(context.Background(), "bootstrap", options["bootstrap"])
 
 	streamName := options["stream"]
 	if streamName == "" {
@@ -237,54 +94,37 @@ func execute(args []string, options map[string]string) int {
 		panic(err)
 	}
 
-	if options["no-activities"] != "false" {
-		go buildConsumer(stream, ctx, streamName, "activities", logger)
+	if options["no-activities"] != "true" {
+		logger.Info("Starting activity consumer")
+		go lib.BuildConsumer(stream, ctx, streamName, lib.Activity, logger, js)
 	}
 
-	if options["no-entities"] != "false" {
-		go buildConsumer(stream, ctx, streamName, "entities", logger)
+	if options["no-entities"] != "true" {
+		logger.Info("Starting entity consumer")
+		go lib.BuildConsumer(stream, ctx, streamName, lib.Entity, logger, js)
 	}
 
-	if options["no-orchestrations"] != "false" {
-		go buildConsumer(stream, ctx, streamName, "orchestrations", logger)
+	if options["no-orchestrations"] != "true" {
+		logger.Info("Starting orchestration consumer")
+		go lib.BuildConsumer(stream, ctx, streamName, lib.Orchestration, logger, js)
 	}
-
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		// rewrite the request
-		request.URL = &url.URL{
-			Scheme:      request.URL.Scheme,
-			Opaque:      request.URL.RequestURI(),
-			User:        request.URL.User,
-			Host:        request.URL.Host,
-			Path:        routerScript,
-			RawPath:     routerScript,
-			OmitHost:    request.URL.OmitHost,
-			ForceQuery:  request.URL.ForceQuery,
-			RawQuery:    request.URL.RawQuery,
-			Fragment:    request.URL.Fragment,
-			RawFragment: request.URL.RawFragment,
-		}
-
-		logger.Info("Received request", zap.String("requestUri", request.URL.RequestURI()))
-
-		req, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestLogger(logger))
-		if err != nil {
-			panic(err)
-		}
-
-		if err := frankenphp.ServeHTTP(writer, req); err != nil {
-			panic(err)
-		}
-	})
 
 	port := options["port"]
 	if port == "" {
 		port = "8080"
 	}
 
-	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, nil)))
+	if options["no-api"] != "true" {
+		lib.Startup(ctx, js, logger, port, streamName)
+	} else {
+		block := make(chan struct{})
+		<-block
+	}
+
 	return 0
 }
+
+var env map[string]string
 
 func main() {
 	run := cli.NewCommand("run", "Starts a webserver and starts processing events").WithAction(execute)
@@ -299,6 +139,100 @@ func main() {
 
 		return 0
 	})
+	inspect := cli.NewCommand("inspect", "Inspect the state store").
+		WithArg(cli.NewArg("type", "One of orchestration|activity|entity").WithType(cli.TypeString)).
+		WithArg(cli.NewArg("name", "The name of the class").AsOptional().WithType(cli.TypeString)).
+		WithArg(cli.NewArg("id", "The id of the type to inspect or leave empty to list all ids").AsOptional().WithType(cli.TypeString)).
+		WithOption(cli.NewOption("format", "json is currently the only supported format").WithType(cli.TypeString)).
+		WithOption(cli.NewOption("all", "Show even hidden states").WithType(cli.TypeBool)).
+		WithAction(func(args []string, options map[string]string) int {
+			logger := getLogger(options)
+			nurl := nats.DefaultURL
+			if options["nats-server"] == "" {
+				nurl = options["nats-server"]
+			}
+
+			ns, err := nats.Connect(nurl)
+			if err != nil {
+				panic(err)
+			}
+			js, err := jetstream.New(ns)
+			if err != nil {
+				panic(err)
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var store lib.IdKind
+			switch args[0] {
+			case string(lib.Orchestration):
+				store = lib.Orchestration
+
+				if len(args) == 1 {
+					kv, err := js.KeyValue(ctx, string(lib.Orchestration))
+					if err != nil {
+						fmt.Println("[]")
+						return 0
+					}
+					keys, err := kv.Keys(ctx)
+					if err != nil {
+						logger.Warn("Failure listing orchestrations", zap.Error(err))
+						fmt.Println("[]")
+						return 2
+					}
+
+					marshal, err := json.Marshal(keys)
+					if err != nil {
+						logger.Fatal("Failure marshalling keys to json")
+						return 1
+					}
+
+					fmt.Println(string(marshal))
+					return 0
+				}
+			case string(lib.Activity):
+				store = lib.Activity
+			case string(lib.Entity):
+				store = lib.Entity
+			default:
+				panic(fmt.Errorf("invalid type: %s", args[0]))
+			}
+
+			objectStore, err := lib.GetObjectStore(store, js, ctx)
+			if err != nil {
+				panic(err)
+			}
+
+			writer := &lib.ConsumingResponseWriter{
+				Data:    "",
+				Headers: make(http.Header),
+			}
+
+			if len(args) == 1 {
+				lib.OutputList(writer, objectStore)
+				fmt.Println(writer.Data)
+				return 0
+			}
+
+			var id *lib.StateId
+			switch store {
+			case lib.Entity:
+				fallthrough
+			case lib.Orchestration:
+				id = lib.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
+			case lib.Activity:
+				id = lib.ParseStateId(fmt.Sprintf("%s:%s", string(lib.Activity), args[1]))
+			}
+
+			err = lib.OutputStatus(ctx, writer, id, js, logger)
+			if err != nil {
+				logger.Fatal("Failed to output state", zap.Error(err))
+				return 1
+			}
+			fmt.Println(writer.Data)
+			return 0
+		})
 
 	app := cli.New("Durable PHP").
 		WithOption(cli.NewOption("port", "The port to listen to (default 8080)").
@@ -310,11 +244,13 @@ func main() {
 		WithOption(cli.NewOption("no-activities", "Do not parse activities").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("no-entities", "Do not parse entities").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("no-orchestrations", "Do not parse orchestrations").WithType(cli.TypeBool)).
-		WithOption(cli.NewOption("router", "The router script").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString)).
+		WithOption(cli.NewOption("bootstrap", "A file that initializes a container, otherwise one will be generated for you").WithChar('b').WithType(cli.TypeString)).
+		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
 		WithCommand(run).
 		WithCommand(init).
 		WithCommand(version).
+		WithCommand(inspect).
 		WithAction(execute)
 
 	os.Exit(app.Run(os.Args, os.Stdout))

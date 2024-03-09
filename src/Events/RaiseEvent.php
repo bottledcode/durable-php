@@ -38,6 +38,11 @@ class RaiseEvent extends Event
         return new static(Uuid::uuid7(), '__signal', ['input' => $input, 'operation' => $operation]);
     }
 
+    public static function forCustom(string $name, array $eventData): static
+    {
+        return new static(Uuid::uuid7(), ltrim($name, '_'), $eventData);
+    }
+
     public static function forLock(string $owner): static
     {
         return new static(Uuid::uuid7(), '__lock', ['owner' => $owner]);

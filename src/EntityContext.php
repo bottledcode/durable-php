@@ -50,7 +50,7 @@ class EntityContext implements EntityContextInterface
         private readonly mixed $input,
         private mixed $state,
         private readonly EntityHistory $history,
-        private readonly WorkerTask $eventDispatcher,
+        private readonly Task $eventDispatcher,
         private readonly array $caller,
         private readonly string $requestingId,
         private readonly SpyProxy $spyProxy,
@@ -72,11 +72,6 @@ class EntityContext implements EntityContextInterface
     public function getInput(): mixed
     {
         return $this->input;
-    }
-
-    public function getState(): mixed
-    {
-        return $this->state;
     }
 
     public function return(mixed $value): never
@@ -136,19 +131,6 @@ class EntityContext implements EntityContextInterface
         );
     }
 
-    public function delayUntil(
-        string $operation,
-        array $args = [],
-        \DateTimeInterface $until = new \DateTimeImmutable()
-    ): void {
-        $this->eventDispatcher->fire(
-            WithDelay::forEvent(
-                $until,
-                WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args))
-            )
-        );
-    }
-
     public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void
     {
         $classReflector = new \ReflectionClass($this->history->getState());
@@ -173,5 +155,23 @@ class EntityContext implements EntityContextInterface
         }
 
         $this->delayUntil($operationName, $arguments, $until);
+    }
+
+    public function getState(): mixed
+    {
+        return $this->state;
+    }
+
+    public function delayUntil(
+        string $operation,
+        array $args = [],
+        \DateTimeInterface $until = new \DateTimeImmutable()
+    ): void {
+        $this->eventDispatcher->fire(
+            WithDelay::forEvent(
+                $until,
+                WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args))
+            )
+        );
     }
 }

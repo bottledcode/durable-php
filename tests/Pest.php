@@ -62,6 +62,7 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
+use Bottledcode\DurablePhp\Task;
 
 expect()->extend('toBeOne', function () {
     return $this->toBe(1);
@@ -127,7 +128,7 @@ function processEvent(\Bottledcode\DurablePhp\Events\Event $event, Closure $proc
         return $ids;
     };
 
-    $eventDispatcher = new class ($fire) extends \Bottledcode\DurablePhp\WorkerTask {
+    $eventDispatcher = new class ($fire) extends Task {
         public function __construct(
             private Closure $fire
         ) {}

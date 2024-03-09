@@ -24,29 +24,25 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
-use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
 use Bottledcode\DurablePhp\DurableClient;
 use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\EntityClient;
-use Bottledcode\DurablePhp\OrchestrationClient;
-use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\Tests\Common\LauncherEntity;
 use Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities\HelloSequence;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
+use function Amp\async;
+use function Amp\Future\await;
+
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$queue = new BeanstalkEventSource();
-$projector = new RethinkDbProjector();
-$client = new DurableClient(new EntityClient(new SpyProxy(), $projector, $queue), new OrchestrationClient($queue, $projector));
+$client = DurableClient::get();
 $logger = new DurableLogger();
 
 $watch = new StopWatch();
 $watch->start();
-$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 5000 / 200;
+$numberToLaunch = (getenv('ACTIVITY_COUNT') ?: 1000) / 200;
 $numberLaunchers = 200;
 for ($i = 0; $i < $numberLaunchers; $i++) {
     $client->signalEntity(
@@ -56,9 +52,13 @@ for ($i = 0; $i < $numberLaunchers; $i++) {
     );
 }
 
-for ($i = 0; $i < $numberLaunchers * $numberToLaunch; $i++) {
-    $logger->alert(sprintf("Waiting for %d", $i));
-    $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $i));
+$ids = array_keys(array_fill(0, $numberToLaunch * $numberLaunchers, true));
+$ids = array_chunk($ids, 100);
+
+foreach($ids as $num => $chunk) {
+    $getters = array_map(static fn($id) => async(fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
+    $logger->alert(sprintf('Waiting for chunk %d of %d', $num, count($ids)));
+    await($getters);
 }
 
 $watch->stop();

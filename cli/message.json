@@ -1,0 +1,10 @@
+{
+  "destination": "activity:1234",
+  "replyTo": "activity:1234",
+  "scheduleAt": "2014-01-01T00:00:00Z",
+  "eventId": "123-12333-2r34",
+  "priority": 50,
+  "locks": true,
+  "isPoisoned": false,
+  "event": "a long event string"
+}

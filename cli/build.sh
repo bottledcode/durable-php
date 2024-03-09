@@ -112,16 +112,19 @@ fi
 
 env
 go env
-go get go_durable_php
-go build -buildmode=pie -tags "cgo netgo nats osusergo static_build" -ldflags "-linkmode=external -extldflags '-static-pie ${extraExtldflags}' ${extraLdflags} -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP ${FRANKENPHP_VERSION} PHP ${LIBPHP_VERSION} go_durable_php'" -o "dist/${bin}" go_durable_php
+go get durable_php
+go build -buildmode=pie -tags "cgo netgo nats osusergo static_build" -ldflags "-linkmode=external -extldflags '-static-pie ${extraExtldflags}' ${extraLdflags} -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP ${FRANKENPHP_VERSION} PHP ${LIBPHP_VERSION} go_durable_php'" -o "dist/${bin}" durable_php
 
 if [ -d "${EMBED}" ]; then
     truncate -s 0 app.tar
     truncate -s 0 app_checksum.txt
 fi
 
-if type "upx" > /dev/null; then
-    upx --best "dist/${bin}"
+if [ -z "${NO_COMPRESS}" ]; then
+  if type "upx" > /dev/null; then
+      #upx --best "dist/${bin}"
+      echo "would compress"
+  fi
 fi
 
 "dist/${bin}" version
