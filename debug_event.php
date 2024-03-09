@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,38 +21,23 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
-
+use Bottledcode\DurablePhp\Events\AwaitResult;
+use Bottledcode\DurablePhp\Events\EventDescription;
+use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Ramsey\Uuid\Uuid;
 
-class WithEntity extends Event implements HasInnerEventInterface, StateTargetInterface
-{
-    public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
-    {
-        parent::__construct($eventId);
-    }
+require_once __DIR__ . '/vendor/autoload.php';
 
-    public static function forInstance(StateId $target, Event $innerEvent): static
-    {
-        return new static(
-            $innerEvent->eventId,
-            $target,
-            $innerEvent
-        );
-    }
+$id = Uuid::uuid7();
+$event = new ScheduleTask($id->toString(), "strlen", input: ["hello world"]);
+$event = new WithActivity($id->toString(), StateId::fromActivityId(Uuid::uuid7()), $event);
+$event = new AwaitResult($id, StateId::fromInstance(new OrchestrationInstance("none", Uuid::uuid7()->toString())), $event);
 
-    public function getInnerEvent(): Event
-    {
-        return $this->innerEvent;
-    }
+$description  = new EventDescription($event);
 
-    public function getTarget(): StateId
-    {
-        return $this->target;
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('WithEntity(%s, %s)', $this->target, $this->innerEvent);
-    }
-}
+//echo $description->toJson();
+//echo "\n";
+echo base64_encode($description->toJson());

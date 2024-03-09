@@ -36,7 +36,7 @@ use Monolog\Processor\ProcessIdProcessor;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
-use function Amp\ByteStream\getStdout;
+use function Amp\ByteStream\getOutputBufferStream;
 
 class DurableLogger implements LoggerInterface
 {
@@ -47,12 +47,12 @@ class DurableLogger implements LoggerInterface
     public function __construct(private ?LoggerInterface $logger = null, private string|null $name = null, Level|null $level = null)
     {
         if ($logger === null) {
-            $handler = new StreamHandler(getStdout());
+            $handler = new StreamHandler(getOutputBufferStream());
             //$handler = new StreamHandler(STDOUT);
             //$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
             $handler->setFormatter(
                 new class (new ConsoleFormatter(
-                    format: $this->name ? "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n" : "[%datetime%] %level_name%: %message% %context% %extra%\n",
+                    format: $this->name ? "%channel%.%level_name%: %message% %context% %extra%\n" : "[%datetime%] %level_name%: %message% %context% %extra%\n",
                     allowInlineLineBreaks: true,
                     ignoreEmptyContextAndExtra: true
                 ), $this->name) implements FormatterInterface {

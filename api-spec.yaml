@@ -1,0 +1,195 @@
+openapi: "3.1.0"
+info:
+  version: "1.0.0"
+  title: Durable PHP API
+paths:
+  /activities: # done
+    get:
+      summary: List all activities the current user has access to
+      responses:
+        '200':
+          description: A list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListOfStrings'
+  /activity/{id}: # done
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+    get:
+      summary: Get the current status of an activity
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+  /entities: # done
+    get:
+      summary: List all entities the current user has access to
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOfStrings"
+  /entity/{name}/{id}: # done
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+    get:
+      summary: Get a current entity's state and status (API scope)
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: "#/components/schemas/Status"
+                  state:
+                    type: object
+                    additionalProperties: true
+  /entity/{name}/{id}/{method}: # done
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+      - in: path
+        name: method
+        schema:
+          type: string
+        description: The name of the method to call
+      - in: header
+        name: At
+        schema:
+          type: string
+        description: Schedule at a specific time
+    put:
+      summary: Send a signal to an entity
+      requestBody:
+        description: An array of parameters to call the method with
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: any
+      responses:
+        202: { }
+  /orchestrations: # done
+    get:
+      summary: Get a list of orchestrations a user has access to
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOfStrings"
+    put: # done
+      summary: Start a new orchestration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - name
+                - input
+              type: object
+              properties:
+                name:
+                  type: string
+                id:
+                  type: string
+                input:
+                  type: array
+                  items:
+                    type: any
+      responses:
+        202:
+          headers:
+            x-id:
+              description: The id of the newly created orchestration
+              schema:
+                type: string
+  /orchestration/{name}/{id}: #done
+    get:
+      summary: Get the current status of an orchestration
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+  /orchestration/{name}/{id}/{signal}: #done
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+      - in: path
+        name: signal
+        description: The signal name to send
+        schema:
+          type: string
+    put:
+      summary: Send a signal to an orchestration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: any
+      responses:
+        202: { }
+
+components:
+  schemas:
+    ListOfStrings:
+      type: array
+      items:
+        type: string
+    Status:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date
+        customStatus:
+          type: string
+        input:
+          type: array
+          items:
+            type: any
+        id:
+          type: string
+        lastUpdated:
+          type: string
+          format: date
+        output:
+          type: array
+          items:
+            type: any
+        runtimeStatus:
+          type: string
+          enum:
+            - Running
+            - Completed
+            - ContinuedAsNew
+            - Failed
+            - Canceled
+            - Terminated
+            - Pending
+            - Suspended
+            - Unknown

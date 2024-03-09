@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,38 +21,28 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp;
 
+require_once __DIR__ . '/autoload.php';
+
+use Bottledcode\DurablePhp\Events\EventDescription;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 
-class WithEntity extends Event implements HasInnerEventInterface, StateTargetInterface
-{
-    public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
-    {
-        parent::__construct($eventId);
-    }
+$data = file_get_contents('php://input');
+$data = json_decode($data, true);
 
-    public static function forInstance(StateId $target, Event $innerEvent): static
-    {
-        return new static(
-            $innerEvent->eventId,
-            $target,
-            $innerEvent
-        );
-    }
+$name = $_SERVER['HTTP_NAME'];
+$id = $_SERVER['HTTP_ID'];
+$method = $_SERVER['HTTP_METHOD'];
 
-    public function getInnerEvent(): Event
-    {
-        return $this->innerEvent;
-    }
+$id = new EntityId($name, $id);
+header("Id: $id->name.$id->id");
+$id = StateId::fromEntityId($id);
 
-    public function getTarget(): StateId
-    {
-        return $this->target;
-    }
+$event = WithEntity::forInstance($id, RaiseEvent::forOperation($method, $data));
+$description = new EventDescription($event);
 
-    public function __toString(): string
-    {
-        return sprintf('WithEntity(%s, %s)', $this->target, $this->innerEvent);
-    }
-}
+echo $description->toStream();

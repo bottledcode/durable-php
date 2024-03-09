@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,38 +21,17 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\EntityHistory;
+use Bottledcode\DurablePhp\State\Serializer;
+use Bottledcode\DurablePhp\State\StateInterface;
 
-class WithEntity extends Event implements HasInnerEventInterface, StateTargetInterface
-{
-    public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
-    {
-        parent::__construct($eventId);
-    }
+require_once __DIR__ . '/autoload.php';
 
-    public static function forInstance(StateId $target, Event $innerEvent): static
-    {
-        return new static(
-            $innerEvent->eventId,
-            $target,
-            $innerEvent
-        );
-    }
+$data = file_get_contents('php://input');
+$data = json_decode($data, true);
+/** @var EntityHistory $state */
+$state = Serializer::deserialize($data, StateInterface::class);
 
-    public function getInnerEvent(): Event
-    {
-        return $this->innerEvent;
-    }
-
-    public function getTarget(): StateId
-    {
-        return $this->target;
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('WithEntity(%s, %s)', $this->target, $this->innerEvent);
-    }
-}
+echo json_encode(Serializer::serialize($state->getState(), ['API']), JSON_UNESCAPED_SLASHES);

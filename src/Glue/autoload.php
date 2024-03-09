@@ -20,3 +20,35 @@
  * OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+// fast check for development
+use Bottledcode\DurablePhp\DurableLogger;
+use Monolog\Level;
+
+if(file_exists(__DIR__ . '/../../vendor/autoload.php')) {
+    require_once __DIR__ . '/../../vendor/autoload.php';
+    goto verify_protocol;
+}
+
+// fast check for standard installs
+if(file_exists(__DIR__ . '/../../../../autoload.php')) {
+    require_once __DIR__ . '/../../../../autoload.php';
+    goto verify_protocol;
+}
+
+echo "ERROR: FAILED TO LOCATE AUTOLOADER\n";
+return;
+
+verify_protocol:
+
+$logger = new DurableLogger(level: match (getenv('LOG_LEVEL') ?: 'INFO') {
+    'DEBUG' => Level::Debug,
+    'INFO' => Level::Info,
+    'ERROR' => Level::Error,
+});
+
+if(($_SERVER['SERVER_PROTOCOL'] ?? null) !== 'DPHP/1.0') {
+    http_response_code(400);
+    $logger->critical("Invalid request protocol", [$_SERVER['SERVER_PROTOCOL'] ?? null]);
+    die();
+}

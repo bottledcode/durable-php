@@ -21,12 +21,27 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State\Nats;
+namespace Bottledcode\DurablePhp;
+
+require_once __DIR__ . '/autoload.php';
 
 use Bottledcode\DurablePhp\Events\EventDescription;
-use Bottledcode\DurablePhp\Events\ScheduleTask;
+use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
-class ActivityHistory extends AbstractHistory
-{
-    public function applyScheduleTask(ScheduleTask $event, EventDescription $original): void {}
-}
+$data = file_get_contents('php://input');
+$eventData = json_decode($data, true);
+
+$name = $_SERVER['HTTP_NAME'];
+$id = $_SERVER['HTTP_ID'];
+$eventName = $_SERVER['HTTP_EVENT_NAME'];
+
+$id = new OrchestrationInstance($name, $id);
+header("Id: $id->instanceId.$id->executionId");
+
+$event = WithOrchestration::forInstance(StateId::fromInstance($id), new RaiseEvent('', $eventName, $eventData));
+$description = new EventDescription($event);
+
+echo $description->toStream();

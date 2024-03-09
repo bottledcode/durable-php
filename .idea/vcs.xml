@@ -2,16 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/downloads/freetype" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/downloads/freetype/subprojects/dlg" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/downloads/libpng" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/downloads/libuuid" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/downloads/micro" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/source/freetype" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/source/freetype/subprojects/dlg" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/source/libpng" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/source/libuuid" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cli/dist/static-php-cli/source/php-src/sapi/micro" vcs="Git" />
   </component>
 </project>

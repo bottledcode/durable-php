@@ -24,8 +24,6 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\Abstractions\EventQueueInterface;
-use Bottledcode\DurablePhp\Abstractions\ProjectorInterface;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
@@ -36,9 +34,11 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class EntityClient implements EntityClientInterface
 {
-    public function __construct(private SpyProxy $spyProxy, private ProjectorInterface $projector, private EventQueueInterface $queue)
+    public function __construct(private SpyProxy|null $spyProxy = null)
     {
-        $this->projector->connect();
+        if($this->spyProxy === null) {
+            $this->spyProxy = new SpyProxy();
+        }
     }
 
     public function cleanEntityStorage(): void

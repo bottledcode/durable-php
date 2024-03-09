@@ -59,17 +59,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     private int $randomKey = 0;
 
-    public function __construct(
-        private readonly OrchestrationInstance $id,
-        private readonly OrchestrationHistory $history,
-        private readonly WorkerTask $taskController,
-        private readonly OrchestratorProxy $proxyGenerator,
-        private readonly SpyProxy $spyProxy,
-        private readonly DurableLogger $durableLogger
-    ) {
-        $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
-    }
-
     public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
     {
         $this->durableLogger->debug('Calling activity', ['name' => $name]);
@@ -169,6 +158,11 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 return [null, false];
             }
         );
+    }
+
+    public function getCurrentTime(): \DateTimeImmutable
+    {
+        return $this->history->historicalTaskResults->getCurrentTime();
     }
 
     public function waitForExternalEvent(string $name): DurableFuture
@@ -278,11 +272,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $interval = new \DateInterval($spec);
         $interval->f = ($microseconds ?? 0) / 1000000;
         return $interval;
-    }
-
-    public function getCurrentTime(): \DateTimeImmutable
-    {
-        return $this->history->historicalTaskResults->getCurrentTime();
     }
 
     public function isLocked(EntityId $entityId): bool
@@ -405,47 +394,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return new $name($this, $entityId);
     }
 
-    public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
-    {
-        if ($this->isReplaying()) {
-            return;
-        }
-
-        $this->durableLogger->debug('Signalling entity', ['entityId' => $entityId, 'operation' => $operation]);
-
-        $id = StateId::fromInstance($this->id);
-
-        $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
-        if ($this->isLockedOwned($entityId)) {
-            $event = WithLock::onEntity($id, $event);
-        }
-
-        $this->taskController->fire($event);
-    }
-
-    public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
-    {
-        $this->durableLogger->debug('Calling entity', ['entityId' => $entityId, 'operation' => $operation]);
-
-        $id = StateId::fromInstance($this->id);
-
-        $event = AwaitResult::forEvent(
-            $id,
-            WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args))
-        );
-        if ($this->isLockedOwned($entityId)) {
-            $event = WithLock::onEntity($id, $event);
-        }
-
-        $identity = $this->newGuid()->toString();
-
-        return $this->createFuture(
-            fn() => $this->taskController->fire($event),
-            fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
-            $identity
-        );
-    }
-
     public function getRandomInt(int $min, int $max): int
     {
         ++$this->randomKey;
@@ -530,6 +478,17 @@ final class OrchestrationContext implements OrchestrationContextInterface
         };
     }
 
+    public function __construct(
+        private readonly OrchestrationInstance $id,
+        private readonly OrchestrationHistory $history,
+        private readonly Task $taskController,
+        private readonly OrchestratorProxy $proxyGenerator,
+        private readonly SpyProxy $spyProxy,
+        private readonly DurableLogger $durableLogger
+    ) {
+        $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
+    }
+
     public function entityOp(string|EntityId $id, \Closure $operation): mixed
     {
         $func = new \ReflectionFunction($operation);
@@ -571,5 +530,46 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $this->signalEntity($entityId, $operationName, $arguments);
 
         return null;
+    }
+
+    public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture
+    {
+        $this->durableLogger->debug('Calling entity', ['entityId' => $entityId, 'operation' => $operation]);
+
+        $id = StateId::fromInstance($this->id);
+
+        $event = AwaitResult::forEvent(
+            $id,
+            WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args))
+        );
+        if ($this->isLockedOwned($entityId)) {
+            $event = WithLock::onEntity($id, $event);
+        }
+
+        $identity = $this->newGuid()->toString();
+
+        return $this->createFuture(
+            fn() => $this->taskController->fire($event),
+            fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
+            $identity
+        );
+    }
+
+    public function signalEntity(EntityId $entityId, string $operation, array $args = []): void
+    {
+        if ($this->isReplaying()) {
+            return;
+        }
+
+        $this->durableLogger->debug('Signalling entity', ['entityId' => $entityId, 'operation' => $operation]);
+
+        $id = StateId::fromInstance($this->id);
+
+        $event = WithEntity::forInstance(StateId::fromEntityId($entityId), RaiseEvent::forOperation($operation, $args));
+        if ($this->isLockedOwned($entityId)) {
+            $event = WithLock::onEntity($id, $event);
+        }
+
+        $this->taskController->fire($event);
     }
 }

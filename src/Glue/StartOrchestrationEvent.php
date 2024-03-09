@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,33 +21,29 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\State\Nats;
+namespace Bottledcode\DurablePhp;
 
-use Bottledcode\DurablePhp\Events\AwaitResult;
+require_once __DIR__ . '/autoload.php';
+
 use Bottledcode\DurablePhp\Events\EventDescription;
-use Bottledcode\DurablePhp\Events\ExecutionTerminated;
-use Bottledcode\DurablePhp\Events\RaiseEvent;
-use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\StartExecution;
-use Bottledcode\DurablePhp\Events\StartOrchestration;
-use Bottledcode\DurablePhp\Events\TaskCompleted;
-use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Ramsey\Uuid\Uuid;
 
-interface ApplyStateInterface
-{
-    public function applyAwaitResult(AwaitResult $event, EventDescription $original): void;
+$data = file_get_contents('php://input');
+$data = json_decode($data, true);
 
-    public function applyExecutionTerminated(ExecutionTerminated $event, EventDescription $original): void;
+$name = $data['name'];
+$name = base64_encode($name);
+$name = rtrim($name, "=");
 
-    public function applyRaiseEvent(RaiseEvent $event, EventDescription $original): void;
+$id = new OrchestrationInstance($name, $data['id'] ?? Uuid::uuid7());
+header("Id: $id->instanceId.$id->executionId");
+$id = StateId::fromInstance($id);
 
-    public function applyScheduleTask(ScheduleTask $event, EventDescription $original): void;
+$event = WithOrchestration::forInstance($id, StartExecution::asParent($data['input'], []));
+$description = new EventDescription($event);
 
-    public function applyStartExecution(StartExecution $event, EventDescription $original): void;
-
-    public function applyStartOrchestration(StartOrchestration $event, EventDescription $original): void;
-
-    public function applyTaskCompleted(TaskCompleted $event, EventDescription $original): void;
-
-    public function applyTaskFailed(TaskFailed $event, EventDescription $original): void;
-}
+echo $description->toStream();

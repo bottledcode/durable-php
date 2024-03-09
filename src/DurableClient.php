@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -23,6 +23,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Amp\Http\Client\HttpClientBuilder;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -30,12 +31,22 @@ use Bottledcode\DurablePhp\State\Status;
 use DateTimeImmutable;
 use Generator;
 
-class DurableClient implements DurableClientInterface
+final readonly class DurableClient implements DurableClientInterface
 {
     public function __construct(
         private EntityClientInterface $entityClient,
         private OrchestrationClientInterface $orchestrationClient
     ) {}
+
+    public static function get(string $apiHost = 'http://localhost:8080'): self
+    {
+        $builder = new HttpClientBuilder();
+        $builder->retry(3);
+
+        $httpClient = $builder->build();
+
+        return new self(new RemoteEntityClient($apiHost, $httpClient), new RemoteOrchestrationClient($apiHost, $httpClient));
+    }
 
     public function cleanEntityStorage(): void
     {
@@ -51,7 +62,7 @@ class DurableClient implements DurableClientInterface
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null
     ): void {
         $this->entityClient->signalEntity($entityId, $operationName, $input, $scheduledTime);
     }
@@ -106,7 +117,7 @@ class DurableClient implements DurableClientInterface
         $this->orchestrationClient->waitForCompletion($instance);
     }
 
-    public function getEntitySnapshot(EntityId $entityId): EntityState|null
+    public function getEntitySnapshot(EntityId $entityId): ?EntityState
     {
         return $this->entityClient->getEntitySnapshot($entityId);
     }
