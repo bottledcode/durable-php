@@ -62,7 +62,7 @@ class Glue
         } catch (JsonException) {
             $this->payload = [];
         }
-        $this->logger->alert("Got payload", ['raw' => $payload, 'parsed' => $this->payload]);
+        $this->logger->debug("Got payload", ['raw' => $payload, 'parsed' => $this->payload]);
 
         $this->streamHandle = fopen('php://input', 'r+b');
     }

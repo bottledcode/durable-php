@@ -41,7 +41,7 @@ func setEnv(options map[string]string) {
 }
 
 func execute(args []string, options map[string]string) int {
-	logger, err := zap.NewDevelopment()
+	logger, err := zap.NewProduction()
 	if err != nil {
 		panic(err)
 	}
@@ -88,14 +88,17 @@ func execute(args []string, options map[string]string) int {
 	}
 
 	if options["no-activities"] != "true" {
+		logger.Info("Starting activity consumer")
 		go lib.BuildConsumer(stream, ctx, streamName, lib.Activity, logger, js)
 	}
 
 	if options["no-entities"] != "true" {
+		logger.Info("Starting entity consumer")
 		go lib.BuildConsumer(stream, ctx, streamName, lib.Entity, logger, js)
 	}
 
 	if options["no-orchestrations"] != "true" {
+		logger.Info("Starting orchestration consumer")
 		go lib.BuildConsumer(stream, ctx, streamName, lib.Orchestration, logger, js)
 	}
 
@@ -104,7 +107,12 @@ func execute(args []string, options map[string]string) int {
 		port = "8080"
 	}
 
-	lib.Startup(ctx, js, logger, port, streamName)
+	if options["no-api"] != "true" {
+		lib.Startup(ctx, js, logger, port, streamName)
+	} else {
+		block := make(chan struct{})
+		<-block
+	}
 
 	return 0
 }
@@ -192,6 +200,7 @@ func main() {
 		WithOption(cli.NewOption("no-orchestrations", "Do not parse orchestrations").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("bootstrap", "A file that initializes a container, otherwise one will be generated for you").WithChar('b').WithType(cli.TypeString)).
+		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
 		WithCommand(run).
 		WithCommand(init).
 		WithCommand(version).

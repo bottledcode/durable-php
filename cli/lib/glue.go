@@ -155,7 +155,7 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				stateFile := getStateFile(id, stream, ctx, logger)
+				stateFile, _ := getStateFile(id, stream, ctx, logger)
 
 				mu.Lock()
 				defer mu.Unlock()
@@ -177,7 +177,67 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 	return writer.events, writer.Header(), writer.status
 }
 
-func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) *os.File {
+func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*os.File, func() error) {
+	if id.kind == Orchestration {
+		// orchestrations use optimistic concurrency and the kv store for state
+		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket:      string(Orchestration),
+			Description: "Holds orchestration state and history",
+			Compression: true,
+		})
+		if err != nil {
+			panic(err)
+		}
+		stateFile, err := os.CreateTemp("", "state")
+		defer stateFile.Close()
+		logger.Debug("Created stateFile", zap.String("filename", stateFile.Name()))
+
+		toCreate := true
+
+		get, err := bucket.Get(ctx, id.toSubject().String())
+		if err == nil {
+			toCreate = false
+			_, err = io.Copy(stateFile, bytes.NewReader(get.Value()))
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		go func() {
+			<-ctx.Done()
+			logger.Debug("Deleting stateFile", zap.String("filename", stateFile.Name()))
+			err := os.Remove(stateFile.Name())
+			if err != nil {
+				logger.Warn("Unable to delete stateFile", zap.String("name", stateFile.Name()))
+			}
+		}()
+
+		return stateFile, func() error {
+			fileData, err := os.ReadFile(stateFile.Name())
+			if err != nil {
+				return err
+			}
+
+			if toCreate {
+				_, err := bucket.Create(ctx, id.toSubject().String(), fileData)
+				if err != nil {
+					return err
+				}
+			} else {
+				_, err := bucket.Update(ctx, id.toSubject().String(), fileData, get.Revision())
+				if err != nil {
+					return err
+				}
+			}
+
+			//logger.Info("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", "orchestrations"), zap.String("key", get.Key()))
+			logger.Debug("State file updated", zap.String("name", stateFile.Name()))
+			// now we just need to watch the right key!
+
+			return nil
+		}
+	}
+
 	obj, err := GetObjectStore(id.kind, stream, ctx)
 	if err != nil {
 		panic(err)
@@ -204,35 +264,30 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 		}
 	}()
 
-	return stateFile
-}
-
-func updateStateFile(id *StateId, stateFile *os.File, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) {
-	obj, err := GetObjectStore(id.kind, stream, ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	info, err := obj.PutFile(ctx, stateFile.Name())
-	if err != nil {
-		panic(err)
-	}
-
-	link, err := obj.AddLink(ctx, id.toSubject().String(), info)
-	if err != nil {
-		panic(err)
-	}
-	if link.Headers.Get(string(HeaderStateId)) == "" {
-		if link.Headers == nil {
-			link.Headers = make(nats.Header)
-		}
-
-		link.Headers.Add(string(HeaderStateId), id.String())
-		err = obj.UpdateMeta(ctx, id.toSubject().String(), link.ObjectMeta)
+	return stateFile, func() error {
+		info, err := obj.PutFile(ctx, stateFile.Name())
 		if err != nil {
-			panic(err)
+			return err
 		}
-	}
 
-	logger.Info("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
+		link, err := obj.AddLink(ctx, id.toSubject().String(), info)
+		if err != nil {
+			return err
+		}
+		if link.Headers.Get(string(HeaderStateId)) == "" {
+			if link.Headers == nil {
+				link.Headers = make(nats.Header)
+			}
+
+			link.Headers.Add(string(HeaderStateId), id.String())
+			err = obj.UpdateMeta(ctx, id.toSubject().String(), link.ObjectMeta)
+			if err != nil {
+				return err
+			}
+		}
+
+		logger.Debug("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
+
+		return nil
+	}
 }

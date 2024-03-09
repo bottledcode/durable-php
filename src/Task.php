@@ -53,10 +53,10 @@ class Task
         $stateId = $this->glue->target;
 
         $event = EventDescription::fromStream($_SERVER['EVENT']);
-        $this->logger->info("Invoking event $event->innerEvent");
+        $this->logger->debug("Invoking event $event->innerEvent");
 
         $state = $this->loadState();
-        $this->logger->alert('Got state', ['state' => $state]);
+        $this->logger->debug('Got state', ['state' => $state]);
 
         switch ($stateId->getStateType()) {
             case ActivityHistory::class:
@@ -184,7 +184,7 @@ class Task
         fseek($this->glue->payloadHandle, 0);
         ftruncate($this->glue->payloadHandle, 0);
         fwrite($this->glue->payloadHandle, json_encode(Serializer::serialize($state), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
-        $this->logger->alert('wrote state:', ['state' => $state, $_SERVER['HTTP_DPHP_PAYLOAD']]);
+        $this->logger->debug('wrote state:', ['state' => $state, $_SERVER['HTTP_DPHP_PAYLOAD']]);
     }
 
     public function getState(string $target): StateInterface

@@ -11,7 +11,7 @@ import (
 )
 
 func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
-	logger.Info("Creating consumer", zap.String("stream", streamName), zap.String("kind", string(kind)))
+	logger.Debug("Creating consumer", zap.String("stream", streamName), zap.String("kind", string(kind)))
 
 	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		AckPolicy:      jetstream.AckExplicitPolicy,
@@ -43,7 +43,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 			headers := msg.Headers()
 
 			if headers.Get("Delay") != "" && meta.NumDelivered == 1 {
-				logger.Info("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
+				logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
 				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 				if err != nil {
 					panic(err)
@@ -68,20 +68,20 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
 func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, streamName string) error {
-	logger.Info("Received message", zap.Any("msg", msg))
+	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
 	id := ParseStateId(msg.Headers().Get(string(HeaderStateId)))
-	if id.kind == Entity || id.kind == Orchestration {
-		lockSubject(id.toSubject(), js, logger)
-		defer unlockSubject(id.toSubject(), js, logger)
+	if id.kind == Entity {
+		lockSubject(ctx, id.toSubject(), js, logger)
+		defer unlockSubject(ctx, id.toSubject(), js, logger)
 	}
 
 	ctx, cancelCtx := context.WithCancel(ctx)
 	defer cancelCtx()
 
 	// get the object
-	stateFile := getStateFile(id, js, ctx, logger)
+	stateFile, update := getStateFile(id, js, ctx, logger)
 
 	// call glue with the associated bits
 	glu := &glue{
@@ -99,8 +99,15 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js)
 
-	// now update the stored state
-	updateStateFile(id, stateFile, js, ctx, logger)
+	// now update the stored state, if this fails due to optimistic concurrency, we immediately nak and fail
+	err := update()
+	if err != nil {
+		err := msg.Nak()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 
 	// now we send our messages before acknowledging
 	for _, msg := range msgs {
@@ -114,7 +121,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	}
 
 	// and finally, ack the message
-	err := msg.Ack()
+	err = msg.Ack()
 	if err != nil {
 		return err
 	}

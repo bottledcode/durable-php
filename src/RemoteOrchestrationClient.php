@@ -130,11 +130,13 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     {
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
-        $req = new Request("$this->apiHost/orchestration/$name/$id?wait=1");
+        $req = new Request("$this->apiHost/orchestration/$name/$id?wait=60");
         $req->setInactivityTimeout(Hours(1)->inSeconds());
         $req->setTcpConnectTimeout(Seconds(1)->inSeconds());
         $req->setTransferTimeout(Hours(1)->inSeconds());
         $result = $this->client->request($req);
-        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
+        $result = $result->getBody()->read();
+
+
     }
 }

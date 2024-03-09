@@ -39,8 +39,8 @@ $logger = new DurableLogger();
 
 $watch = new StopWatch();
 $watch->start();
-$numberToLaunch = 1;// getenv('ACTIVITY_COUNT') ?: 5000 / 200;
-$numberLaunchers = 1;
+$numberToLaunch = getenv('ACTIVITY_COUNT') ?: 1000 / 200;
+$numberLaunchers = 200;
 for ($i = 0; $i < $numberLaunchers; $i++) {
     $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),

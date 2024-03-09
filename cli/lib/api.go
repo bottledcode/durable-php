@@ -2,7 +2,6 @@ package lib
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -86,12 +85,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		id := &activityId{
 			id: vars["id"],
 		}
-
-		store, err := GetObjectStore("activities", js, context.Background())
+		err := OutputStatus(ctx, writer, id.toStateId(), js, logger)
 		if err != nil {
-			panic(err)
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to output status", zap.Error(err))
 		}
-		OutputStatus(writer, store, id.toStateId(), logger)
 	})
 
 	// GET /entities
@@ -247,68 +245,72 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		store, err := GetObjectStore("orchestrations", js, context.Background())
-		if err != nil {
-			panic(err)
-		}
-
 		if !request.URL.Query().Has("wait") {
-			OutputStatus(writer, store, id.toStateId(), logger)
+			err := OutputStatus(ctx, writer, id.toStateId(), js, logger)
+			if err != nil {
+				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 
 		if request.URL.Query().Has("wait") {
 			logger.Debug("Waiting for key change", zap.String("key", id.String()))
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*60)
-			defer cancel()
-			watch, err := store.Watch(ctx)
+			timeout, err := time.ParseDuration(request.URL.Query().Get("wait") + "s")
 			if err != nil {
-				cancel()
+				timeout = time.Minute
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			bucket, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+				Bucket:      string(Orchestration),
+				Description: "Holds orchestration state and history",
+				Compression: true,
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			watcher, err := bucket.Watch(ctx, id.toStateId().toSubject().String())
+			if err != nil {
 				panic(err)
 				return
 			}
 
-			for update := range watch.Updates() {
-				logger.Debug("Got update", zap.Any("update", update))
+			for update := range watcher.Updates() {
 				if update == nil {
 					logger.Debug("Skipping change")
 					continue
 				}
 
-				if update.Headers.Get(string(HeaderStateId)) == id.toStateId().String() {
-					logger.Debug("Got change", zap.String("name", id.String()), zap.Any("update", update))
-					status, err := GetStatus(writer, store, id.toStateId())
-					if err != nil {
-						http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-						return
-					}
-
-					if runtimeStatus, ok := status.(map[string]interface{})["runtimeStatus"].(string); ok {
-						switch runtimeStatus {
-						case "Completed":
-						case "Failed":
-						case "Canceled":
-						case "Terminated":
-							marshal, err := json.Marshal(status)
-							if err != nil {
-								http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-								return
-							}
-							_, err = writer.Write(marshal)
-							if err != nil {
-								http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-								return
-							}
-							cancel()
+				logger.Debug("Got change!")
+				status, err := extractStatus(update.Value())
+				if err != nil {
+					http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+				if runtimeStatus, ok := status.(map[string]interface{})["runtimeStatus"].(string); ok {
+					switch runtimeStatus {
+					case "Completed":
+						fallthrough
+					case "Failed":
+						fallthrough
+					case "Canceled":
+						fallthrough
+					case "Terminated":
+						logger.Debug("Got a completed status", zap.String("status", runtimeStatus))
+						if err := writeStatus(writer, status); err != nil {
 							return
-						default:
-							continue
 						}
+						return
+					default:
+						logger.Debug("Got an incomplete status", zap.String("status", runtimeStatus))
+						continue
 					}
 				}
 			}
 		}
-
 		http.Error(writer, "Invalid Request", http.StatusBadRequest)
 	})
 
@@ -344,40 +346,32 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
 }
 
-func GetStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *StateId) (interface{}, error) {
-	jsonStr, err := store.GetString(context.Background(), id.toSubject().String())
-	if err != nil {
-		http.Error(writer, "Not Found", http.StatusNotFound)
-		return nil, err
-	}
-
-	stateJson, err := base64.StdEncoding.DecodeString(jsonStr)
-	if err != nil {
-		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-		return nil, err
-	}
-
+func extractStatus(stateJson []byte) (interface{}, error) {
 	var state map[string]interface{}
 	if err := json.Unmarshal(stateJson, &state); err != nil {
-		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return nil, err
 	}
 
 	return state["status"], nil
 }
 
-func OutputStatus(writer http.ResponseWriter, store jetstream.ObjectStore, id *StateId, logger *zap.Logger) {
-	status, _ := GetStatus(writer, store, id)
-	if status == nil {
-		return
+func readStatus(stateFile *os.File) ([]byte, error) {
+	jsonStr, err := os.ReadFile(stateFile.Name())
+	if err != nil {
+		return nil, err
 	}
 
-	writer.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(writer).Encode(status); err != nil {
-		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-		logger.Error("Failed to encode json", zap.Error(err))
-		return
+	return jsonStr, nil
+}
+
+func writeStatus(w http.ResponseWriter, status interface{}) error {
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return err
 	}
+
+	return nil
 }
 
 func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
@@ -399,4 +393,28 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	if err := json.NewEncoder(writer).Encode(names); err != nil {
 		panic(err)
 	}
+}
+
+func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *StateId, stream jetstream.JetStream, logger *zap.Logger) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stateFile, _ := getStateFile(id, stream, ctx, logger)
+	defer stateFile.Close()
+
+	state, err := readStatus(stateFile)
+	if err != nil {
+		return err
+	}
+
+	status, err := extractStatus(state)
+	if err != nil {
+		return err
+	}
+
+	err = writeStatus(writer, status)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
