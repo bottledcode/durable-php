@@ -53,6 +53,21 @@ func getLogger(options map[string]string) *zap.Logger {
 	return zap.New(core)
 }
 
+func findBootstrap(options map[string]string, logger *zap.Logger) string {
+	bootstrap := options["bootstrap"]
+
+	if options["bootstrap"] == "" {
+		bootstrap = "src/bootstrap.php"
+	}
+
+	if _, err := os.Stat(bootstrap); err != nil {
+		logger.Warn("Bootstrap file does not exist; default DI implementation used", zap.String("filename", bootstrap))
+		return ""
+	}
+
+	return bootstrap
+}
+
 func execute(args []string, options map[string]string) int {
 	logger := getLogger(options)
 
@@ -69,7 +84,7 @@ func execute(args []string, options map[string]string) int {
 	if err != nil {
 		panic(err)
 	}
-	ctx := context.WithValue(context.Background(), "bootstrap", options["bootstrap"])
+	ctx := context.WithValue(context.Background(), "bootstrap", findBootstrap(options, logger))
 
 	streamName := options["stream"]
 	if streamName == "" {
