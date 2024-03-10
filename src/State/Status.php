@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\fp\Evolvable;
 
@@ -31,15 +32,13 @@ readonly class Status
 {
     use Evolvable;
 
-
-
     public function __construct(
         public \DateTimeImmutable $createdAt,
         public string $customStatus,
-        public array $input,
+        public SerializedArray $input,
         public StateId $id,
         public \DateTimeImmutable $lastUpdated,
-        public array|null $output,
+        public SerializedArray|null $output,
         public RuntimeStatus $runtimeStatus,
     ) {}
 }

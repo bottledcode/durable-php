@@ -222,7 +222,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function getInput(): array
     {
-        return $this->history->status->input;
+        return $this->history->status->input->toArray();
     }
 
     public function setCustomStatus(string $customStatus): void
