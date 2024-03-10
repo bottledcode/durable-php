@@ -63,7 +63,7 @@ class RemoteEntityClient implements EntityClientInterface
         $spy = $this->spyProxy->define($interfaceName);
         $operationName = '';
         $arguments = [];
-        $class = $spy($operationName, $arguments);
+        $class = new $spy($operationName, $arguments);
         $signal($class);
         $this->signalEntity(is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments);
     }
