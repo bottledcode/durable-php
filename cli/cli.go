@@ -270,6 +270,7 @@ func main() {
 		WithCommand(version).
 		WithCommand(inspect).
 		WithCommand(cli.NewCommand("composer", "Shim around composer.phar -- run dphp composer --help for composer help")).
+		WithCommand(cli.NewCommand("exec", "Execute a php script")).
 		WithAction(execute)
 
 	if len(os.Args) > 1 && os.Args[1] == "composer" {
@@ -278,6 +279,11 @@ func main() {
 		}
 
 		code := frankenphp.ExecuteScriptCLI("bin/composer.phar", os.Args[1:])
+		os.Exit(code)
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "exec" {
+		code := frankenphp.ExecuteScriptCLI(os.Args[2], os.Args[2:])
 		os.Exit(code)
 	}
 
