@@ -9,17 +9,14 @@ fi
 
 arch="$(uname -m)"
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+md5binary="md5sum"
 if [ "${os}" = "darwin" ]; then
     os="mac"
+    md5binary="md5 -q"
 fi
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
-    if [ "${os}" = "mac" ] && [ "${arch}" = "x86_64" ]; then
-        # Temporary fix for https://github.com/crazywhalecc/static-php-cli/issues/280 (remove ldap)
-        export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,exif,fileinfo,filter,gd,iconv,igbinary,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,simplexml,sockets,sodium,sqlite3,sysvsem,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
-    else
-        export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,exif,fileinfo,filter,gd,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,simplexml,sockets,sodium,sqlite3,sysvsem,tokenizer,xml,xmlreader,xmlwriter,zip,zlib" 
-    fi
+    export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,exif,fileinfo,filter,gd,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,simplexml,sockets,sodium,sqlite3,sysvsem,tokenizer,xml,xmlreader,xmlwriter,zip,zlib" 
 fi
 
 if [ -z "${PHP_EXTENSION_LIBS}" ]; then
@@ -57,7 +54,7 @@ if [ -n "${CLEAN}" ]; then
     go clean -cache
 fi
 
-# Build libphp if ncessary
+# Build libphp if necessary
 if [ -f "dist/static-php-cli/buildroot/lib/libphp.a" ]; then
     cd dist/static-php-cli    
 else
@@ -73,16 +70,20 @@ else
     fi
 
     if type "brew" > /dev/null; then
-        packages="composer"
+        if ! type "composer" > /dev/null; then
+            packages="composer"
+        fi
         if ! type "go" > /dev/null; then
             packages="${packages} go"
         fi
-        if [ -n "${RELEASE}" ]; then
+        if [ -n "${RELEASE}" ] && ! type "gh" > /dev/null; then
             packages="${packages} gh"
         fi
 
-        # shellcheck disable=SC2086
-        brew install --formula --quiet ${packages}
+        if [ -n "${packages}" ]; then
+            # shellcheck disable=SC2086
+            brew install --formula --quiet ${packages}
+        fi
     fi
 
     composer install --no-dev -a
@@ -123,7 +124,7 @@ cd ../..
 # Embed PHP app, if any
 if [ -n "${EMBED}" ] && [ -d "${EMBED}" ]; then
     tar -cf app.tar -C "${EMBED}" .
-    md5 -q app.tar > app_checksum.txt
+    ${md5binary} app.tar > app_checksum.txt
 fi
 
 if [ "${os}" = "linux" ]; then
@@ -142,6 +143,10 @@ cd ../..
 if [ -d "${EMBED}" ]; then
     truncate -s 0 app.tar
     truncate -s 0 app_checksum.txt
+fi
+
+if type "upx" > /dev/null && [ -z "${DEBUG_SYMBOLS}" ]; then
+    upx --best "dist/${bin}"
 fi
 
 "dist/${bin}" version

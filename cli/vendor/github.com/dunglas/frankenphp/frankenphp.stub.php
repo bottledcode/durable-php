@@ -31,3 +31,4 @@ function frankenphp_response_headers(): array|bool {}
  * @alias frankenphp_response_headers
  */
 function apache_response_headers(): array|bool {}
+
