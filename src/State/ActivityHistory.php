@@ -33,6 +33,7 @@ use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\MonotonicClock;
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 
@@ -61,11 +62,11 @@ class ActivityHistory extends AbstractHistory
         if ($this->isFinished()) {
             if ($this->status->runtimeStatus === RuntimeStatus::Completed) {
                 foreach ($replyTo as $id) {
-                    yield WithOrchestration::forInstance($id, TaskCompleted::forId($original->eventId, Serializer::deserialize($this->status->output[0], $this->status->output[1])));
+                    yield WithOrchestration::forInstance($id, TaskCompleted::forId($original->eventId, $this->status->output?->toArray()[0] ?? null));
                 }
             }
             if ($this->status->runtimeStatus === RuntimeStatus::Failed) {
-                $exception = Serializer::deserialize($this->status->output, ExternalException::class);
+                $exception = $this->status->output->toArray()[0];
                 foreach ($replyTo as $id) {
                     yield WithOrchestration::forInstance($id, TaskFailed::forTask($original->eventId, $exception->message, $exception->trace, $exception->type));
                 }
@@ -91,10 +92,10 @@ class ActivityHistory extends AbstractHistory
             $this->status = new Status(
                 $now,
                 '',
-                $event->input,
+                SerializedArray::fromArray($event->input),
                 $this->id,
                 $now,
-                [Serializer::serialize($result), get_debug_type($result)],
+                SerializedArray::fromArray([$result]),
                 RuntimeStatus::Completed
             );
             foreach ($replyTo as $id) {
@@ -108,10 +109,10 @@ class ActivityHistory extends AbstractHistory
             $this->status = new Status(
                 $now,
                 '',
-                $event->input,
+                SerializedArray::fromArray($event->input),
                 $this->id,
                 $now,
-                Serializer::serialize(ExternalException::fromException($e)),
+                SerializedArray::fromArray([ExternalException::fromException($e)]),
                 RuntimeStatus::Failed
             );
             foreach ($replyTo as $id) {
