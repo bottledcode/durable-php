@@ -65,10 +65,10 @@ class RemoteEntityClient implements EntityClientInterface
         $arguments = [];
         try {
             $class = new $spy($operationName, $arguments);
+            $signal($class);
         } catch(\Throwable) {
             // spies always throw
         }
-        $signal($class);
         $this->signalEntity(is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments);
     }
 
