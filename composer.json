@@ -25,20 +25,11 @@
   },
   "license": "MIT",
   "name": "bottledcode/durable-php",
-  "repositories": [
-    {
-      "type": "github",
-      "url": "https://github.com/withinboredom/nats.php"
-    }
-  ],
   "require": {
-    "adhocore/cli": "^v1.0.0",
     "amphp/file": "^3.0.2",
     "amphp/http-client": "^v5.0.1",
     "amphp/log": "^v2.0.0",
     "amphp/parallel": "^v2",
-    "basis-company/nats": "dev-amphp",
-    "bottledcode/php-rql": "dev-master",
     "crell/serde": "^1.1.0",
     "nesbot/carbon": ">2.0",
     "php": ">=8.3",
@@ -48,15 +39,10 @@
   "require-dev": {
     "laravel/pint": "^1.13.11",
     "mockery/mockery": "^1.6.7",
-    "pestphp/pest": "^2.33.6",
-    "squizlabs/php_codesniffer": "^3.8.1"
+    "pestphp/pest": "^2.33.6"
   },
   "scripts": {
     "test": "pest"
-  },
-  "suggest": {
-    "ext-parallel": "*",
-    "ext-uuid": "*"
   },
   "type": "library"
 }
