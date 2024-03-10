@@ -27,7 +27,7 @@ use Bottledcode\DurablePhp\State\Serializer;
 
 final readonly class SerializedArray
 {
-    private function __construct(public array $source, public array $types) {}
+    private function __construct(public array $source, public array $types, public array $keys) {}
 
     public static function fromArray(array $array): SerializedArray
     {
@@ -45,22 +45,25 @@ final readonly class SerializedArray
 
         $types = array_map(static fn(mixed $x) => get_debug_type($x), $array);
 
-        return new self($source, $types);
+        return new self($source, $types, array_keys($array));
     }
 
     public function toArray(): array
     {
-        return array_map(static function (mixed $source, string $type) {
-            if($type === 'array') {
-                return self::import($source)->toArray();
-            }
+        return array_combine(
+            $this->keys,
+            array_map(static function (mixed $source, string $type) {
+                if ($type === 'array') {
+                    return self::import($source)->toArray();
+                }
 
-            return is_array($source) ? Serializer::deserialize($source, $type) : $source;
-        }, $this->source, $this->types);
+                return is_array($source) ? Serializer::deserialize($source, $type) : $source;
+            }, $this->source, $this->types)
+        );
     }
 
     public static function import(array $source): SerializedArray
     {
-        return new self($source['source'], $source['types']);
+        return new self($source['source'], $source['types'], $source['keys']);
     }
 }

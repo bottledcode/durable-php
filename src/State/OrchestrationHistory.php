@@ -36,7 +36,6 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
-use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
@@ -210,16 +209,14 @@ class OrchestrationHistory extends AbstractHistory
 
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Completed,
-                output: Serializer::serialize($result),
+                output: SerializedArray::fromArray([$result ?? null]),
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
         } catch (\Throwable $e) {
             $this->logger->critical('Failed to process orchestration', ['exception' => $e]);
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Failed,
-                output: Serializer::serialize(
-                    ExternalException::fromException($e)
-                ),
+                output: SerializedArray::fromArray([$e]),
             );
             $completion = TaskFailed::forTask(
                 StateId::fromInstance($this->instance),
