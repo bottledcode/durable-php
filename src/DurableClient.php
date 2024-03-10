@@ -117,9 +117,9 @@ final readonly class DurableClient implements DurableClientInterface
         $this->orchestrationClient->waitForCompletion($instance);
     }
 
-    public function getEntitySnapshot(EntityId $entityId): ?EntityState
+    public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState
     {
-        return $this->entityClient->getEntitySnapshot($entityId);
+        return $this->entityClient->getEntitySnapshot($entityId, $type);
     }
 
     public function signal(EntityId|string $entityId, \Closure $signal): void
