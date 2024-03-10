@@ -130,6 +130,10 @@
       <path value="$PROJECT_DIR$/vendor/symfony/polyfill-php83" />
       <path value="$PROJECT_DIR$/vendor/symfony/polyfill-php80" />
       <path value="$PROJECT_DIR$/vendor/symfony/polyfill-intl-normalizer" />
+      <path value="$PROJECT_DIR$/vendor/bottledcode/php-rql" />
+      <path value="$PROJECT_DIR$/vendor/squizlabs/php_codesniffer" />
+      <path value="$PROJECT_DIR$/vendor/adhocore/cli" />
+      <path value="$PROJECT_DIR$/vendor/basis-company/nats" />
     </include_path>
   </component>
   <component name="PhpInterpreters">
