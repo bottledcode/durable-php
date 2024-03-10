@@ -63,6 +63,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     {
         $this->durableLogger->debug('Calling activity', ['name' => $name]);
         $identity = $this->newGuid();
+
         return $this->createFuture(
             fn() => $this->taskController->fire(
                 AwaitResult::forEvent(
@@ -84,7 +85,13 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function newGuid(): UuidInterface
     {
         $namespace = Guid::fromString('00e0be66-7498-45d1-90ca-be447398ea22');
-        $hash = sprintf('%s-%s-%d-%d', $this->id->instanceId, $this->id->executionId, $this->history->version, $this->guidCounter++);
+        $hash = sprintf(
+            '%s-%s-%d-%d',
+            $this->id->instanceId,
+            $this->id->executionId,
+            $this->history->version,
+            $this->guidCounter++
+        );
         return Uuid::uuid5($namespace, $hash);
     }
 
@@ -112,6 +119,35 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return $future;
     }
 
+    public function callActivityInline(\Closure $activity): DurableFuture
+    {
+        $identity = $this->newGuid();
+
+        return $this->createFuture(function () use ($activity, $identity) {
+            try {
+                $result = $activity();
+                $this->taskController->fire(WithOrchestration::forInstance(StateId::fromInstance($this->id), TaskCompleted::forId($identity->toString(), $result)));
+            } catch (\Throwable $exception) {
+                $this->taskController->fire(
+                    WithOrchestration::forInstance(
+                        StateId::fromInstance($this->id),
+                        TaskFailed::forTask(
+                            $identity->toString(),
+                            $exception->getMessage(),
+                            $exception->getTraceAsString(),
+                            $exception::class
+                        )
+                    )
+                );
+            }
+        }, function (Event $event, string $eventIdentity) use ($identity): array {
+            if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
+                return [$event, true];
+            }
+            return [null, false];
+        }, $identity->toString());
+    }
+
     public function callSubOrchestrator(
         string $name,
         array $args = [],
@@ -132,13 +168,15 @@ final class OrchestrationContext implements OrchestrationContextInterface
         }
 
         $this->history->restartAsNew($args);
-        $this->taskController->fire(WithOrchestration::forInstance(StateId::fromInstance($this->id), StartOrchestration::forInstance($this->id)));
+        $this->taskController->fire(
+            WithOrchestration::forInstance(StateId::fromInstance($this->id), StartOrchestration::forInstance($this->id))
+        );
         throw new Unwind();
     }
 
     public function createTimer(\DateTimeImmutable|\DateInterval $fireAt): DurableFuture
     {
-        if($fireAt instanceof \DateInterval) {
+        if ($fireAt instanceof \DateInterval) {
             $fireAt = $this->getCurrentTime()->add($fireAt);
         }
 
@@ -492,17 +530,17 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function entityOp(string|EntityId $id, \Closure $operation): mixed
     {
         $func = new \ReflectionFunction($operation);
-        if($func->getNumberOfParameters() !== 1) {
+        if ($func->getNumberOfParameters() !== 1) {
             throw new LogicException('Must only be a single parameter');
         }
-        $arg  = $func->getParameters()[0];
+        $arg = $func->getParameters()[0];
         $type = $arg->getType();
-        if($type === null || $type instanceof \ReflectionIntersectionType || $type instanceof \ReflectionUnionType) {
+        if ($type === null || $type instanceof \ReflectionIntersectionType || $type instanceof \ReflectionUnionType) {
             throw new LogicException('Must be a single type');
         }
 
         $name = $type->getName();
-        if(!interface_exists($name)) {
+        if (!interface_exists($name)) {
             throw new LogicException('Unable to load interface: ' . $name);
         }
 
@@ -512,18 +550,18 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $returns = false;
         try {
             $operation($signal);
-        } catch(\Exception) {
+        } catch (\Exception) {
             // there is a return
             $returns = true;
         }
 
-        if($operationName === null || $arguments === null) {
+        if ($operationName === null || $arguments === null) {
             throw new LogicException('Did not call an operation');
         }
 
         $entityId = $id instanceof EntityId ? $id : new EntityId($name, $id);
 
-        if($returns) {
+        if ($returns) {
             return $this->waitOne($this->callEntity($entityId, $operationName, $arguments));
         }
 
