@@ -392,7 +392,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         throw new Unwind();
     }
 
-    public function waitAll(DurableFuture ...$tasks): DurableFuture
+    public function waitAll(DurableFuture ...$tasks): array
     {
         $completed = $this->history->historicalTaskResults->awaitingFutures(...$tasks);
         if (count($completed) === count($tasks)) {
@@ -403,7 +403,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 // rethrow any exceptions
                 $complete->getResult();
             }
-            return current($tasks);
+            return array_map(static fn(DurableFuture $f) => $f->getResult(), $tasks);
         }
 
         $this->durableLogger->debug('Waiting for all tasks but not yet complete');

@@ -237,9 +237,9 @@ interface OrchestrationContextInterface
      * Returns once all futures have completed.
      *
      * @param DurableFuture ...$tasks
-     * @return DurableFuture<true>
+     * @return array
      */
-    public function waitAll(DurableFuture ...$tasks): DurableFuture;
+    public function waitAll(DurableFuture ...$tasks): array;
 
     /**
      * Returns the result (or throws on failure) once a single future has completed.
