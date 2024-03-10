@@ -27,7 +27,7 @@ import (
 func getLibraryDir(target string) (string, bool) {
 	dirs := []string{
 		filepath.Join("src", "Glue", target),
-		filepath.Join("vendor", "bottledcode", "src", "Glue", target),
+		filepath.Join("vendor", "bottledcode", "durable-php", "src", "Glue", target),
 	}
 
 	for _, dir := range dirs {
