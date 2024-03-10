@@ -254,6 +254,7 @@ func main() {
 		WithCommand(initCmd).
 		WithCommand(version).
 		WithCommand(inspect).
+		WithCommand(cli.NewCommand("composer", "Shim around composer.phar -- run dphp composer --help for composer help")).
 		WithAction(execute)
 
 	if len(os.Args) > 1 && os.Args[1] == "composer" {
@@ -261,7 +262,8 @@ func main() {
 			getLogger(make(map[string]string)).Fatal("bin/composer.phar is missing")
 		}
 
-		frankenphp.ExecuteScriptCLI("bin/composer.phar", os.Args[1:])
+		code := frankenphp.ExecuteScriptCLI("bin/composer.phar", os.Args[1:])
+		os.Exit(code)
 	}
 
 	os.Exit(app.Run(os.Args, os.Stdout))
