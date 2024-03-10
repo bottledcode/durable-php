@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	di "durable_php/init"
 	"durable_php/lib"
 	"encoding/json"
 	"fmt"
@@ -128,11 +129,11 @@ var env map[string]string
 
 func main() {
 	run := cli.NewCommand("run", "Starts a webserver and starts processing events").WithAction(execute)
-	init := cli.NewCommand("init", "Initialize a project").
+	initCmd := cli.NewCommand("init", "Initialize a project").
 		WithArg(cli.NewArg("Name", "The name of the project").
 			WithType(cli.TypeString)).
 		WithAction(func(args []string, options map[string]string) int {
-			return 0
+			return di.Execute(args, options, getLogger(options))
 		})
 	version := cli.NewCommand("version", "The current version").WithAction(func(args []string, options map[string]string) int {
 		fmt.Println("{{VERSION}}")
@@ -248,10 +249,18 @@ func main() {
 		WithOption(cli.NewOption("bootstrap", "A file that initializes a container, otherwise one will be generated for you").WithChar('b').WithType(cli.TypeString)).
 		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
 		WithCommand(run).
-		WithCommand(init).
+		WithCommand(initCmd).
 		WithCommand(version).
 		WithCommand(inspect).
 		WithAction(execute)
+
+	if os.Args[1] == "composer" {
+		if _, err := os.Stat("bin/composer.phar"); err != nil {
+			getLogger(make(map[string]string)).Fatal("bin/composer.phar is missing")
+		}
+
+		frankenphp.ExecuteScriptCLI("bin/composer.phar", os.Args[1:])
+	}
 
 	os.Exit(app.Run(os.Args, os.Stdout))
 }
