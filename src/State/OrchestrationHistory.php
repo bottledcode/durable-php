@@ -43,6 +43,7 @@ use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\Task;
 use Crell\Serde\Attributes\Field;
@@ -108,7 +109,15 @@ class OrchestrationHistory extends AbstractHistory
         $this->parentInstance = $event->parentInstance ?? null;
         $this->history = [];
         $this->historicalTaskResults = new HistoricalStateTracker();
-        $this->status = new Status($this->now, '', $event->input, $this->id, $this->now, [], RuntimeStatus::Pending);
+        $this->status = new Status(
+            $this->now,
+            '',
+            SerializedArray::fromArray($event->input),
+            $this->id,
+            $this->now,
+            SerializedArray::fromArray([]),
+            RuntimeStatus::Pending,
+        );
 
         yield StartOrchestration::forInstance($this->instance);
 
@@ -121,10 +130,10 @@ class OrchestrationHistory extends AbstractHistory
         ($this->status?->with(lastUpdated: MonotonicClock::current()->now())) ?? $this->status = new Status(
             MonotonicClock::current()->now(),
             '',
-            [],
+            SerializedArray::fromArray([]),
             $this->id,
             MonotonicClock::current()->now(),
-            [],
+            SerializedArray::fromArray([]),
             RuntimeStatus::Unknown
         );
 
