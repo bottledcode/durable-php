@@ -248,13 +248,15 @@ func main() {
 		WithOption(cli.NewOption("nats-server", "The server to connect to").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("bootstrap", "A file that initializes a container, otherwise one will be generated for you").WithChar('b').WithType(cli.TypeString)).
 		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
+		WithOption(cli.NewOption("verbose", "Enable info level logging").WithType(cli.TypeBool)).
+		WithOption(cli.NewOption("debug", "Enable debug logging").WithType(cli.TypeBool)).
 		WithCommand(run).
 		WithCommand(initCmd).
 		WithCommand(version).
 		WithCommand(inspect).
 		WithAction(execute)
 
-	if os.Args[1] == "composer" {
+	if len(os.Args) > 1 && os.Args[1] == "composer" {
 		if _, err := os.Stat("bin/composer.phar"); err != nil {
 			getLogger(make(map[string]string)).Fatal("bin/composer.phar is missing")
 		}
