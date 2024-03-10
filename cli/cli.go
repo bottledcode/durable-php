@@ -36,6 +36,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 func getLogger(options map[string]string) *zap.Logger {
@@ -58,6 +59,13 @@ func findBootstrap(options map[string]string, logger *zap.Logger) string {
 
 	if options["bootstrap"] == "" {
 		bootstrap = "src/bootstrap.php"
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		logger.Error("Could not get the current working directory", zap.Error(err))
+	} else {
+		bootstrap = filepath.Join(cwd, bootstrap)
 	}
 
 	if _, err := os.Stat(bootstrap); err != nil {
