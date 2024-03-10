@@ -150,11 +150,11 @@ class Glue
 
     private function entityDecoder(): void
     {
-        $state = file_get_contents($_SERVER['HTTP_ENTITY_STATE']);
-        $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
-        $state = Serializer::deserialize($state, StateInterface::class);
-
-
+        $state = Serializer::deserialize($this->payload, StateInterface::class);
+        $state = Serializer::serialize($state, ['API']);
+        fseek($this->streamHandle, 0);
+        ftruncate($this->streamHandle, 0);
+        fwrite($this->streamHandle, json_encode($state, JSON_THROW_ON_ERROR));
     }
 }
 
