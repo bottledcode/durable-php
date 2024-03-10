@@ -5,7 +5,7 @@
     "prettier": "^3.2.5"
   },
   "lint-staged": {
-    "**/*.php": "./vendor/bin/pint",
+    "**/*.php": "./vendor/bin/pint --dirty",
     "**/*.json": "prettier",
     "**/*.md": "prettier"
   },

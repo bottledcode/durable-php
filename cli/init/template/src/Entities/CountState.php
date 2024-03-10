@@ -4,6 +4,7 @@ namespace {{.Name}}\Entities;
 
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\EntityContext;
+use {{.Name}}\Orchestrations\Counter;
 
 class CountState extends EntityState {
 	public int $count = 0;
@@ -11,7 +12,7 @@ class CountState extends EntityState {
 	public function countTo(int $number): void {
 		EntityContext::current()
 			->startNewOrchestration(
-				{{.Name}}\Orchestrations\Counter::name,
+				Counter::class,
 				['count' => $number, 'replyTo' => EntityContext::current()->getId()]
 			);
 	}
