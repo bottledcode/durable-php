@@ -44,6 +44,14 @@ interface OrchestrationContextInterface
     public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): DurableFuture;
 
     /**
+     * Calls an activity inline. There are no retries and exceptions will cause an immediate failure.
+     *
+     * @param \Closure $activity
+     * @return DurableFuture
+     */
+    public function callActivityInline(\Closure $activity): DurableFuture;
+
+    /**
      * Call an entity and get the response
      *
      * @template T
