@@ -26,6 +26,7 @@
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
+    "adhocore/cli": "^v1.0.0",
     "amphp/file": "^3.0.2",
     "amphp/http-client": "^v5.0.1",
     "amphp/log": "^v2.0.0",
