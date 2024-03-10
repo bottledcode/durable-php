@@ -1,0 +1,12 @@
+{
+  "autoload": {
+    "psr-4": {
+      "{{.Name}}\\": "src/"
+    }
+  },
+  "name": "project/{{.Name}}",
+  "require": {
+    "bottledcode/durable-php": "v2.x-dev"
+  },
+  "type": "project"
+}
