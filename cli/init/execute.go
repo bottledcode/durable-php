@@ -3,11 +3,11 @@ package init
 import (
 	"embed"
 	"go.uber.org/zap"
-	"html/template"
 	"io"
 	"os"
 	"path"
 	"strings"
+	"text/template"
 )
 
 //go:embed template/*
