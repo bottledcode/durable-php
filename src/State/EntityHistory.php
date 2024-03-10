@@ -39,6 +39,7 @@ use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Attributes\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
@@ -151,7 +152,7 @@ class EntityHistory extends AbstractHistory
 
         $this->name = $this->id->toEntityId()->name;
         $now = MonotonicClock::current()->now();
-        $this->status = new Status($now, '', [], $this->id, $now, [], RuntimeStatus::Running);
+        $this->status = new Status($now, '', SerializedArray::fromArray([]), $this->id, $now, SerializedArray::fromArray([]), RuntimeStatus::Running);
 
         $this->state = $this->container->get($this->name);
     }
