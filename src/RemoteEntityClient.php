@@ -108,6 +108,6 @@ class RemoteEntityClient implements EntityClientInterface
             return null;
         }
 
-        return Serializer::deserialize($result, $type);
+        return Serializer::deserialize($result, EntityState::class);
     }
 }
