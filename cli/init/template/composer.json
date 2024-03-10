@@ -6,7 +6,12 @@
   },
   "name": "project/{{.Name}}",
   "require": {
-    "bottledcode/durable-php": "v2.x-dev"
+    "bottledcode/durable-php": "v2.x-dev",
+    "php-di/php-di": "^7.0",
+    "php": ">=8.3"
+  },
+  "require-dev": {
+    "roave/security-advisories": "dev-latest"
   },
   "type": "project"
 }
