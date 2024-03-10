@@ -70,9 +70,10 @@ interface EntityClientInterface
     public function signal(EntityId|string $entityId, \Closure $signal): void;
 
     /**
-     * @template T
+     * @template T of EntityState
      * @param EntityId<T> $entityId
-     * @return EntityState<T>|null
+     * @param class-string<T> $type
+     * @return T|null
      */
-    public function getEntitySnapshot(EntityId $entityId): EntityState|null;
+    public function getEntitySnapshot(EntityId $entityId, string $type): EntityState|null;
 }

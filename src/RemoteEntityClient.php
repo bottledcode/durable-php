@@ -98,7 +98,7 @@ class RemoteEntityClient implements EntityClientInterface
     }
 
     #[\Override]
-    public function getEntitySnapshot(EntityId $entityId): ?EntityState
+    public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState
     {
         $req = new Request($this->apiHost . '/entity/' . $entityId->name . '/' . $entityId->id);
         $result = $this->client->request($req);
@@ -108,6 +108,6 @@ class RemoteEntityClient implements EntityClientInterface
             return null;
         }
 
-        return Serializer::deserialize($result, EntityState::class);
+        return Serializer::deserialize($result, $type);
     }
 }

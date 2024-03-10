@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\SerializedArray;
+use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
@@ -150,11 +151,18 @@ class Glue
 
     private function entityDecoder(): void
     {
-        $state = Serializer::deserialize($this->payload, StateInterface::class);
-        $state = Serializer::serialize($state, ['API']);
-        fseek($this->streamHandle, 0);
-        ftruncate($this->streamHandle, 0);
-        fwrite($this->streamHandle, json_encode($state, JSON_THROW_ON_ERROR));
+        $state = file_get_contents($_SERVER['HTTP_ENTITY_STATE']);
+        $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
+        $state = Serializer::deserialize($state, EntityHistory::class);
+        fseek($this->payloadHandle, 0);
+        ftruncate($this->payloadHandle, 0);
+        if($state->getState() !== null) {
+            $state = Serializer::serialize($state->getState(), ['API']);
+        } else {
+            fwrite($this->payloadHandle, 'null');
+            return;
+        }
+        fwrite($this->payloadHandle, json_encode($state, JSON_THROW_ON_ERROR));
     }
 }
 
