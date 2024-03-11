@@ -42,10 +42,11 @@ type InternalLoggingResponseWriter struct {
 	status  int
 	events  []*nats.Msg
 	query   chan []string
+	headers http.Header
 }
 
 func (w *InternalLoggingResponseWriter) Header() http.Header {
-	return http.Header{}
+	return w.headers
 }
 
 func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {

@@ -101,7 +101,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     {
         $data = ['input' => SerializedArray::fromArray($args)];
         $data = json_encode($data, JSON_THROW_ON_ERROR);
-        $req = new Request("$this->apiHost/orchestrations", 'PUT', $data);
+        $name = rawurlencode($name);
+        $id = $id ? "/" . rawurlencode($id) : '';
+        $req = new Request("$this->apiHost/orchestration/$name$id", 'PUT', $data);
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
             throw new \Exception($result->getBody()->read());
