@@ -11,7 +11,8 @@
     "php": ">=8.3"
   },
   "require-dev": {
-    "roave/security-advisories": "dev-latest"
+    "roave/security-advisories": "dev-latest",
+    "laravel/pint": "^1.14"
   },
   "type": "project"
 }
