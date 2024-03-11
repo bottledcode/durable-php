@@ -141,6 +141,7 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 		status:  0,
 		events:  make([]*nats.Msg, 0),
 		query:   make(chan []string),
+		headers: make(http.Header),
 	}
 
 	var wg sync.WaitGroup
