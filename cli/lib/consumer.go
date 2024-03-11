@@ -42,7 +42,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 			meta, _ := msg.Metadata()
 			headers := msg.Headers()
 
-			if headers.Get("Delay") != "" && meta.NumDelivered == 1 {
+			if headers.Get(string(HeaderDelay)) != "" && meta.NumDelivered == 1 {
 				logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
 				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 				if err != nil {

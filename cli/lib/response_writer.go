@@ -78,7 +78,7 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			}
 
 			if body.ScheduleAt.After(time.Now()) {
-				msg.Header.Add(string(HeaderDelay), body.ScheduleAt.String())
+				msg.Header.Add(string(HeaderDelay), body.ScheduleAt.Format(time.RFC3339))
 			}
 
 			w.events = append(w.events, msg)
