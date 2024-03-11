@@ -81,7 +81,7 @@ else
         cd static-php-cli/
         git pull
     else
-        git clone --depth 1 https://github.com/crazywhalecc/static-php-cli
+        git clone --depth 1 --branch patch-1 https://github.com/withinboredom/static-php-cli
         cd static-php-cli/
     fi
 
