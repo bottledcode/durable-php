@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\Status;
@@ -109,7 +110,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
             throw new \Exception($result->getBody()->read());
         }
 
-        return new OrchestrationInstance($name, $result->getHeader('X-Id'));
+        return (new StateId($result->getHeader('X-Id')))->toOrchestrationInstance();
     }
 
     #[\Override]
