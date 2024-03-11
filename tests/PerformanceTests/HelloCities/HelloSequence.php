@@ -28,7 +28,7 @@ use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
 class HelloSequence
 {
-    public function __invoke(OrchestrationContextInterface $context)
+    public function __invoke(OrchestrationContextInterface $context): array
     {
         $outputs = [
             $context->callActivity(SayHello::class, ['Tokyo']),
@@ -38,6 +38,6 @@ class HelloSequence
             $context->callActivity(SayHello::class, ['Seoul']),
         ];
 
-        return $context->waitAll(...$outputs)->getResult();
+        return $context->waitAll(...$outputs);
     }
 }
