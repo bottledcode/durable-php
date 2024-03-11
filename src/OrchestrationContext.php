@@ -212,7 +212,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $result = null;
             if ($event instanceof RaiseEvent && $event->eventName === $name) {
                 $found = true;
-                $result = $event;
+                $result = $event->with(eventData: SerializedArray::import($event->eventData)->toArray());
             }
 
             return [$result, $found];
