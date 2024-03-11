@@ -53,7 +53,7 @@ for ($i = 0; $i < $numberLaunchers; $i++) {
 }
 
 $ids = array_keys(array_fill(0, $numberToLaunch * $numberLaunchers, true));
-$ids = array_chunk($ids, 100);
+$ids = array_chunk($ids, 10);
 
 foreach($ids as $num => $chunk) {
     $getters = array_map(static fn($id) => async(fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
