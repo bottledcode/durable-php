@@ -31,7 +31,7 @@ fi
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-export CFLAGS="$CFLAGS -O3" CXXFLAGS="$CXXFLAGS -O3"
+export CFLAGS="$CFLAGS -O2 -march=native -pipe" CXXFLAGS="$CXXFLAGS -O2 -march=native -pipe"
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
     export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,zip,zlib"
