@@ -51,6 +51,7 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 
 WORKDIR /go/src/app
 COPY cli/build-php.sh .
+RUN BUILD=no ./build-php.sh
 RUN ./build-php.sh
 
 COPY cli/go.mod cli/go.sum ./

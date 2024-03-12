@@ -33,6 +33,7 @@ use Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities\HelloSequence;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
 use function Amp\async;
+use function Amp\delay;
 use function Amp\Future\await;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -45,15 +46,17 @@ $watch->start();
 $numberToLaunch = (getenv('ACTIVITY_COUNT') ?: 1000) / 200;
 $numberLaunchers = 200;
 for ($i = 0; $i < $numberLaunchers; $i++) {
-    $client->signalEntity(
+    async(fn() => $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),
         'launch',
         ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch]
-    );
+    ));
 }
 
+delay(1);
+
 $ids = array_keys(array_fill(0, $numberToLaunch * $numberLaunchers, true));
-$ids = array_chunk($ids, 10);
+$ids = array_chunk($ids, 100);
 
 foreach($ids as $num => $chunk) {
     $getters = array_map(static fn($id) => async(fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
