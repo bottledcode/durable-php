@@ -31,14 +31,15 @@ fi
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-export CFLAGS="$CFLAGS -O2 -march=native -pipe" CXXFLAGS="$CXXFLAGS -O2 -march=native -pipe"
+export CFLAGS="$CFLAGS -O3 -march=native -pipe" CXXFLAGS="$CXXFLAGS -O3 -march=native -pipe"
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
-    export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,zip,zlib"
+    #export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gd,gmp,iconv,igbinary,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,phar,posix,readline,simplexml,soap,sockets,sodium,sysvmsg,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,xsl,yaml,zip,zlib"
+    export PHP_EXTENSIONS="apcu,bz2,ctype,curl,dom,filter,igbinary,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,sockets,sodium,tokenizer,uuid,uv,zip,zlib"
 fi
 
 if [ -z "${PHP_EXTENSION_LIBS}" ]; then
-    export PHP_EXTENSION_LIBS="bzip2,freetype,libavif,libjpeg,libwebp,libzip"
+    export PHP_EXTENSION_LIBS=""
 fi
 
 if [ -z "${PHP_VERSION}" ]; then
@@ -81,7 +82,7 @@ else
         cd static-php-cli/
         git pull
     else
-        git clone --depth 1 --branch patch-1 https://github.com/withinboredom/static-php-cli
+        git clone --depth 1 --branch main https://github.com/withinboredom/static-php-cli
         cd static-php-cli/
     fi
 
@@ -105,7 +106,7 @@ else
     composer install --no-dev -a
 
     if [ "${os}" = "linux" ]; then
-        extraOpts="--disable-opcache-jit"
+        extraOpts="--disable-opcache-jit -I "memory_limit=2G" -I "opcache.enable_cli=1" -I "opcache.enable=1""
         echo ""
     fi
 
@@ -117,5 +118,8 @@ else
     ./bin/spc fetch --with-php="${PHP_VERSION}" --for-extensions="${PHP_EXTENSIONS}"
     # the Brotli library must always be built as it is required by http://github.com/dunglas/caddy-cbrotli
     # shellcheck disable=SC2086
-    ./bin/spc build --enable-zts --build-embed ${extraOpts} "${PHP_EXTENSIONS}" --with-libs="brotli,${PHP_EXTENSION_LIBS}"
+
+    if [ -z $BUILD ]; then
+      ./bin/spc build --enable-zts --build-embed ${extraOpts} "${PHP_EXTENSIONS}" --with-libs="brotli,${PHP_EXTENSION_LIBS}"
+    fi
 fi
