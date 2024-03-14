@@ -29,6 +29,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/teris-io/cli"
@@ -80,9 +82,22 @@ func findBootstrap(options map[string]string, logger *zap.Logger) string {
 func execute(args []string, options map[string]string) int {
 	logger := getLogger(options)
 
-	nurl := nats.DefaultURL
+	nurl := ""
 	if options["nats-server"] == "" {
 		nurl = options["nats-server"]
+	}
+
+	if nurl == "" {
+		s := test.RunServer(&server.Options{
+			Host:           "localhost",
+			Port:           4222,
+			NoLog:          true,
+			NoSigs:         true,
+			JetStream:      true,
+			MaxControlLine: 2048,
+		})
+		defer s.Shutdown()
+		nurl = nats.DefaultURL
 	}
 
 	nopts := []nats.Option{
