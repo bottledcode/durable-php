@@ -37,6 +37,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func getLogger(options map[string]string) *zap.Logger {
@@ -84,7 +85,16 @@ func execute(args []string, options map[string]string) int {
 		nurl = options["nats-server"]
 	}
 
-	ns, err := nats.Connect(nurl)
+	nopts := []nats.Option{
+		nats.Compression(true),
+		nats.RetryOnFailedConnect(true),
+	}
+
+	if options["jwt"] != "" && options["nkey"] != "" {
+		nopts = append(nopts, nats.UserCredentials(options["jwt"], strings.Split(options["nkey"], ",")...))
+	}
+
+	ns, err := nats.Connect(nurl, nopts...)
 	if err != nil {
 		panic(err)
 	}
@@ -273,6 +283,8 @@ func main() {
 		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("verbose", "Enable info level logging").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("debug", "Enable debug logging").WithType(cli.TypeBool)).
+		WithOption(cli.NewOption("jwt", "Use a jwt file for connecting").WithType(cli.TypeString).WithChar('j')).
+		WithOption(cli.NewOption("nkey", "Use a nkey seed file for connecting").WithType(cli.TypeString).WithChar('n')).
 		WithCommand(run).
 		WithCommand(initCmd).
 		WithCommand(version).

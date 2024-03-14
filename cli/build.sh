@@ -78,7 +78,7 @@ if [ -n "${CLEAN}" ]; then
     go clean -cache
 fi
 
-CGO_CFLAGS="-O3 -DFRANKENPHP_VERSION=${FRANKENPHP_VERSION} -I${PWD}/buildroot/include/ $(./buildroot/bin/php-config --includes | sed s\#-I/\#-I"${PWD}"/buildroot/\#g)"
+CGO_CFLAGS="-O2 -DFRANKENPHP_VERSION=${FRANKENPHP_VERSION} -I${PWD}/buildroot/include/ $(./buildroot/bin/php-config --includes | sed s\#-I/\#-I"${PWD}"/buildroot/\#g)"
 if [ -n "${DEBUG_SYMBOLS}" ]; then
     CGO_CFLAGS="-g ${CGO_CFLAGS}"
 fi
