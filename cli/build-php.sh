@@ -82,7 +82,7 @@ else
         cd static-php-cli/
         git pull
     else
-        git clone --depth 1 --branch main https://github.com/withinboredom/static-php-cli
+        git clone --depth 1 --branch main https://github.com/crazywhalecc/static-php-cli
         cd static-php-cli/
     fi
 
