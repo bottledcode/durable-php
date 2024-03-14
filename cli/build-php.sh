@@ -31,7 +31,7 @@ fi
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-export CFLAGS="$CFLAGS -O3 -march=native -pipe" CXXFLAGS="$CXXFLAGS -O3 -march=native -pipe"
+export CFLAGS="$CFLAGS -O2" CXXFLAGS="$CXXFLAGS -O2"
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
     #export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gd,gmp,iconv,igbinary,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,phar,posix,readline,simplexml,soap,sockets,sodium,sysvmsg,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,xsl,yaml,zip,zlib"
@@ -82,7 +82,7 @@ else
         cd static-php-cli/
         git pull
     else
-        git clone --depth 1 --branch main https://github.com/withinboredom/static-php-cli
+        git clone --depth 1 --branch main https://github.com/crazywhalecc/static-php-cli
         cd static-php-cli/
     fi
 

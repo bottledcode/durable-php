@@ -48,6 +48,8 @@ RUN apk update; \
 	ln -sf /usr/bin/php83 /usr/bin/php
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,zip,zlib"
+ENV PHP_EXTENSION_LIBS="bzip2,freetype,libavif,libjpeg,libwebp,libzip"
 
 WORKDIR /go/src/app
 COPY cli/build-php.sh .
