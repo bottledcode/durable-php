@@ -6,6 +6,8 @@ require github.com/dunglas/frankenphp v1.1.1-0.20240313210106-6a3db9429dca
 
 require github.com/nats-io/nats.go v1.33.1
 
+require github.com/nats-io/nats-server/v2 v2.10.12
+
 require github.com/teris-io/cli v1.0.1
 
 require go.uber.org/zap v1.27.0
