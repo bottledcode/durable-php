@@ -192,6 +192,18 @@ func execute(args []string, options map[string]string) int {
 		go lib.BuildConsumer(stream, ctx, config, lib.Orchestration, logger, js)
 	}
 
+	if len(config.Extensions.Search.Collections) > 0 {
+		for _, collection := range config.Extensions.Search.Collections {
+			switch collection {
+			case "entities":
+				err := lib.IndexerListen(ctx, lib.Entity, js, logger)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}
+
 	port := options["port"]
 	if port == "" {
 		port = "8080"
