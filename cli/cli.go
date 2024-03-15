@@ -38,8 +38,11 @@ import (
 	"go.uber.org/zap/zapcore"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 )
 
 func getLogger(options map[string]string) *zap.Logger {
@@ -87,7 +90,27 @@ func execute(args []string, options map[string]string) int {
 		nurl = options["nats-server"]
 	}
 
+	boostrapNats := false
+
 	if nurl == "" {
+		logger.Warn("Running in dev mode, all data will be deleted at the end of this")
+		data, err := os.MkdirTemp("", "nats-state-*")
+		if err != nil {
+			panic(err)
+		}
+
+		defer os.RemoveAll(data)
+		go func() {
+			sigs := make(chan os.Signal, 1)
+
+			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+			<-sigs
+
+			os.RemoveAll(data)
+			os.Exit(0)
+		}()
+
 		s := test.RunServer(&server.Options{
 			Host:           "localhost",
 			Port:           4222,
@@ -95,9 +118,11 @@ func execute(args []string, options map[string]string) int {
 			NoSigs:         true,
 			JetStream:      true,
 			MaxControlLine: 2048,
+			StoreDir:       data,
 		})
 		defer s.Shutdown()
 		nurl = nats.DefaultURL
+		boostrapNats = true
 	}
 
 	nopts := []nats.Option{
@@ -124,24 +149,64 @@ func execute(args []string, options map[string]string) int {
 		streamName = "test"
 	}
 
+	if boostrapNats {
+		stream, _ := js.CreateStream(ctx, jetstream.StreamConfig{
+			Name:        streamName,
+			Description: "Handles durable-php events",
+			Subjects:    []string{streamName + ".>"},
+			Retention:   jetstream.WorkQueuePolicy,
+			Storage:     jetstream.FileStorage,
+			AllowRollup: false,
+			DenyDelete:  true,
+			DenyPurge:   true,
+		})
+		history, _ := js.CreateStream(ctx, jetstream.StreamConfig{
+			Name:        streamName + "_history",
+			Description: "The history of the stream",
+			Mirror: &jetstream.StreamSource{
+				Name: streamName,
+			},
+			Retention:   jetstream.LimitsPolicy,
+			AllowRollup: true,
+			MaxAge:      7 * 24 * time.Hour,
+			Discard:     jetstream.DiscardOld,
+		})
+
+		consumers := []string{
+			string(lib.Activity),
+			string(lib.Entity),
+			string(lib.Orchestration),
+		}
+
+		for _, kind := range consumers {
+			_, _ = stream.CreateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable:       streamName + "-" + kind,
+				FilterSubject: streamName + "." + kind + ".>",
+				AckPolicy:     jetstream.AckExplicitPolicy,
+				AckWait:       5 * time.Minute,
+			})
+		}
+
+		_, _ = history.CreateConsumer(ctx, jetstream.ConsumerConfig{
+			Durable: "billing",
+		})
+
+		_, _ = history.CreateConsumer(ctx, jetstream.ConsumerConfig{
+			Durable: "monitoring",
+		})
+	}
+
+	stream, err := js.Stream(ctx, streamName)
+	if err != nil {
+		panic(err)
+	}
+
 	opts := []frankenphp.Option{frankenphp.WithNumThreads(32), frankenphp.WithLogger(logger)}
 
 	if err := frankenphp.Init(opts...); err != nil {
 		panic(err)
 	}
 	defer frankenphp.Shutdown()
-
-	stream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:        streamName,
-		Description: "Handles durable-php events",
-		Subjects:    []string{streamName + ".>"},
-		Retention:   jetstream.WorkQueuePolicy,
-		Storage:     jetstream.FileStorage,
-		AllowRollup: false,
-	})
-	if err != nil {
-		panic(err)
-	}
 
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")

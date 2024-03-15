@@ -13,11 +13,7 @@ import (
 func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
 	logger.Debug("Creating consumer", zap.String("stream", streamName), zap.String("kind", string(kind)))
 
-	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		AckPolicy:      jetstream.AckExplicitPolicy,
-		FilterSubjects: []string{streamName + "." + string(kind) + ".>"},
-		Durable:        streamName + "-" + string(kind),
-	})
+	consumer, err := stream.Consumer(ctx, streamName+"-"+string(kind))
 	if err != nil {
 		panic(err)
 	}

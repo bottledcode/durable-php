@@ -9,9 +9,11 @@ import (
 type IdKind string
 
 const (
-	Activity      IdKind = "activity"
-	Entity        IdKind = "entity"
-	Orchestration IdKind = "orchestration"
+	Activity           IdKind = "activity"
+	Entity             IdKind = "entity"
+	Orchestration      IdKind = "orchestration"
+	InternalBilling    IdKind = "billing"
+	InternalMonitoring IdKind = "monitoring"
 )
 
 // subjects
