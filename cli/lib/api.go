@@ -49,7 +49,7 @@ func logRequest(logger *zap.Logger, r *http.Request, ctx context.Context) {
 	logger.Info(template, zap.Any("cid", ctx.Value("cid")), zap.Any("vars", mux.Vars(r)))
 }
 
-func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, streamName string) {
+func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, config *Config) {
 	r := mux.NewRouter()
 
 	// GET /activities
@@ -126,7 +126,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logger.Debug("Received result", zap.Int("count", len(msgs)), zap.Int("stateFile size", len(stateFile)))
 
 		for _, msg := range msgs {
-			msg.Subject = fmt.Sprintf("%s.%s", streamName, msg.Subject)
+			msg.Subject = fmt.Sprintf("%s.%s", config.Stream, msg.Subject)
 			msg.Header.Add("Correlation-Id", ctx.Value("cid").(string))
 			_, err := js.PublishMsg(ctx, msg)
 			if err != nil {
