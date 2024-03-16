@@ -97,8 +97,6 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 				go func() {
 					ctx, done := context.WithCancel(ctx)
 
-					logger.Info("Indexing", zap.String("name", info.Name), zap.Any("headers", info.ObjectMeta.Headers))
-
 					obj, err := GetObjectStore(Entity, js, ctx)
 					if err != nil {
 						logger.Warn("Unable to load state for entity", zap.Error(err))
@@ -119,7 +117,6 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 						done()
 						return
 					}
-					logger.Warn("Got state loaded", zap.Any("id", result["id"]))
 					id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
 					eid, _ := id.toEntityId()
 
@@ -235,15 +232,15 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 					orchestrationData := struct {
 						ExecutionId   string `json:"execution_id"`
 						InstanceId    string `json:"instance_id"`
-						StateId       string `json:"state_id"`
 						CreatedAt     string `json:"created_at"`
 						CustomStatus  string `json:"custom_status"`
 						LastUpdatedAt string `json:"last_updated_at"`
 						RuntimeStatus string `json:"runtime_status"`
+						Id            string `json:"id"`
 					}{
 						ExecutionId:   oid.executionId,
 						InstanceId:    oid.instanceId,
-						StateId:       id.String(),
+						Id:            id.String(),
 						CreatedAt:     status["createdAt"].(string),
 						CustomStatus:  status["customStatus"].(string),
 						LastUpdatedAt: status["lastUpdated"].(string),

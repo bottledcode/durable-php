@@ -54,7 +54,7 @@ func CreateOrchestrationIndex(ctx context.Context, client *typesense.Client, con
 				Name: "instance_id", Type: "string", Facet: pointer.True(),
 			},
 			{
-				Name: "state_id", Type: "string",
+				Name: "id", Type: "string",
 			},
 			{
 				Name: "created_at", Type: "string",
