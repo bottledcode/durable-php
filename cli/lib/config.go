@@ -10,6 +10,13 @@ import (
 //go:embed defaultConfiguration.json
 var defaultConfig string
 
+type BillingUnit struct {
+	FreeLimit int `json:"freeLimit"`
+	MaxFree   int `json:"maxFree"`
+	Cost      int `json:"cost"`
+	Limit     int `json:"limit"`
+}
+
 type Config struct {
 	Stream    string `json:"project"`
 	Bootstrap string `json:"bootstrap"`
@@ -29,6 +36,13 @@ type Config struct {
 		Billing struct {
 			Enabled bool `json:"enabled"`
 			Listen  bool `json:"listen"`
+			Costs   struct {
+				Orchestrations BillingUnit `json:"orchestrations"`
+				Activities     BillingUnit `json:"activities"`
+				Entities       BillingUnit `json:"entities"`
+				ObjectStorage  BillingUnit `json:"objectStorage"`
+				FileStorage    BillingUnit `json:"fileStorage"`
+			} `json:"costs"`
 		} `json:"billing,omitempty"`
 		Search struct {
 			Url         string   `json:"url"`
