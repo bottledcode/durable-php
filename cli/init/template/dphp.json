@@ -4,5 +4,10 @@
   "nats": {
     "embeddedServer": true
   },
-  "historyRetentionDays": 1
+  "historyRetentionDays": 1,
+  "extensions": {
+    "search": {
+      "collections": []
+    }
+  }
 }
