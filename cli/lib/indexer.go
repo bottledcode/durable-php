@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/typesense/typesense-go/typesense"
+	"github.com/typesense/typesense-go/typesense/api"
+	"github.com/typesense/typesense-go/typesense/api/pointer"
 	"go.uber.org/zap"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,6 +50,36 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 		caughtUp := false
 
 		go func() {
+			mu := sync.Mutex{}
+			batch := map[string]interface{}{}
+
+			ticker := time.NewTicker(250 * time.Millisecond)
+			defer ticker.Stop()
+
+			go func() {
+				for range ticker.C {
+					mu.Lock()
+					var documents []interface{}
+					for _, value := range batch {
+						documents = append(documents, value)
+					}
+					batch = make(map[string]interface{})
+					mu.Unlock()
+					if len(documents) == 0 {
+						continue
+					}
+
+					_, err := collection.Documents().Import(ctx, documents, &api.ImportDocumentsParams{
+						Action:    pointer.String("upsert"),
+						BatchSize: pointer.Int(40),
+					})
+					if err != nil {
+						logger.Warn("Failure uploading batch to index", zap.Error(err))
+						continue
+					}
+				}
+			}()
+
 			for info := range watch.Updates() {
 				// loop until we catch up
 				// todo: except when re-indexing
@@ -59,52 +92,53 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 					continue
 				}
 
-				ctx, done := context.WithCancel(ctx)
+				info := info
 
-				logger.Info("Indexing", zap.String("name", info.Name), zap.Any("headers", info.ObjectMeta.Headers))
+				go func() {
+					ctx, done := context.WithCancel(ctx)
 
-				obj, err := GetObjectStore(Entity, js, ctx)
-				if err != nil {
-					logger.Warn("Unable to load state for entity", zap.Error(err))
+					logger.Info("Indexing", zap.String("name", info.Name), zap.Any("headers", info.ObjectMeta.Headers))
+
+					obj, err := GetObjectStore(Entity, js, ctx)
+					if err != nil {
+						logger.Warn("Unable to load state for entity", zap.Error(err))
+						done()
+						return
+					}
+					stateFileData, err := obj.GetBytes(ctx, info.Name)
+					if err != nil {
+						logger.Warn("Unable to load state for entity", zap.Error(err))
+						done()
+						return
+					}
+
+					var result map[string]interface{}
+					err = json.Unmarshal(stateFileData, &result)
+					if err != nil {
+						logger.Warn("Unable to load state for entity", zap.String("id", info.Name), zap.Error(err))
+						done()
+						return
+					}
+					logger.Warn("Got state loaded", zap.Any("id", result["id"]))
+					id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
+					eid, _ := id.toEntityId()
+
+					entityData := struct {
+						Id    string      `json:"id"`
+						Name  string      `json:"name"`
+						State interface{} `json:"state"`
+					}{
+						Id:    eid.id,
+						Name:  eid.name,
+						State: result["state"],
+					}
+
+					mu.Lock()
+					batch[id.String()] = entityData
+					mu.Unlock()
+
 					done()
-					continue
-				}
-				stateFileData, err := obj.GetBytes(ctx, info.Name)
-				if err != nil {
-					logger.Warn("Unable to load state for entity", zap.Error(err))
-					done()
-					continue
-				}
-
-				var result map[string]interface{}
-				err = json.Unmarshal(stateFileData, &result)
-				if err != nil {
-					logger.Warn("Unable to load state for entity", zap.String("id", info.Name), zap.Error(err))
-					done()
-					continue
-				}
-				logger.Warn("Got state loaded", zap.Any("id", result["id"]))
-				id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
-				eid, _ := id.toEntityId()
-
-				entityData := struct {
-					Id    string      `json:"id"`
-					Name  string      `json:"name"`
-					State interface{} `json:"state"`
-				}{
-					Id:    eid.id,
-					Name:  eid.name,
-					State: result["state"],
-				}
-
-				_, err = collection.Documents().Upsert(ctx, entityData)
-				if err != nil {
-					logger.Warn("Unable to index entity", zap.String("id", id.String()), zap.Error(err))
-					done()
-					continue
-				}
-
-				done()
+				}()
 			}
 		}()
 	case Orchestration:
@@ -136,13 +170,43 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 			}
 			<-ctx.Done()
 
-			logger.Info("Stopping indexing of entities")
+			logger.Info("Stopping indexing of orchestrations")
 
 			watch.Stop()
 		}()
 
 		caughtUp := false
 		go func() {
+			mu := sync.Mutex{}
+			batch := map[string]interface{}{}
+
+			ticker := time.NewTicker(250 * time.Millisecond)
+			defer ticker.Stop()
+
+			go func() {
+				for range ticker.C {
+					mu.Lock()
+					var documents []interface{}
+					for _, value := range batch {
+						documents = append(documents, value)
+					}
+					batch = make(map[string]interface{})
+					mu.Unlock()
+					if len(documents) == 0 {
+						continue
+					}
+
+					_, err := collection.Documents().Import(ctx, documents, &api.ImportDocumentsParams{
+						Action:    pointer.String("upsert"),
+						BatchSize: pointer.Int(40),
+					})
+					if err != nil {
+						logger.Warn("Failure uploading batch to index", zap.Error(err))
+						continue
+					}
+				}
+			}()
+
 			for info := range watch.Updates() {
 				if info == nil {
 					caughtUp = true
@@ -153,47 +217,43 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 					continue
 				}
 
-				ctx, done := context.WithCancel(ctx)
-				logger.Info("Indexing", zap.String("name", info.Key()))
-				var result map[string]interface{}
-				err := json.Unmarshal(info.Value(), &result)
-				if err != nil {
-					logger.Warn("Unable to load state for orchestration", zap.String("id", info.Key()), zap.Error(err))
-					done()
-					continue
-				}
+				info := info
 
-				id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
-				oid, _ := id.toOrchestrationId()
+				go func() {
+					var result map[string]interface{}
+					err := json.Unmarshal(info.Value(), &result)
+					if err != nil {
+						logger.Warn("Unable to load state for orchestration", zap.String("id", info.Key()), zap.Error(err))
+						return
+					}
 
-				status := result["status"].(map[string]interface{})
+					id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
+					oid, _ := id.toOrchestrationId()
 
-				orchestrationData := struct {
-					ExecutionId   string `json:"execution_id"`
-					InstanceId    string `json:"instance_id"`
-					StateId       string `json:"state_id"`
-					CreatedAt     string `json:"created_at"`
-					CustomStatus  string `json:"custom_status"`
-					LastUpdatedAt string `json:"last_updated_at"`
-					RuntimeStatus string `json:"runtime_status"`
-				}{
-					ExecutionId:   oid.executionId,
-					InstanceId:    oid.instanceId,
-					StateId:       id.String(),
-					CreatedAt:     status["createdAt"].(string),
-					CustomStatus:  status["customStatus"].(string),
-					LastUpdatedAt: status["lastUpdated"].(string),
-					RuntimeStatus: status["runtimeStatus"].(string),
-				}
+					status := result["status"].(map[string]interface{})
 
-				_, err = collection.Documents().Upsert(ctx, orchestrationData)
-				if err != nil {
-					logger.Warn("Unable put index orchestration", zap.String("id", id.String()), zap.Error(err))
-					done()
-					continue
-				}
+					orchestrationData := struct {
+						ExecutionId   string `json:"execution_id"`
+						InstanceId    string `json:"instance_id"`
+						StateId       string `json:"state_id"`
+						CreatedAt     string `json:"created_at"`
+						CustomStatus  string `json:"custom_status"`
+						LastUpdatedAt string `json:"last_updated_at"`
+						RuntimeStatus string `json:"runtime_status"`
+					}{
+						ExecutionId:   oid.executionId,
+						InstanceId:    oid.instanceId,
+						StateId:       id.String(),
+						CreatedAt:     status["createdAt"].(string),
+						CustomStatus:  status["customStatus"].(string),
+						LastUpdatedAt: status["lastUpdated"].(string),
+						RuntimeStatus: status["runtimeStatus"].(string),
+					}
 
-				done()
+					mu.Lock()
+					batch[info.Key()] = orchestrationData
+					mu.Unlock()
+				}()
 			}
 		}()
 	}
