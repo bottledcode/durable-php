@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName string, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
-	logger.Debug("Creating consumer", zap.String("stream", streamName), zap.String("kind", string(kind)))
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *Config, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
+	logger.Debug("Creating consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
 
-	consumer, err := stream.Consumer(ctx, streamName+"-"+string(kind))
+	consumer, err := stream.Consumer(ctx, config.Stream+"-"+string(kind))
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +54,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 
 			ctx := getCorrelationId(ctx, nil, &headers)
 
-			if err := processMsg(ctx, logger, msg, js, streamName); err != nil {
+			if err := processMsg(ctx, logger, msg, js, config); err != nil {
 				panic(err)
 			}
 		}()
@@ -63,7 +63,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, streamName stri
 
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
-func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, streamName string) error {
+func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, config *Config) error {
 	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
@@ -81,7 +81,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	// call glue with the associated bits
 	glu := &glue{
-		bootstrap: ctx.Value("bootstrap").(string),
+		bootstrap: config.Bootstrap,
 		function:  "processMsg",
 		input:     make([]any, 0),
 		payload:   stateFile.Name(),
@@ -107,8 +107,8 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	// now we send our messages before acknowledging
 	for _, msg := range msgs {
-		msg.Header.Add("Correlation-Id", ctx.Value("cid").(string))
-		msg.Subject = fmt.Sprintf("%s.%s", streamName, msg.Subject)
+		msg.Header.Add("Parent-Correlation-Id", ctx.Value("cid").(string))
+		msg.Subject = fmt.Sprintf("%s.%s", config.Stream, msg.Subject)
 		logger.Debug("Sending event", zap.String("subject", msg.Subject))
 		_, err := js.PublishMsg(ctx, msg)
 		if err != nil {

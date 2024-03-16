@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 
@@ -41,7 +42,7 @@ interface EntityClientInterface
      *
      * @return \Generator<EntityId>
      */
-    public function listEntities(/* todo */): \Generator;
+    public function listEntities(EntityFilter $filter, int $page): \Generator;
 
     /**
      * Signal an entity either now, or at some point in the future
