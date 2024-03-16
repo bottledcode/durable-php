@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
+use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Serializer;
@@ -44,9 +45,9 @@ class RemoteEntityClient implements EntityClientInterface
     public function cleanEntityStorage(): void {}
 
     #[\Override]
-    public function listEntities(): \Generator
+    public function listEntities(EntityFilter $filter, int $page): \Generator
     {
-        $req = new Request($this->apiHost . '/entities');
+        $req = new Request($this->apiHost . '/entities/filter/' . $page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
         yield from $result;

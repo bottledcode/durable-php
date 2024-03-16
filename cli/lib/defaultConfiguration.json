@@ -1,0 +1,36 @@
+{
+  "project": "test",
+  "bootstrap": "src/bootstrap.php",
+  "nats": {
+    "url": "nats://127.0.0.1:4222",
+    "embeddedServer": true,
+    "jwt": null,
+    "nkey": null,
+    "tls": {
+      "ca": null,
+      "clientCert": null,
+      "keyFile": null
+    }
+  },
+  "historyRetentionDays": 7,
+  "extensions": {
+    "billing": {
+      "enabled": true,
+      "listen": true
+    },
+    "search": {
+      "url": "http://localhost:8108",
+      "key": "abc123",
+      "collections": [
+        "entities",
+        "orchestrations"
+      ]
+    },
+    "authz": {
+      "enabled": true,
+      "secrets": [
+        "abc123"
+      ]
+    }
+  }
+}

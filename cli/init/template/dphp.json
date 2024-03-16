@@ -1,0 +1,8 @@
+{
+  "project": "{{.Name}}",
+  "bootstrap": "src/bootstrap.php",
+  "nats": {
+    "embeddedServer": true
+  },
+  "historyRetentionDays": 1
+}

@@ -39,7 +39,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -60,39 +60,14 @@ func getLogger(options map[string]string) *zap.Logger {
 	return zap.New(core)
 }
 
-func findBootstrap(options map[string]string, logger *zap.Logger) string {
-	bootstrap := options["bootstrap"]
-
-	if options["bootstrap"] == "" {
-		bootstrap = "src/bootstrap.php"
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		logger.Error("Could not get the current working directory", zap.Error(err))
-	} else {
-		bootstrap = filepath.Join(cwd, bootstrap)
-	}
-
-	if _, err := os.Stat(bootstrap); err != nil {
-		logger.Warn("Bootstrap file does not exist; default DI implementation used", zap.String("filename", bootstrap))
-		return ""
-	}
-
-	return bootstrap
-}
-
 func execute(args []string, options map[string]string) int {
 	logger := getLogger(options)
 
-	nurl := ""
-	if options["nats-server"] == "" {
-		nurl = options["nats-server"]
-	}
+	config := lib.ApplyOptions(lib.GetProjectConfig(), options)
 
 	boostrapNats := false
 
-	if nurl == "" {
+	if config.Nat.Internal {
 		logger.Warn("Running in dev mode, all data will be deleted at the end of this")
 		data, err := os.MkdirTemp("", "nats-state-*")
 		if err != nil {
@@ -121,7 +96,6 @@ func execute(args []string, options map[string]string) int {
 			StoreDir:       data,
 		})
 		defer s.Shutdown()
-		nurl = nats.DefaultURL
 		boostrapNats = true
 	}
 
@@ -130,11 +104,19 @@ func execute(args []string, options map[string]string) int {
 		nats.RetryOnFailedConnect(true),
 	}
 
-	if options["jwt"] != "" && options["nkey"] != "" {
-		nopts = append(nopts, nats.UserCredentials(options["jwt"], strings.Split(options["nkey"], ",")...))
+	if config.Nat.Jwt != "" && config.Nat.Nkey != "" {
+		nopts = append(nopts, nats.UserCredentials(config.Nat.Jwt, config.Nat.Nkey))
 	}
 
-	ns, err := nats.Connect(nurl, nopts...)
+	if config.Nat.Tls.Ca != "" {
+		nopts = append(nopts, nats.RootCAs(strings.Split(config.Nat.Tls.Ca, ",")...))
+	}
+
+	if config.Nat.Tls.KeyFile != "" {
+		nopts = append(nopts, nats.ClientCert(config.Nat.Tls.ClientCert, config.Nat.Tls.KeyFile))
+	}
+
+	ns, err := nats.Connect(config.Nat.Url, nopts...)
 	if err != nil {
 		panic(err)
 	}
@@ -142,29 +124,24 @@ func execute(args []string, options map[string]string) int {
 	if err != nil {
 		panic(err)
 	}
-	ctx := context.WithValue(context.Background(), "bootstrap", findBootstrap(options, logger))
-
-	streamName := options["stream"]
-	if streamName == "" {
-		streamName = "test"
-	}
+	ctx := context.WithValue(context.Background(), "bootstrap", config.Bootstrap)
 
 	if boostrapNats {
 		stream, _ := js.CreateStream(ctx, jetstream.StreamConfig{
-			Name:        streamName,
+			Name:        config.Stream,
 			Description: "Handles durable-php events",
-			Subjects:    []string{streamName + ".>"},
+			Subjects:    []string{config.Stream + ".>"},
 			Retention:   jetstream.WorkQueuePolicy,
 			Storage:     jetstream.FileStorage,
 			AllowRollup: false,
 			DenyDelete:  true,
 			DenyPurge:   true,
 		})
-		history, _ := js.CreateStream(ctx, jetstream.StreamConfig{
-			Name:        streamName + "_history",
+		_, _ = js.CreateStream(ctx, jetstream.StreamConfig{
+			Name:        config.Stream + "_history",
 			Description: "The history of the stream",
 			Mirror: &jetstream.StreamSource{
-				Name: streamName,
+				Name: config.Stream,
 			},
 			Retention:   jetstream.LimitsPolicy,
 			AllowRollup: true,
@@ -180,28 +157,20 @@ func execute(args []string, options map[string]string) int {
 
 		for _, kind := range consumers {
 			_, _ = stream.CreateConsumer(ctx, jetstream.ConsumerConfig{
-				Durable:       streamName + "-" + kind,
-				FilterSubject: streamName + "." + kind + ".>",
+				Durable:       config.Stream + "-" + kind,
+				FilterSubject: config.Stream + "." + kind + ".>",
 				AckPolicy:     jetstream.AckExplicitPolicy,
 				AckWait:       5 * time.Minute,
 			})
 		}
-
-		_, _ = history.CreateConsumer(ctx, jetstream.ConsumerConfig{
-			Durable: "billing",
-		})
-
-		_, _ = history.CreateConsumer(ctx, jetstream.ConsumerConfig{
-			Durable: "monitoring",
-		})
 	}
 
-	stream, err := js.Stream(ctx, streamName)
+	stream, err := js.Stream(ctx, config.Stream)
 	if err != nil {
 		panic(err)
 	}
 
-	opts := []frankenphp.Option{frankenphp.WithNumThreads(32), frankenphp.WithLogger(logger)}
+	opts := []frankenphp.Option{frankenphp.WithNumThreads(runtime.NumCPU() * 2), frankenphp.WithLogger(logger)}
 
 	if err := frankenphp.Init(opts...); err != nil {
 		panic(err)
@@ -210,17 +179,34 @@ func execute(args []string, options map[string]string) int {
 
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, streamName, lib.Activity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, lib.Activity, logger, js)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, streamName, lib.Entity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, lib.Entity, logger, js)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, streamName, lib.Orchestration, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, lib.Orchestration, logger, js)
+	}
+
+	if len(config.Extensions.Search.Collections) > 0 {
+		for _, collection := range config.Extensions.Search.Collections {
+			switch collection {
+			case "entities":
+				err := lib.IndexerListen(ctx, config, lib.Entity, js, logger)
+				if err != nil {
+					panic(err)
+				}
+			case "orchestrations":
+				err := lib.IndexerListen(ctx, config, lib.Orchestration, js, logger)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 	}
 
 	port := options["port"]
@@ -229,7 +215,7 @@ func execute(args []string, options map[string]string) int {
 	}
 
 	if options["no-api"] != "true" {
-		lib.Startup(ctx, js, logger, port, streamName)
+		lib.Startup(ctx, js, logger, port, config)
 	} else {
 		block := make(chan struct{})
 		<-block
@@ -363,8 +349,6 @@ func main() {
 		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("verbose", "Enable info level logging").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("debug", "Enable debug logging").WithType(cli.TypeBool)).
-		WithOption(cli.NewOption("jwt", "Use a jwt file for connecting").WithType(cli.TypeString).WithChar('j')).
-		WithOption(cli.NewOption("nkey", "Use a nkey seed file for connecting").WithType(cli.TypeString).WithChar('n')).
 		WithCommand(run).
 		WithCommand(initCmd).
 		WithCommand(version).

@@ -20,10 +20,6 @@ func createProjectFolder(name string) {
 	}
 }
 
-func installComposer() {
-	// todo
-}
-
 type projectConfig struct {
 	Name string
 }
