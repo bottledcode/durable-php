@@ -8,4 +8,6 @@ type EventMessage struct {
 	ScheduleAt  time.Time `json:"scheduleAt"`
 	EventId     string    `json:"eventId"`
 	Event       string    `json:"event"`
+	EventType   string    `json:"eventType"`
+	TargetType  string    `json:"targetType"`
 }

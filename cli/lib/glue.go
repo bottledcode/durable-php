@@ -78,12 +78,12 @@ func glueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 	env["FROM_REQUEST"] = "1"
 	env["STATE_ID"] = id.String()
 
-	msgs, responseHeaders, _ := glu.execute(ctx, headers, logger, env, stream)
+	msgs, responseHeaders, _ := glu.execute(ctx, headers, logger, env, stream, id)
 
 	return msgs, temp.Name(), nil, &responseHeaders
 }
 
-func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream) ([]*nats.Msg, http.Header, int) {
+func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int) {
 	var dir string
 	var ok bool
 	if dir, ok = getLibraryDir("glue.php"); !ok {
@@ -136,12 +136,13 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 	}
 
 	writer := &InternalLoggingResponseWriter{
-		logger:  logger,
-		isError: false,
-		status:  0,
-		events:  make([]*nats.Msg, 0),
-		query:   make(chan []string),
-		headers: make(http.Header),
+		logger:    logger,
+		isError:   false,
+		status:    0,
+		events:    make([]*nats.Msg, 0),
+		query:     make(chan []string),
+		headers:   make(http.Header),
+		CurrentId: id,
 	}
 
 	var wg sync.WaitGroup
