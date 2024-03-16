@@ -28,7 +28,7 @@ use Bottledcode\DurablePhp\State\EntityState;
 
 class LauncherEntity extends EntityState
 {
-    public function __construct() {}
+    public function __construct(private bool $launched = false) {}
 
     public function launch(string $orchestration, int $number, int $offset)
     {
@@ -36,5 +36,6 @@ class LauncherEntity extends EntityState
         for($i = 0; $i < $number; $i++) {
             $context->startNewOrchestration($orchestration, [], $offset + $i);
         }
+        $this->launched = true;
     }
 }

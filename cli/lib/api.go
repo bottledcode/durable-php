@@ -7,11 +7,16 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/typesense/typesense-go/typesense"
+	"github.com/typesense/typesense-go/typesense/api"
+	"github.com/typesense/typesense-go/typesense/api/pointer"
 	"go.uber.org/zap"
 	"io"
 	"math/rand"
 	"net/http"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -92,22 +97,74 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 	})
 
-	// GET /entities
+	// POST /entities/filter
 	// list all entities
-	r.HandleFunc("/entities", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != "GET" {
+	r.HandleFunc("/entities/filter/{page}", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != "POST" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
+		}
+
+		vars := mux.Vars(request)
+		page, err := strconv.Atoi(vars["page"])
+		if err != nil {
+			http.Error(writer, "Page should be integer", http.StatusBadRequest)
 		}
 
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
-		store, err := GetObjectStore("entities", js, context.Background())
-		if err != nil {
-			panic(err)
+		if len(config.Extensions.Search.Collections) == 0 {
+			logger.Error("Performing a search with search extension disabled")
+			http.Error(writer, "Search Extension Disabled", http.StatusBadRequest)
+			return
 		}
-		OutputList(writer, store)
+
+		if !slices.Contains(config.Extensions.Search.Collections, "entities") {
+			logger.Error("Performing a search with search extension disabled")
+			http.Error(writer, "Search Extension Disabled", http.StatusBadRequest)
+			return
+		}
+
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			logger.Error("Failed parsing body", zap.Error(err), zap.Stack("failed"))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		var filter map[string]interface{}
+		err = json.Unmarshal(body, &filter)
+		if err != nil {
+			logger.Error("Failed parsing body", zap.Error(err), zap.Stack("failed"))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		params := &api.SearchCollectionParams{
+			Q:       filter["nameFilter"].(string),
+			FacetBy: pointer.String(filter["groupByName"].(string)),
+			Page:    pointer.Int(page),
+		}
+
+		client := typesense.NewClient(typesense.WithServer(config.Extensions.Search.Url), typesense.WithAPIKey(config.Extensions.Search.Key))
+		search, err := client.Collection("entities").Documents().Search(ctx, params)
+		if err != nil {
+			logger.Error("Failed searching", zap.Error(err), zap.Stack("failed"))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		response, err := json.Marshal(search.GroupedHits)
+		if err != nil {
+			logger.Error("Failed marshalling response", zap.Error(err), zap.Stack("failed"))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		writer.Header().Add("Content-Type", "application/json")
+
+		_, _ = writer.Write(response)
 	})
 
 	bootstrap := ctx.Value("bootstrap").(string)

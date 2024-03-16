@@ -24,6 +24,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClientBuilder;
+use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -53,9 +54,9 @@ final readonly class DurableClient implements DurableClientInterface
         $this->entityClient->cleanEntityStorage();
     }
 
-    public function listEntities(): Generator
+    public function listEntities(EntityFilter $filter, int $page): Generator
     {
-        yield from $this->entityClient->listEntities();
+        yield from $this->entityClient->listEntities($filter, $page);
     }
 
     public function signalEntity(
