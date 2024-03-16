@@ -58,11 +58,12 @@ type Config struct {
 
 func GetProjectConfig() *Config {
 	var config Config
+	err := json.Unmarshal([]byte(defaultConfig), &config)
+	if err != nil {
+		panic(err)
+	}
+
 	if _, err := os.Stat("dphp.json"); err != nil {
-		err := json.Unmarshal([]byte(defaultConfig), &config)
-		if err != nil {
-			panic(err)
-		}
 		return &config
 	}
 
