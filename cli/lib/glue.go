@@ -275,17 +275,6 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 		if err != nil {
 			return err
 		}
-		if link.Headers.Get(string(HeaderStateId)) == "" {
-			if link.Headers == nil {
-				link.Headers = make(nats.Header)
-			}
-
-			link.Headers.Add(string(HeaderStateId), id.String())
-			err = obj.UpdateMeta(ctx, id.toSubject().String(), link.ObjectMeta)
-			if err != nil {
-				return err
-			}
-		}
 
 		logger.Debug("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
 

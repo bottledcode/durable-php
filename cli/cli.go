@@ -196,7 +196,12 @@ func execute(args []string, options map[string]string) int {
 		for _, collection := range config.Extensions.Search.Collections {
 			switch collection {
 			case "entities":
-				err := lib.IndexerListen(ctx, lib.Entity, js, logger)
+				err := lib.IndexerListen(ctx, config, lib.Entity, js, logger)
+				if err != nil {
+					panic(err)
+				}
+			case "orchestrations":
+				err := lib.IndexerListen(ctx, config, lib.Orchestration, js, logger)
 				if err != nil {
 					panic(err)
 				}

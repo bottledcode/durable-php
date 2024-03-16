@@ -19,13 +19,11 @@
       "listen": true
     },
     "search": {
-      "url": "typesense://localhost:8108",
+      "url": "http://localhost:8108",
       "key": "abc123",
       "collections": [
         "entities",
-        "orchestrations",
-        "entity-status",
-        "orchestration-status"
+        "orchestrations"
       ]
     },
     "authz": {
