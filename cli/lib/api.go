@@ -65,6 +65,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		if !IsAdmin(request, config) {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
+			return
+		}
+
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
@@ -80,6 +85,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	r.HandleFunc("/activity/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if !IsAdmin(request, config) {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
 			return
 		}
 
@@ -102,6 +112,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	r.HandleFunc("/entities/filter/{page}", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "POST" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if !IsAdmin(request, config) {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
 			return
 		}
 
