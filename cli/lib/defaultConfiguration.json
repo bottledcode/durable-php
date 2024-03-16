@@ -16,7 +16,39 @@
   "extensions": {
     "billing": {
       "enabled": true,
-      "listen": true
+      "listen": true,
+      "costs": {
+        "orchestrations": {
+          "freeLimit": 150,
+          "maxFree": 1000,
+          "cost": 10000,
+          "limit": 0
+        },
+        "activities": {
+          "freeLimit": 500,
+          "maxFree": 2000,
+          "cost": 10,
+          "limit": 0
+        },
+        "entities": {
+          "freeLimit": 5000,
+          "maxFree": 5000,
+          "cost": 10000,
+          "limit": 0
+        },
+        "objectStorage": {
+          "freeLimit": 1000000000,
+          "maxFree": 1000000000,
+          "cost": 0,
+          "limit": 0
+        },
+        "fileStorage": {
+          "freeLimit": 1000000000,
+          "maxFree": 1000000000,
+          "cost": 0,
+          "limit": 0
+        }
+      }
     },
     "search": {
       "url": "http://localhost:8108",

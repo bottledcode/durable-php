@@ -93,7 +93,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	env["EVENT"] = string(msg.Data())
 	env["STATE_ID"] = msg.Headers().Get(string(HeaderStateId))
 
-	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js)
+	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js, id)
 
 	// now update the stored state, if this fails due to optimistic concurrency, we immediately nak and fail
 	err := update()

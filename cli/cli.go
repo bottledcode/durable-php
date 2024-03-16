@@ -41,6 +41,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -206,6 +207,157 @@ func execute(args []string, options map[string]string) int {
 					panic(err)
 				}
 			}
+		}
+	}
+
+	if config.Extensions.Billing.Enabled {
+		if config.Extensions.Billing.Listen {
+
+			billings := sync.Map{}
+			billings.Store("e", 0)
+			billings.Store("o", 0)
+			billings.Store("a", 0*time.Minute)
+			billings.Store("ac", 0)
+
+			var incrementInt func(key string, amount int)
+			incrementInt = func(key string, amount int) {
+				var old interface{}
+				old, _ = billings.Load(key)
+				if !billings.CompareAndSwap(key, old, old.(int)+1) {
+					incrementInt(key, amount)
+				}
+			}
+
+			var incrementDur func(key string, amount time.Duration)
+			incrementDur = func(key string, amount time.Duration) {
+				var old interface{}
+				old, _ = billings.Load(key)
+				if !billings.CompareAndSwap(key, old, old.(time.Duration)+amount) {
+					incrementDur(key, amount)
+				}
+			}
+
+			outputBillingStatus := func() {
+				costC := func(num interface{}, basis int) float64 {
+					return float64(num.(int)) * float64(basis) / 10_000_000
+				}
+
+				costA := func(dur interface{}, basis int) float64 {
+					duration := dur.(time.Duration)
+					seconds := duration.Seconds()
+					return float64(basis) * seconds / 100_000
+				}
+
+				avg := func(dur interface{}, count interface{}) time.Duration {
+					seconds := dur.(time.Duration).Seconds()
+					return time.Duration(seconds/float64(count.(int))) * time.Second
+				}
+
+				e, _ := billings.Load("e")
+				o, _ := billings.Load("o")
+				ac, _ := billings.Load("ac")
+				a, _ := billings.Load("a")
+
+				ecost := costC(e, config.Extensions.Billing.Costs.Entities.Cost)
+				ocost := costC(o, config.Extensions.Billing.Costs.Orchestrations.Cost)
+				acost := costA(a, config.Extensions.Billing.Costs.Activities.Cost)
+
+				logger.Warn("Billing estimate",
+					zap.Any("launched entities", e),
+					zap.String("entity cost", fmt.Sprintf("$%.2f", ecost)),
+					zap.Any("launched orchestrations", o),
+					zap.String("orchestration cost", fmt.Sprintf("$%.2f", ocost)),
+					zap.Any("activity time", a),
+					zap.Any("activities launced", ac),
+					zap.Any("average activity time", avg(a, ac)),
+					zap.String("activity cost", fmt.Sprintf("$%.2f", acost)),
+					zap.String("total estimate", fmt.Sprintf("$%.2f", ecost+ocost+acost)),
+				)
+			}
+
+			go func() {
+				ticker := time.NewTicker(3 * time.Second)
+				for range ticker.C {
+					outputBillingStatus()
+				}
+			}()
+
+			billingStream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+				Name: "billing",
+				Subjects: []string{
+					"billing." + config.Stream + ".>",
+				},
+				Storage:   jetstream.FileStorage,
+				Retention: jetstream.LimitsPolicy,
+				MaxAge:    7 * 24 * time.Hour,
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			entityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable: "entityAggregator",
+				FilterSubjects: []string{
+					"billing." + config.Stream + ".entities.>",
+				},
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			consume, err := entityConsumer.Consume(func(msg jetstream.Msg) {
+				incrementInt("e", 1)
+				msg.Ack()
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer consume.Drain()
+
+			orchestrationConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable:       "orchestrationAggregator",
+				FilterSubject: "billing." + config.Stream + ".orchestrations.>",
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			consume, err = orchestrationConsumer.Consume(func(msg jetstream.Msg) {
+				incrementInt("o", 1)
+				msg.Ack()
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer consume.Drain()
+
+			activityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable:       "orchestrationAggregator",
+				FilterSubject: "billing." + config.Stream + ".activities.>",
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			consume, err = activityConsumer.Consume(func(msg jetstream.Msg) {
+				incrementInt("ac", 1)
+				var ev lib.BillingEvent
+				err := json.Unmarshal(msg.Data(), &ev)
+				if err != nil {
+					panic(err)
+				}
+				incrementDur("a", ev.Duration)
+				msg.Ack()
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer consume.Drain()
+		}
+
+		err := lib.StartBillingProcessor(ctx, config, js, logger)
+		if err != nil {
+			panic(err)
 		}
 	}
 

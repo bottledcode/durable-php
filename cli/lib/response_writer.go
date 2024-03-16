@@ -14,8 +14,12 @@ import (
 type GlueHeaders string
 
 const (
-	HeaderStateId GlueHeaders = "State-Id"
-	HeaderDelay   GlueHeaders = "Delay"
+	HeaderStateId    GlueHeaders = "State-Id"
+	HeaderDelay      GlueHeaders = "Delay"
+	HeaderEventType  GlueHeaders = "Event-Type"
+	HeaderTargetType GlueHeaders = "Target-Type"
+	HeaderEmittedBy  GlueHeaders = "Emitted-By"
+	HeaderEmittedAt  GlueHeaders = "Emitted-At"
 )
 
 type ConsumingResponseWriter struct {
@@ -37,12 +41,13 @@ func (c *ConsumingResponseWriter) WriteHeader(statusCode int) {
 }
 
 type InternalLoggingResponseWriter struct {
-	logger  *zap.Logger
-	isError bool
-	status  int
-	events  []*nats.Msg
-	query   chan []string
-	headers http.Header
+	logger    *zap.Logger
+	isError   bool
+	status    int
+	events    []*nats.Msg
+	query     chan []string
+	headers   http.Header
+	CurrentId *StateId
 }
 
 func (w *InternalLoggingResponseWriter) Header() http.Header {
@@ -67,8 +72,19 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 				replyTo = ParseStateId(body.ReplyTo).toSubject().String()
 			}
 
+			now, _ := time.Now().MarshalText()
+
+			splitType := strings.Split(body.EventType, "\\")
+			eventType := splitType[len(splitType)-1]
+
 			header := make(nats.Header)
 			header.Add(string(HeaderStateId), destinationId.String())
+			header.Add(string(HeaderEventType), eventType)
+			header.Add(string(HeaderTargetType), body.TargetType)
+			header.Add(string(HeaderEmittedAt), string(now))
+			if w.CurrentId != nil {
+				header.Add(string(HeaderEmittedBy), w.CurrentId.String())
+			}
 
 			msg := &nats.Msg{
 				Subject: destinationId.toSubject().String(),

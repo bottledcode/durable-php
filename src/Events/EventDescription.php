@@ -121,6 +121,8 @@ readonly class EventDescription
             'replyTo' => $this->replyTo?->id ?? '',
             'scheduleAt' => $this->scheduledAt?->format(DATE_ATOM) ?? gmdate(DATE_ATOM, time() - 30),
             'eventId' => $this->eventId,
+            'eventType' => $this->innerEvent->eventType(),
+            'targetType' => $this->targetType->name,
             'event' => $event,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
