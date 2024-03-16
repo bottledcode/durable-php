@@ -270,6 +270,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// get list of orchestrations
 	r.HandleFunc("/orchestrations", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method == "GET" {
+			if !IsAdmin(request, config) {
+				http.Error(writer, "Not Authorized", http.StatusForbidden)
+				return
+			}
+
 			store, err := GetObjectStore("orchestrations", js, context.Background())
 			if err != nil {
 				panic(err)
