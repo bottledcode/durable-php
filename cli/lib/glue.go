@@ -190,6 +190,7 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 		if err != nil {
 			panic(err)
 		}
+
 		stateFile, err := os.CreateTemp("", "state")
 		defer stateFile.Close()
 		logger.Debug("Created stateFile", zap.String("filename", stateFile.Name()))

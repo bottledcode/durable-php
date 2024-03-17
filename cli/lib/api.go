@@ -2,6 +2,8 @@ package lib
 
 import (
 	"context"
+	"durable_php/auth"
+	"durable_php/config"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -54,7 +56,7 @@ func logRequest(logger *zap.Logger, r *http.Request, ctx context.Context) {
 	logger.Info(template, zap.Any("cid", ctx.Value("cid")), zap.Any("vars", mux.Vars(r)))
 }
 
-func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, config *Config) {
+func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, config *config.Config) {
 	r := mux.NewRouter()
 
 	// GET /activities
@@ -65,7 +67,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		if !IsAdmin(request, config) {
+		if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
 			http.Error(writer, "Not Authorized", http.StatusForbidden)
 			return
 		}
@@ -88,7 +90,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		if !IsAdmin(request, config) {
+		if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
 			http.Error(writer, "Not Authorized", http.StatusForbidden)
 			return
 		}
@@ -115,7 +117,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		if !IsAdmin(request, config) {
+		if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
 			http.Error(writer, "Not Authorized", http.StatusForbidden)
 			return
 		}
@@ -270,7 +272,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// get list of orchestrations
 	r.HandleFunc("/orchestrations", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method == "GET" {
-			if !IsAdmin(request, config) {
+			if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
 				http.Error(writer, "Not Authorized", http.StatusForbidden)
 				return
 			}

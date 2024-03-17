@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"durable_php/config"
 	"encoding/json"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
@@ -16,7 +17,7 @@ type BillingEvent struct {
 
 // StartBillingProcessor starts up a consumer on the history stream and waits for
 // events that are billable events. It then fires a billing event to the billings stream.
-func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.JetStream, logger *zap.Logger) error {
+func StartBillingProcessor(ctx context.Context, config *config.Config, js jetstream.JetStream, logger *zap.Logger) error {
 	if !config.Extensions.Billing.Enabled {
 		logger.Info("Billing events are disabled")
 		return nil

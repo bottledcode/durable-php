@@ -24,6 +24,8 @@ package main
 
 import (
 	"context"
+	"durable_php/auth"
+	"durable_php/config"
 	di "durable_php/init"
 	"durable_php/lib"
 	"encoding/json"
@@ -64,7 +66,7 @@ func getLogger(options map[string]string) *zap.Logger {
 func execute(args []string, options map[string]string) int {
 	logger := getLogger(options)
 
-	config := lib.ApplyOptions(lib.GetProjectConfig(), options)
+	config := config.ApplyOptions(config.GetProjectConfig(), options)
 
 	boostrapNats := false
 
@@ -95,6 +97,7 @@ func execute(args []string, options map[string]string) int {
 			JetStream:      true,
 			MaxControlLine: 2048,
 			StoreDir:       data,
+			HTTPPort:       8222,
 		})
 		defer s.Shutdown()
 		boostrapNats = true
@@ -485,6 +488,25 @@ func main() {
 			fmt.Println(writer.Data)
 			return 0
 		})
+	createUser := cli.NewCommand("create-user", "Create a new user").
+		WithArg(cli.NewArg("id", "The user id to assign to the user").WithType(cli.TypeString)).
+		WithOption(cli.NewOption("admin", "Create the user as an admin").WithType(cli.TypeBool)).
+		WithAction(func(args []string, options map[string]string) int {
+			config := config.GetProjectConfig()
+			rol := []auth.Role{"user"}
+			switch options["admin"] {
+			case "true":
+				rol = append(rol, "admin")
+			}
+
+			user, err := auth.CreateUser(args[0], rol, config)
+			if err != nil {
+				return 1
+			}
+			fmt.Println(user)
+
+			return 0
+		})
 
 	app := cli.New("Durable PHP").
 		WithOption(cli.NewOption("port", "The port to listen to (default 8080)").
@@ -505,6 +527,7 @@ func main() {
 		WithCommand(initCmd).
 		WithCommand(version).
 		WithCommand(inspect).
+		WithCommand(createUser).
 		WithCommand(cli.NewCommand("composer", "Shim around composer.phar -- run dphp composer --help for composer help")).
 		WithCommand(cli.NewCommand("exec", "Execute a php script")).
 		WithAction(execute)

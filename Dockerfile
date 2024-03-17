@@ -62,6 +62,7 @@ RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
 COPY cli/build.sh .
 COPY cli/lib ./lib
 COPY cli/init ./init
+COPY cli/auth ./auth
 COPY cli/*.go .
 RUN ./build.sh
 

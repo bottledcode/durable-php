@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"durable_php/config"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *Config, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
 	logger.Debug("Creating consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
 
 	consumer, err := stream.Consumer(ctx, config.Stream+"-"+string(kind))
@@ -63,7 +64,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *Config,
 
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
-func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, config *Config) error {
+func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, config *config.Config) error {
 	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject

@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"durable_php/config"
 	"encoding/json"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/typesense/typesense-go/typesense"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstream.JetStream, logger *zap.Logger) error {
+func IndexerListen(ctx context.Context, config *config.Config, kind IdKind, js jetstream.JetStream, logger *zap.Logger) error {
 	logger.Info("Starting indexer extension", zap.String("for", string(kind)), zap.Any("config", config.Extensions.Search))
 
 	client := typesense.NewClient(typesense.WithServer(config.Extensions.Search.Url), typesense.WithAPIKey(config.Extensions.Search.Key))
