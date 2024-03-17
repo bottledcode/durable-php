@@ -63,6 +63,7 @@ COPY cli/build.sh .
 COPY cli/lib ./lib
 COPY cli/init ./init
 COPY cli/auth ./auth
+COPY cli/config ./config
 COPY cli/*.go .
 RUN ./build.sh
 
