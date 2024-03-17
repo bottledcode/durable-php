@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sync"
 )
@@ -13,13 +15,11 @@ type Operation string
 type UserId string
 type Role string
 
+type ContextKey struct{}
+
+var CurrentUserKey ContextKey
+
 const (
-	// Owner represents the keyspace for owners
-	Owner KvType = "owner"
-
-	// Shares represents the keyspace for Shares
-	Shares KvType = "Shares"
-
 	// ExplicitMode configures the service to only allow explicit Shares
 	ExplicitMode Mode = "explicit"
 
@@ -43,6 +43,15 @@ const (
 
 	// Lock whether the share can lock an entity
 	Lock Operation = "lock"
+
+	// SharePlus whether the share can invite more shares
+	SharePlus Operation = "share+"
+
+	// ShareMinus whether the share can see other shares and manage them
+	ShareMinus Operation = "share-"
+
+	// Owner operations allow transferring ownership
+	Owner Operation = "owner"
 )
 
 type User struct {
@@ -60,14 +69,14 @@ func (u *User) Is(role Role) bool {
 
 type Share interface {
 	// WantTo returns true if the user can perform the Operation
-	WantTo(operation Operation, user *User) bool
+	WantTo(operation Operation, ctx context.Context) bool
 }
 
 type Permissions struct {
 	AllowedOperations map[Operation]struct{} `json:"allowedOperations"`
 }
 
-func (p Permissions) WantTo(operation Operation, user *User) bool {
+func (p Permissions) WantTo(operation Operation, ctx context.Context) bool {
 	if _, exists := p.AllowedOperations[operation]; exists {
 		return true
 	}
@@ -80,9 +89,9 @@ type UserShare struct {
 	Permissions
 }
 
-func (u UserShare) WantTo(operation Operation, user *User) bool {
-	if u.UserId == user.UserId {
-		return u.Permissions.WantTo(operation, user)
+func (u UserShare) WantTo(operation Operation, ctx context.Context) bool {
+	if user, ok := ctx.Value(CurrentUserKey).(User); ok && user.UserId == u.UserId {
+		return u.Permissions.WantTo(operation, ctx)
 	}
 
 	return false
@@ -93,27 +102,27 @@ type RoleShare struct {
 	Permissions
 }
 
-func (r RoleShare) WantTo(operation Operation, user *User) bool {
-	if slices.Contains(user.Roles, r.Role) {
-		return r.Permissions.WantTo(operation, user)
+func (r RoleShare) WantTo(operation Operation, ctx context.Context) bool {
+	if user, ok := ctx.Value(CurrentUserKey).(User); ok && user.Is(r.Role) {
+		return r.Permissions.WantTo(operation, ctx)
 	}
 
 	return false
 }
 
 type Resource struct {
-	Owner  UserId  `json:"owner"`
-	Shares []Share `json:"Shares"`
-	Mode   Mode    `json:"mode"`
-	mu     sync.Mutex
+	Owners map[UserId]struct{} `json:"owner"`
+	Shares []Share             `json:"Shares"`
+	Mode   Mode                `json:"mode"`
+	mu     sync.RWMutex
 }
 
 func NewResourcePermissions(owner User, mode Mode) Resource {
 	return Resource{
-		Owner:  owner.UserId,
+		Owners: map[UserId]struct{}{owner.UserId: {}},
 		Shares: []Share{},
 		Mode:   mode,
-		mu:     sync.Mutex{},
+		mu:     sync.RWMutex{},
 	}
 }
 
@@ -123,12 +132,34 @@ func FromBytes(data []byte) *Resource {
 	if err != nil {
 		panic(err)
 	}
-	resource.mu = sync.Mutex{}
+	resource.mu = sync.RWMutex{}
 
 	return &resource
 }
 
+// ShareOwnership to another user, optionally keeping all permissions if the user still wants to access the resource
+func (r *Resource) ShareOwnership(newUser User, keepPermissions bool, ctx context.Context) error {
+	if cu, ok := ctx.Value(CurrentUserKey).(User); ok {
+		if _, found := r.Owners[cu.UserId]; !found {
+			return fmtError(Owner)
+		}
+
+		r.mu.Lock()
+		defer r.mu.Unlock()
+
+		if !keepPermissions {
+			delete(r.Owners, cu.UserId)
+		}
+
+		r.Owners[newUser.UserId] = struct{}{}
+	}
+
+	return fmtError(Owner)
+}
+
 func (r *Resource) toBytes() []byte {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	data, err := json.Marshal(r)
 	if err != nil {
 		panic(err)
@@ -136,21 +167,29 @@ func (r *Resource) toBytes() []byte {
 	return data
 }
 
-func (r *Resource) WantTo(operation Operation, user *User) bool {
-	if user.UserId == r.Owner {
-		return true
-	}
+func (r *Resource) WantTo(operation Operation, ctx context.Context) (ok bool) {
+	user, ok := ctx.Value(CurrentUserKey).(User)
 
 	if r.Mode == AnonymousMode {
 		return true
 	}
 
-	if r.Mode == AuthenticatedMode && user != nil {
+	if r.Mode == AuthenticatedMode && ok {
 		return true
 	}
 
+	// delay the lock as long as possible
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if ok {
+		if _, found := r.Owners[user.UserId]; found {
+			return true
+		}
+	}
+
 	for _, share := range r.Shares {
-		if share.WantTo(operation, user) {
+		if share.WantTo(operation, ctx) {
 			return true
 		}
 	}
@@ -158,20 +197,31 @@ func (r *Resource) WantTo(operation Operation, user *User) bool {
 	return false
 }
 
-func (r *Resource) Grant(share Share) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.Shares = append(r.Shares, share)
+func fmtError(operation Operation) error {
+	return fmt.Errorf("operation %s not allowed by current context", operation)
 }
 
-func (r *Resource) GrantUser(user User, operation Operation) {
+func (r *Resource) Grant(share Share, ctx context.Context) error {
+	if r.WantTo(SharePlus, ctx) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.Shares = append(r.Shares, share)
+		return nil
+	}
+	return fmtError(SharePlus)
+}
+
+func (r *Resource) GrantUser(user User, operation Operation, ctx context.Context) error {
+	if !r.WantTo(SharePlus, ctx) {
+		return fmtError(SharePlus)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for _, x := range r.Shares {
 		if u, ok := x.(UserShare); ok && u.UserId == user.UserId {
 			u.AllowedOperations[operation] = struct{}{}
-			return
+			return nil
 		}
 	}
 
@@ -183,16 +233,21 @@ func (r *Resource) GrantUser(user User, operation Operation) {
 			},
 		},
 	})
+
+	return nil
 }
 
-func (r *Resource) GrantRole(role Role, operation Operation) {
+func (r *Resource) GrantRole(role Role, operation Operation, ctx context.Context) error {
+	if !r.WantTo(SharePlus, ctx) {
+		return fmtError(SharePlus)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for _, x := range r.Shares {
 		if r, ok := x.(RoleShare); ok && r.Role == role {
 			r.AllowedOperations[operation] = struct{}{}
-			return
+			return nil
 		}
 	}
 
@@ -204,9 +259,13 @@ func (r *Resource) GrantRole(role Role, operation Operation) {
 			},
 		},
 	})
+	return nil
 }
 
-func (r *Resource) RevokeUser(id UserId) {
+func (r *Resource) RevokeUser(id UserId, ctx context.Context) error {
+	if !r.WantTo(ShareMinus, ctx) {
+		return fmtError(ShareMinus)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -226,9 +285,14 @@ func (r *Resource) RevokeUser(id UserId) {
 	}
 
 	r.Shares = news
+
+	return nil
 }
 
-func (r *Resource) RevokeRole(role Role) {
+func (r *Resource) RevokeRole(role Role, ctx context.Context) error {
+	if !r.WantTo(ShareMinus, ctx) {
+		return fmtError(ShareMinus)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -241,4 +305,6 @@ func (r *Resource) RevokeRole(role Role) {
 
 		// not adding element because it matches
 	}
+
+	return nil
 }
