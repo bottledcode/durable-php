@@ -82,7 +82,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	stateFile, update := glue.GetStateFile(id, js, ctx, logger)
 
 	// call glue with the associated bits
-	glu := glue.NewGlue(config.Bootstrap, "processMsg", make([]any, 0), stateFile.Name())
+	glu := glue.NewGlue(config.Bootstrap, glue.ProcessMessage, make([]any, 0), stateFile.Name())
 
 	var headers = http.Header{}
 	var env = make(map[string]string)

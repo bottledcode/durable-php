@@ -17,6 +17,16 @@ import (
 	"sync"
 )
 
+type Method string
+
+const (
+	ProcessMessage      Method = "processMsg"
+	SignalEntity        Method = "entitySignal"
+	StartOrchestration  Method = "startOrchestration"
+	SignalOrchestration Method = "orchestrationSignal"
+	DecodeEntity        Method = "entityDecoder"
+)
+
 // this is the go side of the Glue protocol
 //
 // the essence is very simple:
@@ -43,14 +53,14 @@ type Glue struct {
 	// bootstrap Glue will load bootstrap file before calling any user code
 	bootstrap string
 	// function The callable to call and process the input
-	function string
+	function Method
 	// input to send to the function
 	input []any
 	// payload file that the script can read if needed
 	payload string
 }
 
-func NewGlue(bootstrap string, function string, input []any, payload string) *Glue {
+func NewGlue(bootstrap string, function Method, input []any, payload string) *Glue {
 	return &Glue{
 		bootstrap: bootstrap,
 		function:  function,
@@ -59,7 +69,7 @@ func NewGlue(bootstrap string, function string, input []any, payload string) *Gl
 	}
 }
 
-func GlueFromApiRequest(ctx context.Context, r *http.Request, function string, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
+func GlueFromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
 		return nil, "", err, nil
@@ -104,7 +114,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 		headers = make(http.Header)
 	}
 	headers.Add("DPHP_BOOTSTRAP", g.bootstrap)
-	headers.Add("DPHP_FUNCTION", g.function)
+	headers.Add("DPHP_FUNCTION", string(g.function))
 	headers.Add("DPHP_PAYLOAD", g.payload)
 
 	jsonData, err := json.Marshal(g.input)

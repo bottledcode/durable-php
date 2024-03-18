@@ -187,8 +187,8 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	bootstrap := ctx.Value("bootstrap").(string)
 
-	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *glue.StateId, function string, headers http.Header) {
-		logger.Debug("Processing request to call function", zap.String("function", function), zap.Any("Headers", headers))
+	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *glue.StateId, function glue.Method, headers http.Header) {
+		logger.Debug("Processing request to call function", zap.String("function", string(function)), zap.Any("Headers", headers))
 		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
 
@@ -256,13 +256,13 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			stateFile, _ := glue.GetStateFile(id.ToStateId(), js, ctx, logger)
 			headers.Add("Entity-State", stateFile.Name())
 
-			processReq(ctx, writer, request, id.ToStateId(), "entityDecoder", headers)
+			processReq(ctx, writer, request, id.ToStateId(), glue.DecodeEntity, headers)
 			return
 		}
 
 		if request.Method == "PUT" {
 			logger.Debug("Signal entity", zap.String("id", id.String()))
-			processReq(ctx, writer, request, id.ToStateId(), "entitySignal", make(http.Header))
+			processReq(ctx, writer, request, id.ToStateId(), glue.SignalEntity, make(http.Header))
 			return
 		}
 
@@ -311,7 +311,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			ExecutionId: "",
 		}
 
-		processReq(ctx, writer, request, id.ToStateId(), "startOrchestration", make(http.Header))
+		processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
 	})
 
 	// PUT /orchestration/{name}/{id}
@@ -330,7 +330,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		if request.Method == "PUT" {
-			processReq(ctx, writer, request, id.ToStateId(), "startOrchestration", make(http.Header))
+			processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
 			return
 		}
 
@@ -428,7 +428,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		headers := make(http.Header)
 		headers.Add("Signal", method)
 
-		processReq(ctx, writer, request, id.ToStateId(), "orchestrationSignal", headers)
+		processReq(ctx, writer, request, id.ToStateId(), glue.SignalOrchestration, headers)
 	})
 
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
