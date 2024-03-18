@@ -2,7 +2,7 @@ module durable_php
 
 go 1.22
 
-require github.com/dunglas/frankenphp v1.1.1-0.20240313210106-6a3db9429dca
+require github.com/dunglas/frankenphp v1.1.1
 
 require github.com/nats-io/nats.go v1.33.1
 
@@ -17,6 +17,8 @@ require github.com/gorilla/mux v1.8.1
 require github.com/typesense/typesense-go v1.0.0
 
 require github.com/golang-jwt/jwt/v4 v4.5.0
+
+require github.com/google/uuid v1.6.0
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
@@ -44,7 +46,6 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/iris-contrib/schema v0.0.6 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

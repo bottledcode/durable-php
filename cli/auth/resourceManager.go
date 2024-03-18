@@ -25,14 +25,14 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 	}
 }
 
-func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger) (*Resource, error) {
+func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
 	currentUser, found := ctx.Value(CurrentUserKey).(User)
 	if !found {
 		return nil, fmtError("no user in context")
 	}
 
 	data, err := r.kv.Get(ctx, id.ToSubject().Bucket())
-	if err != nil {
+	if err != nil && !preventCreation {
 		// resource wasn't created yet, so we assume the user is creating the resource
 		resource := NewResourcePermissions(currentUser, ExplicitMode)
 		if resource.CanCreate(id, ctx, logger) {
@@ -43,6 +43,8 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 			return resource, nil
 		}
 		return nil, fmtError("user cannot create resource")
+	} else if err != nil && preventCreation {
+		return nil, fmtError("resource not found")
 	}
 	resource := FromBytes(data.Value())
 	if resource.ApplyPerms(id, ctx, logger) {

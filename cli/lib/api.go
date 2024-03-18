@@ -7,6 +7,7 @@ import (
 	"durable_php/glue"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -59,6 +60,8 @@ func logRequest(logger *zap.Logger, r *http.Request, ctx context.Context) {
 
 func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, config *config.Config) {
 	r := mux.NewRouter()
+
+	rm := auth.GetResourceManager(ctx, js)
 
 	// GET /activities
 	// list all activities
@@ -253,6 +256,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, true, auth.Output)
+			if done {
+				return
+			}
+
 			stateFile, _ := glue.GetStateFile(id.ToStateId(), js, ctx, logger)
 			headers.Add("Entity-State", stateFile.Name())
 
@@ -261,6 +269,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		if request.Method == "PUT" {
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+			if done {
+				return
+			}
+
 			logger.Debug("Signal entity", zap.String("id", id.String()))
 			processReq(ctx, writer, request, id.ToStateId(), glue.SignalEntity, make(http.Header))
 			return
@@ -306,9 +319,21 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		vars := mux.Vars(request)
 
+		execId, err := uuid.NewV7()
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to create uuid", zap.Error(err))
+			return
+		}
+
 		id := &glue.OrchestrationId{
 			InstanceId:  vars["name"],
-			ExecutionId: "",
+			ExecutionId: execId.String(),
+		}
+
+		ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+		if done {
+			return
 		}
 
 		processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
@@ -330,12 +355,22 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		if request.Method == "PUT" {
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+			if done {
+				return
+			}
+
 			processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
 			return
 		}
 
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, true, auth.Output)
+		if done {
 			return
 		}
 
@@ -425,6 +460,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 		method := vars["signal"]
 
+		ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+		if done {
+			return
+		}
+
 		headers := make(http.Header)
 		headers.Add("Signal", method)
 
@@ -438,6 +478,35 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	})
 
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
+}
+
+func authorize(
+	writer http.ResponseWriter,
+	request *http.Request,
+	config *config.Config,
+	ctx context.Context,
+	rm *auth.ResourceManager,
+	id *glue.StateId,
+	logger *zap.Logger,
+	preventCreation bool,
+	operation auth.Operation,
+) (context.Context, bool) {
+	if !config.Extensions.Authz.Enabled {
+		return ctx, false
+	}
+	if user, ok := auth.ExtractUser(request, config); ok {
+		ctx = auth.DecorateContextWithUser(ctx, user)
+	}
+	resource, err := rm.DiscoverResource(ctx, id, logger, preventCreation)
+	if err != nil {
+		http.Error(writer, "Not Authorized", http.StatusForbidden)
+		return nil, true
+	}
+	if !resource.WantTo(operation, ctx) {
+		http.Error(writer, "Not Authorized", http.StatusForbidden)
+		return nil, true
+	}
+	return ctx, false
 }
 
 func extractStatus(stateJson []byte) (interface{}, error) {
