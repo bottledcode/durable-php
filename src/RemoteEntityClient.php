@@ -33,6 +33,8 @@ use Bottledcode\DurablePhp\State\Serializer;
 
 class RemoteEntityClient implements EntityClientInterface
 {
+    private string $userToken = "";
+
     public function __construct(
         private string $apiHost = 'http://localhost:8080',
         private HttpClient $client = new HttpClient(),
@@ -48,6 +50,9 @@ class RemoteEntityClient implements EntityClientInterface
     public function listEntities(EntityFilter $filter, int $page): \Generator
     {
         $req = new Request($this->apiHost . '/entities/filter/' . $page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
         yield from $result;
@@ -92,6 +97,9 @@ class RemoteEntityClient implements EntityClientInterface
         if($scheduledTime) {
             $req->setHeader("At", $scheduledTime->format(DATE_ATOM));
         }
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         if($result->getStatus() >= 300) {
             throw new \Exception("error calling " . $req->getUri()->getPath() . "\n" . $result->getBody()->read());
@@ -102,6 +110,9 @@ class RemoteEntityClient implements EntityClientInterface
     public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState
     {
         $req = new Request($this->apiHost . '/entity/' . $entityId->name . '/' . $entityId->id);
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read() ?: 'null', true, 512, JSON_THROW_ON_ERROR);
 
@@ -110,5 +121,10 @@ class RemoteEntityClient implements EntityClientInterface
         }
 
         return Serializer::deserialize($result, EntityState::class);
+    }
+
+    #[\Override] public function withAuth(string $token): void
+    {
+        $this->userToken = $token;
     }
 }

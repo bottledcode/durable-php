@@ -46,19 +46,27 @@ func ExtractUser(r *http.Request, config *config.Config) (user *User, ok bool) {
 		return nil, false
 	}
 
+	getRoles := func(roles []interface{}) []Role {
+		rolesSlice := make([]Role, len(roles))
+		for i, r := range roles {
+			rolesSlice[i] = Role(r.(string))
+		}
+		return rolesSlice
+	}
+
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		userId := claims["sub"].(UserId)
-		rol := claims["rol"].([]Role)
+		userId := claims["sub"].(string)
+		rol := claims["roles"].([]interface{})
 		return &User{
-			UserId: userId,
-			Roles:  rol,
+			UserId: UserId(userId),
+			Roles:  getRoles(rol),
 		}, true
 	}
 
 	return nil, false
 }
 
-func CreateUser(userId string, role []Role, config *config.Config) (string, error) {
+func CreateUser(userId UserId, role []Role, config *config.Config) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":   userId,
 		"exp":   time.Now().Add(72 * time.Hour).Unix(),

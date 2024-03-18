@@ -502,7 +502,7 @@ func main() {
 				rol = append(rol, "admin")
 			}
 
-			user, err := auth.CreateUser(args[0], rol, config)
+			user, err := auth.CreateUser(auth.UserId(args[0]), rol, config)
 			if err != nil {
 				return 1
 			}

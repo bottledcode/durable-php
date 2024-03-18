@@ -26,8 +26,8 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 }
 
 func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
-	currentUser, found := ctx.Value(CurrentUserKey).(User)
-	if !found {
+	currentUser := ctx.Value(CurrentUserKey).(*User)
+	if currentUser == nil {
 		return nil, fmtError("no user in context")
 	}
 

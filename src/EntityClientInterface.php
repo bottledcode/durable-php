@@ -30,6 +30,8 @@ use Bottledcode\DurablePhp\State\EntityState;
 
 interface EntityClientInterface
 {
+    public function withAuth(string $token): void;
+
     /**
      * Removes empty entities and releases orphaned locks
      *

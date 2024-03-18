@@ -20,7 +20,7 @@ type Resource struct {
 	mu     sync.RWMutex
 }
 
-func NewResourcePermissions(owner User, mode Mode) *Resource {
+func NewResourcePermissions(owner *User, mode Mode) *Resource {
 	return &Resource{
 		Owners: map[UserId]struct{}{owner.UserId: {}},
 		Shares: []Share{},
@@ -46,7 +46,7 @@ func (r *Resource) ShareOwnership(newUser User, keepPermissions bool, ctx contex
 		r.mu.Lock()
 		defer r.mu.Unlock()
 
-		if cu, ok := ctx.Value(CurrentUserKey).(User); ok && !keepPermissions {
+		if cu := ctx.Value(CurrentUserKey).(*User); cu != nil && !keepPermissions {
 			delete(r.Owners, cu.UserId)
 		}
 
@@ -87,27 +87,28 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 	if err != nil {
 		panic(err)
 	}
-	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
-	glu.Execute(ctx, make(http.Header), logger, make(map[string]string), nil, id)
+	defer os.Remove(result.Name())
+	result.Close()
 
-	data, err := io.ReadAll(result)
-	if err != nil {
-		panic(err)
-	}
+	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
+	_, headers, _ := glu.Execute(ctx, make(http.Header), logger, map[string]string{"STATE_ID": id.String()}, nil, id)
+
+	data := headers["Permissions"][0]
+
 	var perms CreatePermissions
-	err = json.Unmarshal(data, &perms)
+	err = json.Unmarshal([]byte(data), &perms)
 	if err != nil {
 		return false
 	}
 
-	currentUser, exists := ctx.Value(CurrentUserKey).(User)
+	currentUser := ctx.Value(CurrentUserKey).(*User)
 	r.Mode = perms.Mode
 
 	switch perms.Mode {
 	case AnonymousMode:
 		return true
 	case AuthenticatedMode:
-		if !exists {
+		if currentUser == nil {
 			return false
 		}
 		return true
@@ -139,7 +140,7 @@ func (r *Resource) toBytes() []byte {
 }
 
 func (r *Resource) IsOwner(ctx context.Context) bool {
-	if user, ok := ctx.Value(CurrentUserKey).(User); ok {
+	if user := ctx.Value(CurrentUserKey).(*User); user != nil {
 		if _, found := r.Owners[user.UserId]; found {
 			return true
 		}
@@ -147,22 +148,22 @@ func (r *Resource) IsOwner(ctx context.Context) bool {
 	return false
 }
 
-func (r *Resource) WantTo(operation Operation, ctx context.Context) (ok bool) {
-	user, ok := ctx.Value(CurrentUserKey).(User)
+func (r *Resource) WantTo(operation Operation, ctx context.Context) bool {
+	user := ctx.Value(CurrentUserKey).(*User)
 
 	if r.Mode == AnonymousMode {
 		return true
 	}
 
 	// only owners can change
-	if r.Mode == AuthenticatedMode && ok {
+	if r.Mode == AuthenticatedMode && user != nil {
 		if !r.IsOwner(ctx) && operation == Owner {
 			return false
 		}
 		return true
 	}
 
-	if !ok {
+	if user == nil {
 		return false
 	}
 
@@ -174,7 +175,7 @@ func (r *Resource) WantTo(operation Operation, ctx context.Context) (ok bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	if ok {
+	if user != nil {
 		if _, found := r.Owners[user.UserId]; found {
 			return true
 		}

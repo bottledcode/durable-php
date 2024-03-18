@@ -39,12 +39,13 @@ use function Amp\Future\await;
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $client = DurableClient::get();
+$client->withAuth("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MTEwNTg2NjAsImlhdCI6MTcxMDc5OTE2MCwicm9sZXMiOlsidXNlciJdLCJzdWIiOiJyb2IifQ.pxnULi-osLhrmb9XypwmzcTpQCYmZuzwW0rPE_Tvv_I");
 $logger = new DurableLogger();
 
 $watch = new StopWatch();
 $watch->start();
-$numberToLaunch = (getenv('ACTIVITY_COUNT') ?: 1000) / 200;
-$numberLaunchers = 200;
+$numberToLaunch = (getenv('ACTIVITY_COUNT') ?: 1);// / 200;
+$numberLaunchers = 1;
 for ($i = 0; $i < $numberLaunchers; $i++) {
     async(fn() => $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),

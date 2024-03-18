@@ -264,9 +264,11 @@ class Glue
         }
 
         $permissions = json_encode($permissions, JSON_THROW_ON_ERROR);
-        fwrite($this->payloadHandle, $permissions);
+        header("Permissions: $permissions");
     }
 }
+
+header('Content-type: application/dphp');
 
 (new Glue($logger))->process();
 

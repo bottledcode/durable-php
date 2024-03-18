@@ -36,6 +36,8 @@ use function Withinboredom\Time\Seconds;
 
 final class RemoteOrchestrationClient implements OrchestrationClientInterface
 {
+    private string $userToken = "";
+
     public function __construct(
         private string $apiHost = 'http://localhost:8080',
         private HttpClient $client = new HttpClient(),
@@ -48,6 +50,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     public function listInstances(): \Generator
     {
         $req = new Request("$this->apiHost/orchestrations");
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
         yield from $result;
@@ -67,6 +72,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $signal = rawurlencode($eventName);
         $eventData = SerializedArray::fromArray($eventData);
         $req = new Request("$this->apiHost/orchestration/$name/$id/$signal", 'PUT', json_encode($eventData, JSON_THROW_ON_ERROR));
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
             throw new \Exception($result->getBody()->read());
@@ -79,6 +87,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
         $req = new Request("$this->apiHost/orchestration/$name/$id");
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
 
@@ -105,6 +116,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $name = rawurlencode($name);
         $id = $id ? "/" . rawurlencode($id) : '';
         $req = new Request("$this->apiHost/orchestration/$name$id", 'PUT', $data);
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
             throw new \Exception($result->getBody()->read());
@@ -134,9 +148,17 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $req->setInactivityTimeout(Hours(1)->inSeconds());
         $req->setTcpConnectTimeout(Seconds(1)->inSeconds());
         $req->setTransferTimeout(Hours(1)->inSeconds());
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
         $result = $this->client->request($req);
         $result = $result->getBody()->read();
 
 
+    }
+
+    #[\Override] public function withAuth(string $token): void
+    {
+        $this->userToken = $token;
     }
 }

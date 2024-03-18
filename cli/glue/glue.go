@@ -170,7 +170,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	defer close(writer.query)
 
 	go func() {
-		mu := sync.RWMutex{}
+		mu := sync.Mutex{}
 		for query := range writer.query {
 			id := ParseStateId(query[0])
 			qid := query[1]
