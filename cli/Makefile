@@ -4,7 +4,7 @@ DOCKER_IMAGE := builder
 DOCKER_TARGET := cli-base-alpine
 BUILD_PATH := /go/src/app/cli/dist
 
-${BIN_PATH}/${TARGET}: cli.go lib/* go.mod build.sh init/* build-php.sh config/* auth/* ../Dockerfile
+${BIN_PATH}/${TARGET}: cli.go */* go.mod build.sh build-php.sh ../Dockerfile
 	mkdir -p ${BIN_PATH}
 	cd .. && docker build --pull --target ${DOCKER_TARGET} -t ${DOCKER_IMAGE} .
 	docker create --name builder builder || ( docker rm -f builder && false )

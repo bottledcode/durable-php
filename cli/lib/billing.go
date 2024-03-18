@@ -142,7 +142,6 @@ func StartBillingProcessor(ctx context.Context, config *config.Config, js jetstr
 					if err != nil {
 						logger.Warn("Failed to publish billing event", zap.String("id", id.String()), zap.Error(err))
 					}
-					logger.Warn("Billed for one entity")
 				}
 			case "TaskCompleted":
 				fallthrough

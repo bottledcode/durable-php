@@ -95,7 +95,7 @@ func GlueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int) {
 	var dir string
 	var ok bool
-	if dir, ok = getLibraryDir("Glue.php"); !ok {
+	if dir, ok = getLibraryDir("glue.php"); !ok {
 		panic("no vendor directory!")
 	}
 	u, _ := url.Parse(dir)

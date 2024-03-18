@@ -112,7 +112,7 @@ if [ "${os}" = "linux" ]; then
 fi
 
 if [ -z "${DEBUG_SYMBOLS}" ]; then
-    extraLdflags="-w -s"
+    extraLdflags="-w -s -race"
 fi
 
 env
