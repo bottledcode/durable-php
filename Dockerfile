@@ -56,15 +56,14 @@ COPY cli/build-php.sh .
 RUN BUILD=no ./build-php.sh
 RUN ./build-php.sh
 
-COPY cli/go.mod cli/go.sum ./
-RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
+#RUN mkdir -p cli && mv dist cli/
 
-COPY cli/build.sh .
-COPY cli/lib ./lib
-COPY cli/init ./init
-COPY cli/auth ./auth
-COPY cli/config ./config
-COPY cli/*.go .
+COPY cli/go.mod cli/go.sum ./cli/
+RUN cd cli && go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
+
+COPY .git/ ./.git/
+COPY cli/ ./cli/
+WORKDIR /go/src/app/cli
 RUN ./build.sh
 
 FROM php:8-zts AS base

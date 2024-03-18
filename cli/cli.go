@@ -48,6 +48,8 @@ import (
 	"time"
 )
 
+var version string
+
 func getLogger(options map[string]string) *zap.Logger {
 	atom := zap.NewAtomicLevel()
 	if options["debug"] == "true" {
@@ -390,7 +392,7 @@ func main() {
 			return di.Execute(args, options, getLogger(options))
 		})
 	version := cli.NewCommand("version", "The current version").WithAction(func(args []string, options map[string]string) int {
-		fmt.Println("{{VERSION}}")
+		fmt.Println(version)
 
 		return 0
 	})
