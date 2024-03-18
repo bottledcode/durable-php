@@ -1,4 +1,4 @@
-package lib
+package glue
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ import (
 	"sync"
 )
 
-// this is the go side of the glue protocol
+// this is the go side of the Glue protocol
 //
 // the essence is very simple:
 // - all output is written to the logger
@@ -39,7 +39,7 @@ func getLibraryDir(target string) (string, bool) {
 	return "", false
 }
 
-type glue struct {
+type Glue struct {
 	// bootstrap Glue will load bootstrap file before calling any user code
 	bootstrap string
 	// function The callable to call and process the input
@@ -50,7 +50,16 @@ type glue struct {
 	payload string
 }
 
-func glueFromApiRequest(ctx context.Context, r *http.Request, function string, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
+func NewGlue(bootstrap string, function string, input []any, payload string) *Glue {
+	return &Glue{
+		bootstrap: bootstrap,
+		function:  function,
+		input:     input,
+		payload:   payload,
+	}
+}
+
+func GlueFromApiRequest(ctx context.Context, r *http.Request, function string, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
 		return nil, "", err, nil
@@ -67,7 +76,7 @@ func glueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 	}
 	temp.Close()
 
-	glu := &glue{
+	glu := &Glue{
 		bootstrap: ctx.Value("bootstrap").(string),
 		function:  function,
 		input:     make([]any, 0),
@@ -78,15 +87,15 @@ func glueFromApiRequest(ctx context.Context, r *http.Request, function string, l
 	env["FROM_REQUEST"] = "1"
 	env["STATE_ID"] = id.String()
 
-	msgs, responseHeaders, _ := glu.execute(ctx, headers, logger, env, stream, id)
+	msgs, responseHeaders, _ := glu.Execute(ctx, headers, logger, env, stream, id)
 
 	return msgs, temp.Name(), nil, &responseHeaders
 }
 
-func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int) {
+func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int) {
 	var dir string
 	var ok bool
-	if dir, ok = getLibraryDir("glue.php"); !ok {
+	if dir, ok = getLibraryDir("Glue.php"); !ok {
 		panic("no vendor directory!")
 	}
 	u, _ := url.Parse(dir)
@@ -157,7 +166,7 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				stateFile, _ := getStateFile(id, stream, ctx, logger)
+				stateFile, _ := GetStateFile(id, stream, ctx, logger)
 
 				mu.Lock()
 				defer mu.Unlock()
@@ -179,8 +188,8 @@ func (g *glue) execute(ctx context.Context, headers http.Header, logger *zap.Log
 	return writer.events, writer.Header(), writer.status
 }
 
-func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*os.File, func() error) {
-	if id.kind == Orchestration {
+func GetStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*os.File, func() error) {
+	if id.Kind == Orchestration {
 		// orchestrations use optimistic concurrency and the kv store for state
 		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 			Bucket:      string(Orchestration),
@@ -197,7 +206,7 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 
 		toCreate := true
 
-		get, err := bucket.Get(ctx, id.toSubject().String())
+		get, err := bucket.Get(ctx, id.ToSubject().String())
 		if err == nil {
 			toCreate = false
 			_, err = io.Copy(stateFile, bytes.NewReader(get.Value()))
@@ -211,7 +220,7 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 			logger.Debug("Deleting stateFile", zap.String("filename", stateFile.Name()))
 			err := os.Remove(stateFile.Name())
 			if err != nil {
-				logger.Warn("Unable to delete stateFile", zap.String("name", stateFile.Name()))
+				logger.Warn("Unable to delete stateFile", zap.String("Name", stateFile.Name()))
 			}
 		}()
 
@@ -222,26 +231,26 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 			}
 
 			if toCreate {
-				_, err := bucket.Create(ctx, id.toSubject().String(), fileData)
+				_, err := bucket.Create(ctx, id.ToSubject().String(), fileData)
 				if err != nil {
 					return err
 				}
 			} else {
-				_, err := bucket.Update(ctx, id.toSubject().String(), fileData, get.Revision())
+				_, err := bucket.Update(ctx, id.ToSubject().String(), fileData, get.Revision())
 				if err != nil {
 					return err
 				}
 			}
 
-			//logger.Info("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", "orchestrations"), zap.String("key", get.Key()))
-			logger.Debug("State file updated", zap.String("name", stateFile.Name()))
+			//logger.Info("State file updated", zap.String("Name", stateFile.Name()), zap.String("Subject", Id.ToSubject().String()), zap.String("bucket", "orchestrations"), zap.String("key", get.Key()))
+			logger.Debug("State file updated", zap.String("Name", stateFile.Name()))
 			// now we just need to watch the right key!
 
 			return nil
 		}
 	}
 
-	obj, err := GetObjectStore(id.kind, stream, ctx)
+	obj, err := GetObjectStore(id.Kind, stream, ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -252,7 +261,7 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 	defer stateFile.Close()
 	logger.Debug("Created statefile", zap.String("filename", stateFile.Name()))
 
-	err = obj.GetFile(ctx, id.toSubject().String(), stateFile.Name())
+	err = obj.GetFile(ctx, id.ToSubject().String(), stateFile.Name())
 	if err != nil {
 		// GetFile will delete the file, causing interesting things to happen, so we need to ensure it always exists
 		os.Create(stateFile.Name())
@@ -263,7 +272,7 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 		logger.Debug("Deleting statefile", zap.String("filename", stateFile.Name()))
 		err := os.Remove(stateFile.Name())
 		if err != nil {
-			logger.Warn("Unable to delete stateFile", zap.String("name", stateFile.Name()))
+			logger.Warn("Unable to delete stateFile", zap.String("Name", stateFile.Name()))
 		}
 	}()
 
@@ -273,12 +282,12 @@ func getStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, 
 			return err
 		}
 
-		link, err := obj.AddLink(ctx, id.toSubject().String(), info)
+		link, err := obj.AddLink(ctx, id.ToSubject().String(), info)
 		if err != nil {
 			return err
 		}
 
-		logger.Debug("State file updated", zap.String("name", stateFile.Name()), zap.String("Subject", id.toSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
+		logger.Debug("State file updated", zap.String("Name", stateFile.Name()), zap.String("Subject", id.ToSubject().String()), zap.String("bucket", info.Bucket), zap.String("key", link.Name))
 
 		return nil
 	}

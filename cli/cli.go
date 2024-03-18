@@ -26,6 +26,7 @@ import (
 	"context"
 	"durable_php/auth"
 	"durable_php/config"
+	"durable_php/glue"
 	di "durable_php/init"
 	"durable_php/lib"
 	"encoding/json"
@@ -156,9 +157,9 @@ func execute(args []string, options map[string]string) int {
 		})
 
 		consumers := []string{
-			string(lib.Activity),
-			string(lib.Entity),
-			string(lib.Orchestration),
+			string(glue.Activity),
+			string(glue.Entity),
+			string(glue.Orchestration),
 		}
 
 		for _, kind := range consumers {
@@ -185,29 +186,29 @@ func execute(args []string, options map[string]string) int {
 
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, config, lib.Activity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Activity, logger, js)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, config, lib.Entity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Entity, logger, js)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, config, lib.Orchestration, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Orchestration, logger, js)
 	}
 
 	if len(config.Extensions.Search.Collections) > 0 {
 		for _, collection := range config.Extensions.Search.Collections {
 			switch collection {
 			case "entities":
-				err := lib.IndexerListen(ctx, config, lib.Entity, js, logger)
+				err := lib.IndexerListen(ctx, config, glue.Entity, js, logger)
 				if err != nil {
 					panic(err)
 				}
 			case "orchestrations":
-				err := lib.IndexerListen(ctx, config, lib.Orchestration, js, logger)
+				err := lib.IndexerListen(ctx, config, glue.Orchestration, js, logger)
 				if err != nil {
 					panic(err)
 				}
@@ -421,13 +422,13 @@ func main() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var store lib.IdKind
+			var store glue.IdKind
 			switch args[0] {
-			case string(lib.Orchestration):
-				store = lib.Orchestration
+			case string(glue.Orchestration):
+				store = glue.Orchestration
 
 				if len(args) == 1 {
-					kv, err := js.KeyValue(ctx, string(lib.Orchestration))
+					kv, err := js.KeyValue(ctx, string(glue.Orchestration))
 					if err != nil {
 						fmt.Println("[]")
 						return 0
@@ -448,20 +449,20 @@ func main() {
 					fmt.Println(string(marshal))
 					return 0
 				}
-			case string(lib.Activity):
-				store = lib.Activity
-			case string(lib.Entity):
-				store = lib.Entity
+			case string(glue.Activity):
+				store = glue.Activity
+			case string(glue.Entity):
+				store = glue.Entity
 			default:
 				panic(fmt.Errorf("invalid type: %s", args[0]))
 			}
 
-			objectStore, err := lib.GetObjectStore(store, js, ctx)
+			objectStore, err := glue.GetObjectStore(store, js, ctx)
 			if err != nil {
 				panic(err)
 			}
 
-			writer := &lib.ConsumingResponseWriter{
+			writer := &glue.ConsumingResponseWriter{
 				Data:    "",
 				Headers: make(http.Header),
 			}
@@ -472,14 +473,14 @@ func main() {
 				return 0
 			}
 
-			var id *lib.StateId
+			var id *glue.StateId
 			switch store {
-			case lib.Entity:
+			case glue.Entity:
 				fallthrough
-			case lib.Orchestration:
-				id = lib.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
-			case lib.Activity:
-				id = lib.ParseStateId(fmt.Sprintf("%s:%s", string(lib.Activity), args[1]))
+			case glue.Orchestration:
+				id = glue.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
+			case glue.Activity:
+				id = glue.ParseStateId(fmt.Sprintf("%s:%s", string(glue.Activity), args[1]))
 			}
 
 			err = lib.OutputStatus(ctx, writer, id, js, logger)

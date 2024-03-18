@@ -1,4 +1,4 @@
-package lib
+package glue
 
 import (
 	"bufio"
@@ -69,7 +69,7 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			destinationId := ParseStateId(body.Destination)
 			replyTo := ""
 			if body.ReplyTo != "" {
-				replyTo = ParseStateId(body.ReplyTo).toSubject().String()
+				replyTo = ParseStateId(body.ReplyTo).ToSubject().String()
 			}
 
 			now, _ := time.Now().MarshalText()
@@ -87,7 +87,7 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			}
 
 			msg := &nats.Msg{
-				Subject: destinationId.toSubject().String(),
+				Subject: destinationId.ToSubject().String(),
 				Reply:   replyTo,
 				Header:  header,
 				Data:    []byte(body.Event),

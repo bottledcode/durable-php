@@ -2,12 +2,13 @@ package lib
 
 import (
 	"context"
+	"durable_php/glue"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"time"
 )
 
-func lockSubject(ctx context.Context, subject *Subject, js jetstream.JetStream, logger *zap.Logger) {
+func lockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStream, logger *zap.Logger) {
 	logger.Debug("Attempting to take lock", zap.String("Subject", subject.String()))
 	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket: subject.Bucket(),
@@ -57,7 +58,7 @@ func lockSubject(ctx context.Context, subject *Subject, js jetstream.JetStream, 
 	logger.Debug("Successfully got lock")
 }
 
-func unlockSubject(ctx context.Context, subject *Subject, js jetstream.JetStream, logger *zap.Logger) {
+func unlockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStream, logger *zap.Logger) {
 	logger.Debug("Unlocking", zap.String("Subject", subject.String()))
 	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket: subject.Bucket(),

@@ -3,6 +3,7 @@ package lib
 import (
 	"context"
 	"durable_php/config"
+	"durable_php/glue"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -11,7 +12,7 @@ import (
 	"time"
 )
 
-func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind IdKind, logger *zap.Logger, js jetstream.JetStream) {
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind glue.IdKind, logger *zap.Logger, js jetstream.JetStream) {
 	logger.Debug("Creating consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
 
 	consumer, err := stream.Consumer(ctx, config.Stream+"-"+string(kind))
@@ -39,7 +40,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 			meta, _ := msg.Metadata()
 			headers := msg.Headers()
 
-			if headers.Get(string(HeaderDelay)) != "" && meta.NumDelivered == 1 {
+			if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
 				logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
 				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 				if err != nil {
@@ -68,33 +69,28 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
-	id := ParseStateId(msg.Headers().Get(string(HeaderStateId)))
-	if id.kind == Entity {
-		lockSubject(ctx, id.toSubject(), js, logger)
-		defer unlockSubject(ctx, id.toSubject(), js, logger)
+	id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+	if id.Kind == glue.Entity {
+		lockSubject(ctx, id.ToSubject(), js, logger)
+		defer unlockSubject(ctx, id.ToSubject(), js, logger)
 	}
 
 	ctx, cancelCtx := context.WithCancel(ctx)
 	defer cancelCtx()
 
 	// get the object
-	stateFile, update := getStateFile(id, js, ctx, logger)
+	stateFile, update := glue.GetStateFile(id, js, ctx, logger)
 
 	// call glue with the associated bits
-	glu := &glue{
-		bootstrap: config.Bootstrap,
-		function:  "processMsg",
-		input:     make([]any, 0),
-		payload:   stateFile.Name(),
-	}
+	glu := glue.NewGlue(config.Bootstrap, "processMsg", make([]any, 0), stateFile.Name())
 
 	var headers = http.Header{}
 	var env = make(map[string]string)
 	headers.Add("X-Correlation-ID", ctx.Value("cid").(string))
 	env["EVENT"] = string(msg.Data())
-	env["STATE_ID"] = msg.Headers().Get(string(HeaderStateId))
+	env["STATE_ID"] = msg.Headers().Get(string(glue.HeaderStateId))
 
-	msgs, headers, _ := glu.execute(ctx, headers, logger, env, js, id)
+	msgs, headers, _ := glu.Execute(ctx, headers, logger, env, js, id)
 
 	// now update the stored state, if this fails due to optimistic concurrency, we immediately nak and fail
 	err := update()
