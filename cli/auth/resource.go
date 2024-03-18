@@ -2,8 +2,14 @@ package auth
 
 import (
 	"context"
+	"durable_php/glue"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
+	"io"
+	"net/http"
+	"os"
+	"slices"
 	"sync"
 )
 
@@ -14,8 +20,8 @@ type Resource struct {
 	mu     sync.RWMutex
 }
 
-func NewResourcePermissions(owner User, mode Mode) Resource {
-	return Resource{
+func NewResourcePermissions(owner User, mode Mode) *Resource {
+	return &Resource{
 		Owners: map[UserId]struct{}{owner.UserId: {}},
 		Shares: []Share{},
 		Mode:   mode,
@@ -48,6 +54,78 @@ func (r *Resource) ShareOwnership(newUser User, keepPermissions bool, ctx contex
 	}
 
 	return fmtError(Owner)
+}
+
+func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
+	result, err := os.CreateTemp("", "")
+	if err != nil {
+		panic(err)
+	}
+	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
+	glu.Execute(ctx, make(http.Header), logger, make(map[string]string), nil, id)
+
+	data, err := io.ReadAll(result)
+	if err != nil {
+		panic(err)
+	}
+	var perms CreatePermissions
+	err = json.Unmarshal(data, &perms)
+	if err != nil {
+		return false
+	}
+
+	if r.Mode != perms.Mode {
+		r.Mode = perms.Mode
+		return true
+	}
+
+	return false
+}
+
+func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
+	result, err := os.CreateTemp("", "")
+	if err != nil {
+		panic(err)
+	}
+	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
+	glu.Execute(ctx, make(http.Header), logger, make(map[string]string), nil, id)
+
+	data, err := io.ReadAll(result)
+	if err != nil {
+		panic(err)
+	}
+	var perms CreatePermissions
+	err = json.Unmarshal(data, &perms)
+	if err != nil {
+		return false
+	}
+
+	currentUser, exists := ctx.Value(CurrentUserKey).(User)
+	r.Mode = perms.Mode
+
+	switch perms.Mode {
+	case AnonymousMode:
+		return true
+	case AuthenticatedMode:
+		if !exists {
+			return false
+		}
+		return true
+	case ExplicitMode:
+		if slices.Contains(perms.Users, currentUser.UserId) {
+			return true
+		}
+
+		for _, role := range currentUser.Roles {
+			if slices.Contains(perms.Roles, role) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return false
 }
 
 func (r *Resource) toBytes() []byte {

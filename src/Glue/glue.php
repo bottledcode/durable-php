@@ -30,13 +30,20 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\SerializedArray;
+use Bottledcode\DurablePhp\State\ActivityHistory;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForAuth;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForRole;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForUser;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
 use JsonException;
+use Psr\Container\ContainerInterface;
 use Ramsey\Uuid\Uuid;
 
 require_once __DIR__ . '/autoload.php';
@@ -44,11 +51,17 @@ require_once __DIR__ . '/autoload.php';
 class Glue
 {
     public readonly ?string $bootstrap;
+
     public StateId $target;
+
     public $payloadHandle;
+
     public array $payload = [];
+
     private string $method;
+
     private $streamHandle;
+
     private array $queries = [];
 
     public function __construct(private DurableLogger $logger)
@@ -57,7 +70,7 @@ class Glue
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
 
-        if(!file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
+        if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
             throw new \LogicException('Unable to load payload');
         }
 
@@ -67,7 +80,7 @@ class Glue
         } catch (JsonException) {
             $this->payload = [];
         }
-        $this->logger->debug("Got payload", ['raw' => $payload, 'parsed' => $this->payload]);
+        $this->logger->debug('Got payload', ['raw' => $payload, 'parsed' => $this->payload]);
 
         $this->streamHandle = fopen('php://input', 'r+b');
     }
@@ -115,6 +128,38 @@ class Glue
         $task->run();
     }
 
+    public function bootstrap(): ContainerInterface
+    {
+        if (file_exists($this->bootstrap)) {
+            return include $this->bootstrap;
+        }
+
+        return new class () implements ContainerInterface {
+            private array $things = [];
+
+            #[\Override]
+            public function get(string $id)
+            {
+                if (empty($this->things[$id])) {
+                    return $this->things[$id] = new $id();
+                }
+
+                return $this->things[$id];
+            }
+
+            #[\Override]
+            public function has(string $id): bool
+            {
+                return isset($this->things[$id]);
+            }
+
+            public function set(string $id, $value): void
+            {
+                $this->things[$id] = $value;
+            }
+        };
+    }
+
     private function entitySignal(): void
     {
         $input = SerializedArray::import($this->payload['input'])->toArray();
@@ -130,14 +175,14 @@ class Glue
 
     private function startOrchestration(): void
     {
-        if(!$this->target->toOrchestrationInstance()->executionId) {
+        if (! $this->target->toOrchestrationInstance()->executionId) {
             $this->target = StateId::fromInstance(new OrchestrationInstance($this->target->toOrchestrationInstance()->instanceId, Uuid::uuid7()->toString()));
         }
 
         header('X-Id: ' . $this->target->id);
         $input = SerializedArray::import($this->payload['input'])->toArray();
 
-        $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, [], /* todo: scheduling */));
+        $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
         $this->outputEvent(new EventDescription($event));
     }
 
@@ -156,13 +201,70 @@ class Glue
         $state = Serializer::deserialize($state, EntityHistory::class);
         fseek($this->payloadHandle, 0);
         ftruncate($this->payloadHandle, 0);
-        if($state->getState() !== null) {
+        if ($state->getState() !== null) {
             $state = Serializer::serialize($state->getState(), ['API']);
         } else {
             fwrite($this->payloadHandle, 'null');
+
             return;
         }
         fwrite($this->payloadHandle, json_encode($state, JSON_THROW_ON_ERROR));
+    }
+
+    private function getPermissions(): void
+    {
+        $permissions = [
+            'mode' => 'explicit',
+            'users' => [],
+            'roles' => [],
+            'limits' => [
+                'user' => -1,
+                'role' => -1,
+                'global' => -1,
+            ],
+        ];
+        switch ($this->target->getStateType()) {
+            case ActivityHistory::class:
+                // todo
+                break;
+            case EntityHistory::class:
+
+                $entity = $this->target->toEntityId();
+                $class = new \ReflectionClass($entity->name);
+                break;
+            case OrchestrationHistory::class:
+                $instance = $this->target->toOrchestrationInstance();
+                $class = new \ReflectionClass($instance->instanceId);
+                break;
+            default:
+        }
+        foreach ($class->getAttributes(AllowCreateForAuth::class) as $attribute) {
+            $permissions['mode'] = 'auth';
+            /** @var AllowCreateForAuth $attribute */
+            $attribute = $attribute->newInstance();
+            $permissions['limits']['user'] = $attribute->userLimit;
+            $permissions['limits']['role'] = $attribute->roleLimit;
+            $permissions['limits']['global'] = $attribute->globalLimit;
+        }
+
+        foreach ($class->getAttributes(AllowCreateAll::class) as $attribute) {
+            $permissions['mode'] = 'anon';
+        }
+
+        foreach ($class->getAttributes(AllowCreateForRole::class) as $attribute) {
+            /** @var AllowCreateForRole $attribute */
+            $attribute = $attribute->newInstance();
+            $permissions['roles'][] = $attribute->role;
+        }
+
+        foreach ($class->getAttributes(AllowCreateForUser::class) as $attribute) {
+            /** @var AllowCreateForUser $attribute */
+            $attribute = $attribute->newInstance();
+            $permissions['users'][] = $attribute->user;
+        }
+
+        $permissions = json_encode($permissions, JSON_THROW_ON_ERROR);
+        fwrite($this->payloadHandle, $permissions);
     }
 }
 

@@ -82,34 +82,7 @@ class Task
         }
 
         // initialize the container
-        if (file_exists($this->glue->bootstrap)) {
-            $this->container = include $this->glue->bootstrap;
-        } else {
-            $this->container = new class () implements ContainerInterface {
-                private array $things = [];
-
-                #[\Override]
-                public function get(string $id)
-                {
-                    if (empty($this->things[$id])) {
-                        return $this->things[$id] = new $id();
-                    }
-
-                    return $this->things[$id];
-                }
-
-                #[\Override]
-                public function has(string $id): bool
-                {
-                    return isset($this->things[$id]);
-                }
-
-                public function set(string $id, $value): void
-                {
-                    $this->things[$id] = $value;
-                }
-            };
-        }
+        $this->container = $this->glue->bootstrap();
         $state->setContainer($this->container);
         $state->setLogger($this->logger);
 

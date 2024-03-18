@@ -24,7 +24,7 @@
 namespace Bottledcode\DurablePhp\State\Attributes;
 
 #[\Attribute(\Attribute::IS_REPEATABLE | \Attribute::TARGET_CLASS)]
-class AllowCreateForRole
+readonly class AllowCreateForRole
 {
-    public function __construct(string $role) {}
+    public function __construct(public string $role) {}
 }

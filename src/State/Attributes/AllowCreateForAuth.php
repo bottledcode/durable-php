@@ -24,7 +24,7 @@
 namespace Bottledcode\DurablePhp\State\Attributes;
 
 #[\Attribute(\Attribute::TARGET_CLASS)]
-class AllowCreateForAuth
+readonly class AllowCreateForAuth
 {
-    public function __construct(int $userLimit = -1, int $roleLimit = -1, int $globalLimit = -1) {}
+    public function __construct(public int $userLimit = -1, public int $roleLimit = -1, public int $globalLimit = -1) {}
 }

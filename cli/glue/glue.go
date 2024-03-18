@@ -25,6 +25,7 @@ const (
 	StartOrchestration  Method = "startOrchestration"
 	SignalOrchestration Method = "orchestrationSignal"
 	DecodeEntity        Method = "entityDecoder"
+	GetPermissions      Method = "getPermissions"
 )
 
 // this is the go side of the Glue protocol
