@@ -3,6 +3,7 @@ package glue
 import (
 	"bytes"
 	"context"
+	"durable_php/appcontext"
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
@@ -117,6 +118,15 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	headers.Add("DPHP_BOOTSTRAP", g.bootstrap)
 	headers.Add("DPHP_FUNCTION", string(g.function))
 	headers.Add("DPHP_PAYLOAD", g.payload)
+
+	provenance := ctx.Value(appcontext.CurrentUserKey)
+	if provenance != nil {
+		provenanceJson, err := json.Marshal(provenance)
+		if err != nil {
+			logger.Warn("Failed to create provenance json")
+		}
+		headers.Add("DPHP_PROVENANCE", string(provenanceJson))
+	}
 
 	jsonData, err := json.Marshal(g.input)
 	if err != nil {

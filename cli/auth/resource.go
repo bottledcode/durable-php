@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"durable_php/appcontext"
 	"durable_php/glue"
 	"encoding/json"
 	"fmt"
@@ -46,7 +47,7 @@ func (r *Resource) ShareOwnership(newUser User, keepPermissions bool, ctx contex
 		r.mu.Lock()
 		defer r.mu.Unlock()
 
-		if cu := ctx.Value(CurrentUserKey).(*User); cu != nil && !keepPermissions {
+		if cu := ctx.Value(appcontext.CurrentUserKey).(*User); cu != nil && !keepPermissions {
 			delete(r.Owners, cu.UserId)
 		}
 
@@ -101,7 +102,7 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 		return false
 	}
 
-	currentUser := ctx.Value(CurrentUserKey).(*User)
+	currentUser := ctx.Value(appcontext.CurrentUserKey).(*User)
 	r.Mode = perms.Mode
 
 	switch perms.Mode {
@@ -140,7 +141,7 @@ func (r *Resource) toBytes() []byte {
 }
 
 func (r *Resource) IsOwner(ctx context.Context) bool {
-	if user := ctx.Value(CurrentUserKey).(*User); user != nil {
+	if user := ctx.Value(appcontext.CurrentUserKey).(*User); user != nil {
 		if _, found := r.Owners[user.UserId]; found {
 			return true
 		}
@@ -149,7 +150,7 @@ func (r *Resource) IsOwner(ctx context.Context) bool {
 }
 
 func (r *Resource) WantTo(operation Operation, ctx context.Context) bool {
-	user := ctx.Value(CurrentUserKey).(*User)
+	user := ctx.Value(appcontext.CurrentUserKey).(*User)
 
 	if r.Mode == AnonymousMode {
 		return true

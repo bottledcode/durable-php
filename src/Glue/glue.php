@@ -57,11 +57,9 @@ class Glue
     public $payloadHandle;
 
     public array $payload = [];
-
+    public Provenance|null $provenance;
     private string $method;
-
     private $streamHandle;
-
     private array $queries = [];
 
     public function __construct(private DurableLogger $logger)
@@ -69,6 +67,17 @@ class Glue
         $this->target = StateId::fromString($_SERVER['STATE_ID']);
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
+        try {
+            $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? "null", true, 32, JSON_THROW_ON_ERROR);
+            if(!$provenance) {
+                $this->provenance = null;
+            } else {
+                $this->provenance = Serializer::deserialize($provenance, Provenance::class);
+            }
+        } catch (JsonException $e) {
+            $this->logger->alert("Failed to capture provenance", ['provenance' => $_SERVER['HTTP_DPHP_PROVENANCE'] ?? null]);
+            $this->provenance = null;
+        }
 
         if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
             throw new \LogicException('Unable to load payload');

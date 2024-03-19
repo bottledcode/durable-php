@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"durable_php/appcontext"
 	"durable_php/config"
 	"encoding/base64"
 	"fmt"
@@ -21,7 +22,7 @@ func getActiveKey(config *config.Config) []byte {
 }
 
 func DecorateContextWithUser(ctx context.Context, user *User) context.Context {
-	return context.WithValue(ctx, CurrentUserKey, user)
+	return context.WithValue(ctx, appcontext.CurrentUserKey, user)
 }
 
 func ExtractUser(r *http.Request, config *config.Config) (user *User, ok bool) {

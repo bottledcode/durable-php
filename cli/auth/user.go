@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"durable_php/appcontext"
 	"slices"
 )
 
@@ -11,10 +12,6 @@ type Operation string
 
 type UserId string
 type Role string
-
-type ContextKey struct{}
-
-var CurrentUserKey ContextKey
 
 const (
 	// ExplicitMode configures the service to only allow explicit Shares
@@ -87,7 +84,7 @@ type UserShare struct {
 }
 
 func (u UserShare) WantTo(operation Operation, ctx context.Context) bool {
-	if user := ctx.Value(CurrentUserKey).(*User); user != nil && user.UserId == u.UserId {
+	if user := ctx.Value(appcontext.CurrentUserKey).(*User); user != nil && user.UserId == u.UserId {
 		return u.Permissions.WantTo(operation, ctx)
 	}
 
@@ -100,7 +97,7 @@ type RoleShare struct {
 }
 
 func (r RoleShare) WantTo(operation Operation, ctx context.Context) bool {
-	if user := ctx.Value(CurrentUserKey).(*User); user != nil && user.Is(r.Role) {
+	if user := ctx.Value(appcontext.CurrentUserKey).(*User); user != nil && user.Is(r.Role) {
 		return r.Permissions.WantTo(operation, ctx)
 	}
 

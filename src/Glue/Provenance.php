@@ -23,7 +23,10 @@
 
 namespace Bottledcode\DurablePhp\Glue;
 
+use Crell\Serde\Attributes\SequenceField;
+use Crell\Serde\ValueType;
+
 readonly class Provenance
 {
-    public function __construct(public string $userId, public array $roles) {}
+    public function __construct(public string $userId, #[SequenceField(ValueType::String)] public array $roles) {}
 }

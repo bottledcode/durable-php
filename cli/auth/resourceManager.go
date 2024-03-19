@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"durable_php/appcontext"
 	"durable_php/glue"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 }
 
 func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
-	currentUser := ctx.Value(CurrentUserKey).(*User)
+	currentUser := ctx.Value(appcontext.CurrentUserKey).(*User)
 	if currentUser == nil {
 		return nil, fmtError("no user in context")
 	}
