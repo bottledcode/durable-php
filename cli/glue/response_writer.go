@@ -3,6 +3,8 @@ package glue
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"durable_php/appcontext"
 	"encoding/json"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -20,6 +22,7 @@ const (
 	HeaderTargetType GlueHeaders = "Target-Type"
 	HeaderEmittedBy  GlueHeaders = "Emitted-By"
 	HeaderEmittedAt  GlueHeaders = "Emitted-At"
+	HeaderProvenance GlueHeaders = "Provenance"
 )
 
 type ConsumingResponseWriter struct {
@@ -48,6 +51,7 @@ type InternalLoggingResponseWriter struct {
 	query     chan []string
 	headers   http.Header
 	CurrentId *StateId
+	Context   context.Context
 }
 
 func (w *InternalLoggingResponseWriter) Header() http.Header {
@@ -56,6 +60,11 @@ func (w *InternalLoggingResponseWriter) Header() http.Header {
 
 func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(b))
+	currentUser, err := json.Marshal(w.Context.Value(appcontext.CurrentUserKey))
+	if err != nil {
+		w.logger.Warn("Failed to create user for provenance events")
+		currentUser = []byte("null")
+	}
 	for scanner.Scan() {
 		line := scanner.Text()
 		if after, found := strings.CutPrefix(line, "EVENT~!~"); found {
@@ -82,6 +91,7 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			header.Add(string(HeaderEventType), eventType)
 			header.Add(string(HeaderTargetType), body.TargetType)
 			header.Add(string(HeaderEmittedAt), string(now))
+			header.Add(string(HeaderProvenance), string(currentUser))
 			if w.CurrentId != nil {
 				header.Add(string(HeaderEmittedBy), w.CurrentId.String())
 			}

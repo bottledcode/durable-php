@@ -124,6 +124,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 		provenanceJson, err := json.Marshal(provenance)
 		if err != nil {
 			logger.Warn("Failed to create provenance json")
+			provenanceJson = []byte("null")
 		}
 		headers.Add("DPHP_PROVENANCE", string(provenanceJson))
 	}
