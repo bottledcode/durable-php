@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -26,44 +25,24 @@ namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Crell\Serde\Attributes\SequenceField;
 use Ramsey\Uuid\Uuid;
 
-#[NeedsTarget(Operation::Signal)]
-class StartExecution extends Event
+#[NeedsTarget(Operation::SharePlus)]
+class ShareWithRole extends Event
 {
-    public function __construct(
-        public OrchestrationInstance|null $parentInstance,
-        public string $version,
-        public array $input,
-        public array $tags,
-        public string $correlation,
-        public \DateTimeImmutable $scheduledAt,
-        public int $generation,
-        public string $eventId,
-    ) {
-        parent::__construct($eventId ?: Uuid::uuid7());
-    }
-
-    public static function asParent(
-        array $input,
-        array $tags,
-        \DateTimeImmutable $at = new \DateTimeImmutable()
-    ): self {
-        return new self(null, 0, $input, $tags, '', $at, 0, '');
-    }
-
-    public static function asChild(
-        OrchestrationInstance $parent,
-        array $input,
-        array $tags,
-        \DateTimeImmutable $at = new \DateTimeImmutable()
-    ) {
-        return new self($parent, 0, $input, $tags, '', $at, 0, '');
-    }
-
-    public function __toString(): string
+    private function __construct(public string $role, #[SequenceField(Operation::class)] public array $allowedOperations)
     {
-        return sprintf('startExecution(%s, %s)', $this->eventId, ($this->parentInstance ?? null) ? 'child' : 'parent');
+        parent::__construct(Uuid::uuid7());
+    }
+
+    public static function For(string $role, Operation ...$allowedOperations): self
+    {
+        return new self($role, $allowedOperations);
+    }
+
+    public function __toString()
+    {
+        return sprintf("Share(role: %s, %s)", $this->role, implode(', ', $this->allowedOperations));
     }
 }

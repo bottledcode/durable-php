@@ -179,6 +179,9 @@ class Glue
 
     public function outputEvent(EventDescription $event): void
     {
+        // determine access level
+
+
         echo 'EVENT~!~' . trim($event->toStream()) . "\n";
     }
 

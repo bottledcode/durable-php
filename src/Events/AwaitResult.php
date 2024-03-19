@@ -24,9 +24,12 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsTarget(Operation::Call)]
 class AwaitResult extends Event implements HasInnerEventInterface, ReplyToInterface
 {
     public function __construct(string $eventId, public StateId $origin, public Event $innerEvent)

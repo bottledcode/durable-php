@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,29 +21,10 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Events\Shares;
 
-use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
-use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Ramsey\Uuid\Uuid;
-
-#[NeedsTarget(Operation::Signal)]
-class StartOrchestration extends Event
+#[\Attribute(\Attribute::IS_REPEATABLE | \Attribute::TARGET_CLASS)]
+class NeedsSource
 {
-    public function __construct(string $eventId)
-    {
-        parent::__construct($eventId);
-    }
-
-    public static function forInstance(OrchestrationInstance $instance): Event
-    {
-        return new WithOrchestration(Uuid::uuid7(), StateId::fromInstance($instance), new StartOrchestration(''));
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('StartOrchestration(%s)', $this->eventId);
-    }
+    public function __construct(public Operation $operation) {}
 }

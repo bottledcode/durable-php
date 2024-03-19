@@ -24,9 +24,12 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsSource;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Serializer;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsSource(Operation::Completion)]
 class TaskCompleted extends Event
 {
     public function __construct(string $eventId, public string $scheduledId, public string $type, public array|null $result = null)
@@ -34,14 +37,14 @@ class TaskCompleted extends Event
         parent::__construct($eventId);
     }
 
-    public function getResult(): mixed
-    {
-        return $this->result ? Serializer::deserialize($this->result, $this->type) : null;
-    }
-
     public static function forId(string $scheduledId, mixed $result = null): self
     {
         return new self(Uuid::uuid7(), $scheduledId, get_debug_type($result), $result ? Serializer::serialize($result) : null);
+    }
+
+    public function getResult(): mixed
+    {
+        return $this->result ? Serializer::deserialize($this->result, $this->type) : null;
     }
 
     public function __toString(): string

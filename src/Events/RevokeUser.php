@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -26,48 +25,29 @@ namespace Bottledcode\DurablePhp\Events;
 
 use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use Ramsey\Uuid\Uuid;
 
-#[NeedsTarget(Operation::Signal)]
-class RaiseEvent extends Event
+#[NeedsTarget(Operation::ShareMinus)]
+class RevokeUser extends Event
 {
-    public function __construct(string $eventId, public string $eventName, public array $eventData)
+    private function __construct(public string $userId, public Operation|null $operation)
     {
-        parent::__construct($eventId);
+        parent::__construct(Uuid::uuid7());
     }
 
-    public static function forOperation(string $operation, array $input): static
+    public function Completely(StateId $target, string $userId): self
     {
-        return new static(Uuid::uuid7(), '__signal', ['input' => $input, 'operation' => $operation]);
+        return new self($userId, null);
     }
 
-    public static function forCustom(string $name, array $eventData): static
+    public function ForOperation(StateId $target, string $userId, Operation $operation): self
     {
-        return new static(Uuid::uuid7(), ltrim($name, '_'), $eventData);
+        return new self($userId, $operation);
     }
 
-    public static function forLock(string $owner): static
+    public function __toString()
     {
-        return new static(Uuid::uuid7(), '__lock', ['owner' => $owner]);
-    }
-
-    public static function forLockNotification(string $owner): static
-    {
-        return new static(Uuid::uuid7(), '__lock_notification', ['owner' => $owner]);
-    }
-
-    public static function forUnlock(string $name, ?string $owner, ?string $target): static
-    {
-        return new static(Uuid::uuid7(), '__unlock', ['name' => $name, 'owner' => $owner, 'target' => $target]);
-    }
-
-    public static function forTimer(string $identity): static
-    {
-        return new static(Uuid::uuid7(), $identity, []);
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('RaiseEvent(%s, %s, %s)', $this->eventId, $this->eventName, json_encode($this->eventData));
+        return sprintf("Revoke(user: %s)", $this->userId);
     }
 }

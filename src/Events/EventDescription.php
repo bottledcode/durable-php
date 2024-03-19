@@ -23,6 +23,9 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsSource;
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\Serializer;
 use DateTimeImmutable;
@@ -47,6 +50,16 @@ readonly class EventDescription
 
     public Event $innerEvent;
 
+    /**
+     * @var array<Operation>
+     */
+    public array $sourceOperations;
+
+    /**
+     * @var array<Operation>
+     */
+    public array $targetOperations;
+
     public function __construct(public Event $event)
     {
         $this->describe($event);
@@ -56,7 +69,9 @@ readonly class EventDescription
     {
         $this->eventId = $event->eventId;
 
-        while ($event instanceof HasInnerEventInterface) {
+        $targetOps = [];
+        $sourceOps = [];
+        do {
             if ($event instanceof ReplyToInterface) {
                 $this->replyTo = $event->getReplyTo();
             }
@@ -73,10 +88,28 @@ readonly class EventDescription
                 $this->isPoisoned = true;
             }
 
-            $event = $event->getInnerEvent();
-        }
+            $reflection = new \ReflectionClass($event);
+            foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
+                /** @var NeedsTarget $attr */
+                $attr = $target->newInstance();
+                $targetOps[] = $attr->operation;
+            }
+
+            foreach($reflection->getAttributes(NeedsSource::class) as $target) {
+                /** @var NeedsTarget $attr */
+                $attr = $target->newInstance();
+                $sourceOps[] = $attr->operation;
+            }
+
+            if ($event instanceof HasInnerEventInterface) {
+                $event = $event->getInnerEvent();
+            }
+
+        } while  ($event instanceof HasInnerEventInterface);
 
         $this->innerEvent = $event;
+        $this->targetOperations = array_values(array_unique($targetOps));
+        $this->sourceOperations = array_values(array_unique($sourceOps));
 
         $this->locks ??= false;
         $this->isPoisoned ??= false;
@@ -123,6 +156,8 @@ readonly class EventDescription
             'eventId' => $this->eventId,
             'eventType' => $this->innerEvent->eventType(),
             'targetType' => $this->targetType->name,
+            'sourceOps' => implode(',', $this->sourceOperations),
+            'targetOps' => implode(',', $this->targetOperations),
             'event' => $event,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }

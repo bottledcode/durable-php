@@ -2,8 +2,10 @@ package lib
 
 import (
 	"context"
+	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
+	"encoding/json"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -12,7 +14,7 @@ import (
 	"time"
 )
 
-func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind glue.IdKind, logger *zap.Logger, js jetstream.JetStream) {
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind glue.IdKind, logger *zap.Logger, js jetstream.JetStream, rm *auth.ResourceManager) {
 	logger.Debug("Creating consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
 
 	consumer, err := stream.Consumer(ctx, config.Stream+"-"+string(kind))
@@ -56,7 +58,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 
 			ctx := getCorrelationId(ctx, nil, &headers)
 
-			if err := processMsg(ctx, logger, msg, js, config); err != nil {
+			if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
 				panic(err)
 			}
 		}()
@@ -65,7 +67,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
-func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, config *config.Config) error {
+func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, config *config.Config, rm *auth.ResourceManager) error {
 	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
@@ -77,6 +79,22 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	ctx, cancelCtx := context.WithCancel(ctx)
 	defer cancelCtx()
+
+	// configure the current user
+	var currentUser *auth.User
+	err := json.Unmarshal([]byte(msg.Headers().Get(string(glue.HeaderProvenance))), currentUser)
+	if err != nil {
+		logger.Warn("Failed to unmarshal event provenance")
+		currentUser = nil
+	} else {
+		ctx = auth.DecorateContextWithUser(ctx, currentUser)
+	}
+
+	if config.Extensions.Authz.Enabled {
+		// todo: event header should specify wanted access mode so we can decide if creation is reasonable, further
+		//   we can decide how to handle the event (glue vs. in-proc for access level change events)
+		//resource := rm.DiscoverResource(ctx, id, logger, false)
+	}
 
 	// get the object
 	stateFile, update := glue.GetStateFile(id, js, ctx, logger)
@@ -93,7 +111,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	msgs, headers, _ := glu.Execute(ctx, headers, logger, env, js, id)
 
 	// now update the stored state, if this fails due to optimistic concurrency, we immediately nak and fail
-	err := update()
+	err = update()
 	if err != nil {
 		err := msg.Nak()
 		if err != nil {

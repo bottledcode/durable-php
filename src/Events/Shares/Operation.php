@@ -1,5 +1,4 @@
 <?php
-
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -22,29 +21,16 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Events\Shares;
 
-use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
-use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use Ramsey\Uuid\Uuid;
-
-#[NeedsTarget(Operation::Signal)]
-class StartOrchestration extends Event
+enum Operation: string
 {
-    public function __construct(string $eventId)
-    {
-        parent::__construct($eventId);
-    }
-
-    public static function forInstance(OrchestrationInstance $instance): Event
-    {
-        return new WithOrchestration(Uuid::uuid7(), StateId::fromInstance($instance), new StartOrchestration(''));
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('StartOrchestration(%s)', $this->eventId);
-    }
+    case Signal = "signal";
+    case Completion = "completion";
+    case Output = "output";
+    case Call = "call";
+    case Lock = "lock";
+    case SharePlus = "share+";
+    case ShareMinus = "share-";
+    case Owner = "owner";
 }

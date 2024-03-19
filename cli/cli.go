@@ -184,19 +184,21 @@ func execute(args []string, options map[string]string) int {
 	}
 	defer frankenphp.Shutdown()
 
+	rm := auth.GetResourceManager(ctx, js)
+
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, config, glue.Activity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Activity, logger, js, rm)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, config, glue.Entity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Entity, logger, js, rm)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, config, glue.Orchestration, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Orchestration, logger, js, rm)
 	}
 
 	if len(config.Extensions.Search.Collections) > 0 {
