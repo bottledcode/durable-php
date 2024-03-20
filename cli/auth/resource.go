@@ -45,7 +45,8 @@ func FromBytes(data []byte) *Resource {
 	return &resource
 }
 
-func (r *Resource) Update(ctx context.Context) error {
+func (r *Resource) Update(ctx context.Context, logger *zap.Logger) error {
+	logger.Debug("kv update")
 	_, err := r.kv.Update(ctx, r.id.ToSubject().Bucket(), r.toBytes(), r.revision)
 	if err != nil {
 		return err
@@ -71,22 +72,28 @@ func (r *Resource) ShareOwnership(newUser UserId, keepPermissions bool, ctx cont
 }
 
 func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
-	result, err := os.CreateTemp("", "")
-	if err != nil {
-		panic(err)
-	}
-	env := map[string]string{"STATE_ID": id.String()}
-	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
-	glu.Execute(ctx, make(http.Header), logger, env, nil, id)
-
-	data, err := io.ReadAll(result)
-	if err != nil {
-		panic(err)
-	}
 	var perms CreatePermissions
-	err = json.Unmarshal(data, &perms)
-	if err != nil {
-		return false
+
+	if cached, found := cache.Load(id.Name()); found {
+		perms = cached.(CreatePermissions)
+	} else {
+		result, err := os.CreateTemp("", "")
+		if err != nil {
+			panic(err)
+		}
+		env := map[string]string{"STATE_ID": id.String()}
+		glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
+		glu.Execute(ctx, make(http.Header), logger, env, nil, id)
+
+		data, err := io.ReadAll(result)
+		if err != nil {
+			panic(err)
+		}
+		err = json.Unmarshal(data, &perms)
+		if err != nil {
+			return false
+		}
+		cache.Store(id.Name(), perms)
 	}
 
 	if r.Mode != perms.Mode {
@@ -98,23 +105,29 @@ func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap
 }
 
 func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
-	result, err := os.CreateTemp("", "")
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(result.Name())
-	result.Close()
-
-	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
-	env := map[string]string{"STATE_ID": id.String()}
-	_, headers, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
-
-	data := headers["Permissions"][0]
-
 	var perms CreatePermissions
-	err = json.Unmarshal([]byte(data), &perms)
-	if err != nil {
-		return false
+	if cached, found := cache.Load(id.Name()); found {
+		perms = cached.(CreatePermissions)
+	} else {
+		result, err := os.CreateTemp("", "")
+		if err != nil {
+			panic(err)
+		}
+		defer os.Remove(result.Name())
+		result.Close()
+
+		glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
+		env := map[string]string{"STATE_ID": id.String()}
+		_, headers, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
+
+		data := headers["Permissions"][0]
+
+		err = json.Unmarshal([]byte(data), &perms)
+		if err != nil {
+			return false
+		}
+
+		cache.Store(id.Name(), perms)
 	}
 
 	currentUser := ctx.Value(appcontext.CurrentUserKey).(*User)

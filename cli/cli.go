@@ -43,6 +43,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"syscall"
@@ -81,12 +82,27 @@ func execute(args []string, options map[string]string) int {
 		}
 
 		defer os.RemoveAll(data)
+
+		profile, err := os.CreateTemp("", "")
+		if err != nil {
+			panic(err)
+		}
+		err = pprof.StartCPUProfile(profile)
+		if err != nil {
+			panic(err)
+		}
+
 		go func() {
 			sigs := make(chan os.Signal, 1)
 
 			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 			<-sigs
+
+			pprof.StopCPUProfile()
+			profile.Close()
+
+			logger.Warn("Profile output", zap.String("Filename", profile.Name()))
 
 			os.RemoveAll(data)
 			os.Exit(0)

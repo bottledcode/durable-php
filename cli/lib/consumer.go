@@ -150,7 +150,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				if err != nil {
 					return err
 				}
-				err = resource.Update(ctx)
+				err = resource.Update(ctx, logger)
 				if err != nil {
 					return err
 				}
@@ -162,7 +162,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				if err != nil {
 					return err
 				}
-				err = resource.Update(ctx)
+				err = resource.Update(ctx, logger)
 				if err != nil {
 					return err
 				}
@@ -178,7 +178,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 						return err
 					}
 				}
-				err = resource.Update(ctx)
+				err = resource.Update(ctx, logger)
 				if err != nil {
 					return err
 				}
@@ -194,7 +194,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 						return err
 					}
 				}
-				err = resource.Update(ctx)
+				err = resource.Update(ctx, logger)
 				if err != nil {
 					return err
 				}
@@ -206,7 +206,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				if err != nil {
 					return err
 				}
-				err = resource.Update(ctx)
+				err = resource.Update(ctx, logger)
 				if err != nil {
 					return err
 				}
@@ -218,7 +218,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				if err != nil {
 					return err
 				}
-				err = resource.Update(ctx)
+				err = resource.Update(ctx, logger)
 				if err != nil {
 					return err
 				}

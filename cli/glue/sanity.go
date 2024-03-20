@@ -78,6 +78,14 @@ func (id StateId) String() string {
 	return fmt.Sprintf("%s:%s", id.Kind, id.Id)
 }
 
+func (id StateId) Name() string {
+	if before, _, found := strings.Cut(id.Id, ":"); found {
+		return before
+	}
+
+	return string(Activity)
+}
+
 func (id StateId) ToEntityId() (*EntityId, bool) {
 	if id.Kind != Entity {
 		return nil, false

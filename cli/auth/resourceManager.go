@@ -4,15 +4,22 @@ import (
 	"context"
 	"durable_php/appcontext"
 	"durable_php/glue"
+	"github.com/modern-go/concurrent"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 )
+
+var cache *concurrent.Map
 
 type ResourceManager struct {
 	kv jetstream.KeyValue
 }
 
 func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *ResourceManager {
+	if cache == nil {
+		cache = &concurrent.Map{}
+	}
+
 	kv, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket:  "resources",
 		Storage: jetstream.FileStorage,
@@ -40,6 +47,7 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 		resource.id = id
 		resource.revision = 0
 		if resource.CanCreate(id, ctx, logger) {
+			logger.Debug("kv put")
 			_, err := r.kv.Put(ctx, id.ToSubject().Bucket(), resource.toBytes())
 			if err != nil {
 				return nil, err
@@ -55,6 +63,7 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	resource.id = id
 	resource.revision = data.Revision()
 	if resource.ApplyPerms(id, ctx, logger) {
+		logger.Debug("kv update")
 		// if this fails, that is ok
 		r.kv.Update(ctx, id.ToSubject().Bucket(), resource.toBytes(), data.Revision())
 	}
