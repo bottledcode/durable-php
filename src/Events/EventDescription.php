@@ -23,6 +23,9 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsSource;
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\Serializer;
 use DateTimeImmutable;
@@ -47,6 +50,18 @@ readonly class EventDescription
 
     public Event $innerEvent;
 
+    /**
+     * @var array<Operation>
+     */
+    public array $sourceOperations;
+
+    /**
+     * @var array<Operation>
+     */
+    public array $targetOperations;
+
+    public array $meta;
+
     public function __construct(public Event $event)
     {
         $this->describe($event);
@@ -56,7 +71,9 @@ readonly class EventDescription
     {
         $this->eventId = $event->eventId;
 
-        while ($event instanceof HasInnerEventInterface) {
+        $targetOps = [];
+        $sourceOps = [];
+        while  ($event instanceof HasInnerEventInterface) {
             if ($event instanceof ReplyToInterface) {
                 $this->replyTo = $event->getReplyTo();
             }
@@ -72,11 +89,42 @@ readonly class EventDescription
             if ($event instanceof PoisonPill) {
                 $this->isPoisoned = true;
             }
+            if ($event instanceof External) {
+                $this->meta = Serializer::serialize($event);
+            }
+
+            $reflection = new \ReflectionClass($event);
+            foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
+                /** @var NeedsTarget $attr */
+                $attr = $target->newInstance();
+                $targetOps[] = $attr->operation;
+            }
+
+            foreach($reflection->getAttributes(NeedsSource::class) as $target) {
+                /** @var NeedsTarget $attr */
+                $attr = $target->newInstance();
+                $sourceOps[] = $attr->operation;
+            }
 
             $event = $event->getInnerEvent();
         }
 
+        $reflection = new \ReflectionClass($event);
+        foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
+            /** @var NeedsTarget $attr */
+            $attr = $target->newInstance();
+            $targetOps[] = $attr->operation;
+        }
+
+        foreach($reflection->getAttributes(NeedsSource::class) as $target) {
+            /** @var NeedsTarget $attr */
+            $attr = $target->newInstance();
+            $sourceOps[] = $attr->operation;
+        }
+
         $this->innerEvent = $event;
+        $this->targetOperations = array_values(array_unique($targetOps, SORT_REGULAR));
+        $this->sourceOperations = array_values(array_unique($sourceOps, SORT_REGULAR));
 
         $this->locks ??= false;
         $this->isPoisoned ??= false;
@@ -123,6 +171,9 @@ readonly class EventDescription
             'eventId' => $this->eventId,
             'eventType' => $this->innerEvent->eventType(),
             'targetType' => $this->targetType->name,
+            'sourceOps' => implode(',', array_map(static fn($x) => $x->value, $this->sourceOperations)),
+            'targetOps' => implode(',', array_map(static fn($x) => $x->value, $this->targetOperations)),
+            'meta' => json_encode($this->meta ?? [], JSON_THROW_ON_ERROR),
             'event' => $event,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }

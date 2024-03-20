@@ -2,12 +2,13 @@ package lib
 
 import (
 	"context"
+	"durable_php/config"
 	"github.com/typesense/typesense-go/typesense"
 	"github.com/typesense/typesense-go/typesense/api"
 	"github.com/typesense/typesense-go/typesense/api/pointer"
 )
 
-func CreateEntityIndex(ctx context.Context, client *typesense.Client, config *Config) error {
+func CreateEntityIndex(ctx context.Context, client *typesense.Client, config *config.Config) error {
 	_, err := client.Collection(config.Stream + "_entities").Retrieve(ctx)
 	if err == nil {
 		return nil
@@ -38,7 +39,7 @@ func CreateEntityIndex(ctx context.Context, client *typesense.Client, config *Co
 	return nil
 }
 
-func CreateOrchestrationIndex(ctx context.Context, client *typesense.Client, config *Config) error {
+func CreateOrchestrationIndex(ctx context.Context, client *typesense.Client, config *config.Config) error {
 	_, err := client.Collection(config.Stream + "_orchestrations").Retrieve(ctx)
 	if err == nil {
 		return nil

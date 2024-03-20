@@ -24,10 +24,13 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\SequenceField;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsTarget(Operation::Lock)]
 class WithLock extends Event implements HasInnerEventInterface
 {
     /**

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,6 +24,10 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
+
+#[NeedsTarget(Operation::Signal)]
 class ExecutionTerminated extends Event
 {
     public function __construct(

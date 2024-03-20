@@ -24,8 +24,11 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsTarget(Operation::Signal)]
 class RaiseEvent extends Event
 {
     public function __construct(string $eventId, public string $eventName, public array $eventData)

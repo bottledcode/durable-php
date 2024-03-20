@@ -24,10 +24,13 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsTarget(Operation::Signal)]
 class StartOrchestration extends Event
 {
     public function __construct(string $eventId)

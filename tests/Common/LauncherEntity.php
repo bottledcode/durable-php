@@ -24,8 +24,10 @@
 namespace Bottledcode\DurablePhp\Tests\Common;
 
 use Bottledcode\DurablePhp\EntityContext;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForAuth;
 use Bottledcode\DurablePhp\State\EntityState;
 
+#[AllowCreateForAuth]
 class LauncherEntity extends EntityState
 {
     public function __construct(private bool $launched = false) {}

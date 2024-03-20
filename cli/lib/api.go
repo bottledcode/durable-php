@@ -2,8 +2,12 @@ package lib
 
 import (
 	"context"
+	"durable_php/auth"
+	"durable_php/config"
+	"durable_php/glue"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -54,8 +58,10 @@ func logRequest(logger *zap.Logger, r *http.Request, ctx context.Context) {
 	logger.Info(template, zap.Any("cid", ctx.Value("cid")), zap.Any("vars", mux.Vars(r)))
 }
 
-func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, config *Config) {
+func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, port string, config *config.Config) {
 	r := mux.NewRouter()
+
+	rm := auth.GetResourceManager(ctx, js)
 
 	// GET /activities
 	// list all activities
@@ -65,10 +71,15 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
+			return
+		}
+
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
-		store, err := GetObjectStore("activities", js, context.Background())
+		store, err := glue.GetObjectStore("activities", js, context.Background())
 		if err != nil {
 			panic(err)
 		}
@@ -83,14 +94,19 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
+			return
+		}
+
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &activityId{
-			id: vars["id"],
+		id := &glue.ActivityId{
+			Id: vars["id"],
 		}
-		err := OutputStatus(ctx, writer, id.toStateId(), js, logger)
+		err := OutputStatus(ctx, writer, id.ToStateId(), js, logger)
 		if err != nil {
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			logger.Error("Failed to output status", zap.Error(err))
@@ -102,6 +118,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	r.HandleFunc("/entities/filter/{page}", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != "POST" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
 			return
 		}
 
@@ -169,12 +190,12 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	bootstrap := ctx.Value("bootstrap").(string)
 
-	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *StateId, function string, headers http.Header) {
-		logger.Debug("Processing request to call function", zap.String("function", function), zap.Any("Headers", headers))
+	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *glue.StateId, function glue.Method, headers http.Header) {
+		logger.Debug("Processing request to call function", zap.String("function", string(function)), zap.Any("Headers", headers))
 		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
 
-		msgs, stateFile, err, responseHeaders := glueFromApiRequest(ctx, request, function, logger, js, id, headers)
+		msgs, stateFile, err, responseHeaders := glue.GlueFromApiRequest(ctx, request, function, logger, js, id, headers)
 		if err != nil {
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			logger.Error("Failed to glue", zap.Error(err))
@@ -220,9 +241,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// signal an entity
 	r.HandleFunc("/entity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		vars := mux.Vars(request)
-		id := &entityId{
-			name: strings.TrimSpace(vars["name"]),
-			id:   strings.TrimSpace(vars["id"]),
+		id := &glue.EntityId{
+			Name: strings.TrimSpace(vars["name"]),
+			Id:   strings.TrimSpace(vars["id"]),
 		}
 
 		ctx := getCorrelationId(ctx, &request.Header, nil)
@@ -235,16 +256,26 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			stateFile, _ := getStateFile(id.toStateId(), js, ctx, logger)
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, true, auth.Output)
+			if done {
+				return
+			}
+
+			stateFile, _ := glue.GetStateFile(id.ToStateId(), js, ctx, logger)
 			headers.Add("Entity-State", stateFile.Name())
 
-			processReq(ctx, writer, request, id.toStateId(), "entityDecoder", headers)
+			processReq(ctx, writer, request, id.ToStateId(), glue.DecodeEntity, headers)
 			return
 		}
 
 		if request.Method == "PUT" {
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+			if done {
+				return
+			}
+
 			logger.Debug("Signal entity", zap.String("id", id.String()))
-			processReq(ctx, writer, request, id.toStateId(), "entitySignal", make(http.Header))
+			processReq(ctx, writer, request, id.ToStateId(), glue.SignalEntity, make(http.Header))
 			return
 		}
 
@@ -255,7 +286,12 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// get list of orchestrations
 	r.HandleFunc("/orchestrations", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method == "GET" {
-			store, err := GetObjectStore("orchestrations", js, context.Background())
+			if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
+				http.Error(writer, "Not Authorized", http.StatusForbidden)
+				return
+			}
+
+			store, err := glue.GetObjectStore("orchestrations", js, context.Background())
 			if err != nil {
 				panic(err)
 			}
@@ -283,12 +319,24 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		vars := mux.Vars(request)
 
-		id := &orchestrationId{
-			instanceId:  vars["name"],
-			executionId: "",
+		execId, err := uuid.NewV7()
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to create uuid", zap.Error(err))
+			return
 		}
 
-		processReq(ctx, writer, request, id.toStateId(), "startOrchestration", make(http.Header))
+		id := &glue.OrchestrationId{
+			InstanceId:  vars["name"],
+			ExecutionId: execId.String(),
+		}
+
+		ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+		if done {
+			return
+		}
+
+		processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
 	})
 
 	// PUT /orchestration/{name}/{id}
@@ -301,13 +349,18 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
-		id := &orchestrationId{
-			instanceId:  strings.TrimSpace(vars["name"]),
-			executionId: strings.TrimSpace(vars["id"]),
+		id := &glue.OrchestrationId{
+			InstanceId:  strings.TrimSpace(vars["name"]),
+			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
 
 		if request.Method == "PUT" {
-			processReq(ctx, writer, request, id.toStateId(), "startOrchestration", make(http.Header))
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+			if done {
+				return
+			}
+
+			processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
 			return
 		}
 
@@ -316,8 +369,13 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, true, auth.Output)
+		if done {
+			return
+		}
+
 		if !request.URL.Query().Has("wait") {
-			err := OutputStatus(ctx, writer, id.toStateId(), js, logger)
+			err := OutputStatus(ctx, writer, id.ToStateId(), js, logger)
 			if err != nil {
 				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 				return
@@ -335,7 +393,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			defer cancel()
 
 			bucket, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-				Bucket:      string(Orchestration),
+				Bucket:      string(glue.Orchestration),
 				Description: "Holds orchestration state and history",
 				Compression: true,
 			})
@@ -343,7 +401,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 				panic(err)
 			}
 
-			watcher, err := bucket.Watch(ctx, id.toStateId().toSubject().String())
+			watcher, err := bucket.Watch(ctx, id.ToStateId().ToSubject().String())
 			if err != nil {
 				panic(err)
 				return
@@ -396,16 +454,21 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &orchestrationId{
-			instanceId:  vars["name"],
-			executionId: vars["id"],
+		id := &glue.OrchestrationId{
+			InstanceId:  vars["name"],
+			ExecutionId: vars["id"],
 		}
 		method := vars["signal"]
+
+		ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, false, auth.Signal)
+		if done {
+			return
+		}
 
 		headers := make(http.Header)
 		headers.Add("Signal", method)
 
-		processReq(ctx, writer, request, id.toStateId(), "orchestrationSignal", headers)
+		processReq(ctx, writer, request, id.ToStateId(), glue.SignalOrchestration, headers)
 	})
 
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -415,6 +478,35 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	})
 
 	logger.Fatal("server error", zap.Error(http.ListenAndServe(":"+port, r)))
+}
+
+func authorize(
+	writer http.ResponseWriter,
+	request *http.Request,
+	config *config.Config,
+	ctx context.Context,
+	rm *auth.ResourceManager,
+	id *glue.StateId,
+	logger *zap.Logger,
+	preventCreation bool,
+	operation auth.Operation,
+) (context.Context, bool) {
+	if !config.Extensions.Authz.Enabled {
+		return ctx, false
+	}
+	if user, ok := auth.ExtractUser(request, config); ok {
+		ctx = auth.DecorateContextWithUser(ctx, user)
+	}
+	resource, err := rm.DiscoverResource(ctx, id, logger, preventCreation)
+	if err != nil {
+		http.Error(writer, "Not Authorized", http.StatusForbidden)
+		return nil, true
+	}
+	if !resource.WantTo(operation, ctx) {
+		http.Error(writer, "Not Authorized", http.StatusForbidden)
+		return nil, true
+	}
+	return ctx, false
 }
 
 func extractStatus(stateJson []byte) (interface{}, error) {
@@ -456,7 +548,7 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 			continue
 		}
 
-		id := ParseStateId(activity.Headers.Get(string(HeaderStateId)))
+		id := glue.ParseStateId(activity.Headers.Get(string(glue.HeaderStateId)))
 		t := id.String()
 		parts := strings.Split(t, ":")[1:]
 		names = append(names, parts)
@@ -468,10 +560,10 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	}
 }
 
-func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *StateId, stream jetstream.JetStream, logger *zap.Logger) error {
+func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *glue.StateId, stream jetstream.JetStream, logger *zap.Logger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	stateFile, _ := getStateFile(id, stream, ctx, logger)
+	stateFile, _ := glue.GetStateFile(id, stream, ctx, logger)
 	defer stateFile.Close()
 
 	state, err := readStatus(stateFile)

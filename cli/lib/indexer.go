@@ -2,6 +2,8 @@ package lib
 
 import (
 	"context"
+	"durable_php/config"
+	"durable_php/glue"
 	"encoding/json"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/typesense/typesense-go/typesense"
@@ -13,13 +15,13 @@ import (
 	"time"
 )
 
-func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstream.JetStream, logger *zap.Logger) error {
+func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind, js jetstream.JetStream, logger *zap.Logger) error {
 	logger.Info("Starting indexer extension", zap.String("for", string(kind)), zap.Any("config", config.Extensions.Search))
 
 	client := typesense.NewClient(typesense.WithServer(config.Extensions.Search.Url), typesense.WithAPIKey(config.Extensions.Search.Key))
 
 	switch kind {
-	case Entity:
+	case glue.Entity:
 		collection := client.Collection(config.Stream + "_entities")
 
 		err := CreateEntityIndex(ctx, client, config)
@@ -27,7 +29,7 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 			return err
 		}
 
-		obs, err := GetObjectStore(kind, js, ctx)
+		obs, err := glue.GetObjectStore(kind, js, ctx)
 		if err != nil {
 			return err
 		}
@@ -97,7 +99,7 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 				go func() {
 					ctx, done := context.WithCancel(ctx)
 
-					obj, err := GetObjectStore(Entity, js, ctx)
+					obj, err := glue.GetObjectStore(glue.Entity, js, ctx)
 					if err != nil {
 						logger.Warn("Unable to load state for entity", zap.Error(err))
 						done()
@@ -117,16 +119,16 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 						done()
 						return
 					}
-					id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
-					eid, _ := id.toEntityId()
+					id := glue.ParseStateId(result["id"].(map[string]interface{})["id"].(string))
+					eid, _ := id.ToEntityId()
 
 					entityData := struct {
 						Id    string      `json:"id"`
 						Name  string      `json:"name"`
 						State interface{} `json:"state"`
 					}{
-						Id:    eid.id,
-						Name:  eid.name,
+						Id:    eid.Id,
+						Name:  eid.Name,
 						State: result["state"],
 					}
 
@@ -138,7 +140,7 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 				}()
 			}
 		}()
-	case Orchestration:
+	case glue.Orchestration:
 		collection := client.Collection(config.Stream + "_orchestrations")
 
 		err := CreateOrchestrationIndex(ctx, client, config)
@@ -146,7 +148,7 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 			return err
 		}
 
-		obj, err := js.KeyValue(ctx, string(Orchestration))
+		obj, err := js.KeyValue(ctx, string(glue.Orchestration))
 		if err != nil {
 			// key value doesn't exist yet, try again in a few minutes
 			go func() {
@@ -224,8 +226,8 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 						return
 					}
 
-					id := ParseStateId(result["id"].(map[string]interface{})["id"].(string))
-					oid, _ := id.toOrchestrationId()
+					id := glue.ParseStateId(result["id"].(map[string]interface{})["id"].(string))
+					oid, _ := id.ToOrchestrationId()
 
 					status := result["status"].(map[string]interface{})
 
@@ -238,8 +240,8 @@ func IndexerListen(ctx context.Context, config *Config, kind IdKind, js jetstrea
 						RuntimeStatus string `json:"runtime_status"`
 						Id            string `json:"id"`
 					}{
-						ExecutionId:   oid.executionId,
-						InstanceId:    oid.instanceId,
+						ExecutionId:   oid.ExecutionId,
+						InstanceId:    oid.InstanceId,
 						Id:            id.String(),
 						CreatedAt:     status["createdAt"].(string),
 						CustomStatus:  status["customStatus"].(string),

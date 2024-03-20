@@ -29,7 +29,7 @@ if ! type "git" > /dev/null; then
     exit 1
 fi
 
-cd dist/static-php-cli
+cd ../dist/static-php-cli
 
 arch="$(uname -m)"
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -94,7 +94,12 @@ export CGO_LDFLAGS
 LIBPHP_VERSION="$(./buildroot/bin/php-config --version)"
 export LIBPHP_VERSION
 
-cd ../..
+cd ../../cli
+
+VERSION="$(git describe --tags --always)"
+if  git status --porcelain | grep -q "cli"; then
+  VERSION="$VERSION-dirty"
+fi
 
 # Embed PHP app, if any
 if [ -n "${EMBED}" ] && [ -d "${EMBED}" ]; then
@@ -107,13 +112,13 @@ if [ "${os}" = "linux" ]; then
 fi
 
 if [ -z "${DEBUG_SYMBOLS}" ]; then
-    extraLdflags="-w -s"
+    extraLdflags="-w -s -race"
 fi
 
 env
 go env
 go get durable_php
-go build -buildmode=pie -tags "cgo netgo nats osusergo static_build" -ldflags "-linkmode=external -extldflags '-static-pie ${extraExtldflags}' ${extraLdflags} -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP ${FRANKENPHP_VERSION} PHP ${LIBPHP_VERSION} go_durable_php'" -o "dist/${bin}" durable_php
+go build -buildmode=pie -tags "cgo netgo nats osusergo static_build" -ldflags "-linkmode=external -extldflags '-static-pie ${extraExtldflags}' ${extraLdflags} -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP ${FRANKENPHP_VERSION} PHP ${LIBPHP_VERSION} go_durable_php' -X 'main.version=$VERSION'" -o "dist/${bin}" durable_php
 
 if [ -d "${EMBED}" ]; then
     truncate -s 0 app.tar

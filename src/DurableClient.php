@@ -127,4 +127,10 @@ final readonly class DurableClient implements DurableClientInterface
     {
         $this->entityClient->signal($entityId, $signal);
     }
+
+    #[\Override] public function withAuth(string $token): void
+    {
+        $this->orchestrationClient->withAuth($token);
+        $this->entityClient->withAuth($token);
+    }
 }

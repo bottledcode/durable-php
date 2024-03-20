@@ -2,6 +2,8 @@ package lib
 
 import (
 	"context"
+	"durable_php/config"
+	"durable_php/glue"
 	"encoding/json"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
@@ -16,7 +18,7 @@ type BillingEvent struct {
 
 // StartBillingProcessor starts up a consumer on the history stream and waits for
 // events that are billable events. It then fires a billing event to the billings stream.
-func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.JetStream, logger *zap.Logger) error {
+func StartBillingProcessor(ctx context.Context, config *config.Config, js jetstream.JetStream, logger *zap.Logger) error {
 	if !config.Extensions.Billing.Enabled {
 		logger.Info("Billing events are disabled")
 		return nil
@@ -40,12 +42,12 @@ func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.Jet
 		return err
 	}
 
-	maybeSendActivityBilling := func(id *StateId) {
-		started, err := activityTracker.Get(ctx, id.toSubject().String()+"_start")
+	maybeSendActivityBilling := func(id *glue.StateId) {
+		started, err := activityTracker.Get(ctx, id.ToSubject().String()+"_start")
 		if err != nil {
 			return
 		}
-		ended, err := activityTracker.Get(ctx, id.toSubject().String()+"_end")
+		ended, err := activityTracker.Get(ctx, id.ToSubject().String()+"_end")
 		if err != nil {
 			return
 		}
@@ -69,7 +71,7 @@ func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.Jet
 			logger.Warn("Failed to create billing event", zap.String("id", id.String()), zap.Error(err))
 		}
 
-		_, err = js.Publish(ctx, fmt.Sprintf("billing.%s.activities.%s.duration", config.Stream, id.toSubject().String()), event)
+		_, err = js.Publish(ctx, fmt.Sprintf("billing.%s.activities.%s.duration", config.Stream, id.ToSubject().String()), event)
 		if err != nil {
 			logger.Warn("Failed to publish billing event", zap.Error(err))
 			return
@@ -83,18 +85,18 @@ func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.Jet
 	})
 
 	consume, err := consumer.Consume(func(msg jetstream.Msg) {
-		targetType := msg.Headers().Get(string(HeaderTargetType))
-		eventType := msg.Headers().Get(string(HeaderEventType))
-		id := ParseStateId(msg.Headers().Get(string(HeaderStateId)))
-		nowBytes := []byte(msg.Headers().Get(string(HeaderEmittedAt)))
-		emittedBy := ParseStateId(msg.Headers().Get(string(HeaderEmittedBy)))
+		targetType := msg.Headers().Get(string(glue.HeaderTargetType))
+		eventType := msg.Headers().Get(string(glue.HeaderEventType))
+		id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+		nowBytes := []byte(msg.Headers().Get(string(glue.HeaderEmittedAt)))
+		emittedBy := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
 
 		switch targetType {
 		case "Activity":
 			switch eventType {
 			case "ScheduleTask":
 				// an activity has been started
-				_, err := activityTracker.Put(ctx, id.toSubject().String()+"_start", nowBytes)
+				_, err := activityTracker.Put(ctx, id.ToSubject().String()+"_start", nowBytes)
 				if err != nil {
 					panic(err)
 				}
@@ -109,7 +111,7 @@ func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.Jet
 					logger.Warn("Failed to create billing event", zap.String("id", id.String()), zap.Error(err))
 					return
 				}
-				_, err = js.Publish(ctx, fmt.Sprintf("billing.%s.orchestrations.%s.started", config.Stream, id.toSubject().String()), event)
+				_, err = js.Publish(ctx, fmt.Sprintf("billing.%s.orchestrations.%s.started", config.Stream, id.ToSubject().String()), event)
 				if err != nil {
 					logger.Warn("Failed to publish billing event", zap.String("id", id.String()), zap.Error(err))
 					return
@@ -117,7 +119,7 @@ func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.Jet
 			case "TaskCompleted":
 				fallthrough
 			case "TaskFailed":
-				_, err := activityTracker.Put(ctx, emittedBy.toSubject().String()+"_end", nowBytes)
+				_, err := activityTracker.Put(ctx, emittedBy.ToSubject().String()+"_end", nowBytes)
 				if err != nil {
 					panic(err)
 				}
@@ -128,24 +130,23 @@ func StartBillingProcessor(ctx context.Context, config *Config, js jetstream.Jet
 			case "AwaitResult":
 				fallthrough
 			case "RaiseEvent":
-				_, err := entityRegistry.Get(ctx, id.toSubject().String())
+				_, err := entityRegistry.Get(ctx, id.ToSubject().String())
 				if err != nil {
-					_, _ = entityRegistry.Put(ctx, id.toSubject().String(), []byte{1})
+					_, _ = entityRegistry.Put(ctx, id.ToSubject().String(), []byte{1})
 					event, err := json.Marshal(BillingEvent{Id: id.String()})
 					if err != nil {
 						logger.Warn("Failed to create billing event", zap.String("id", id.String()), zap.Error(err))
 						return
 					}
-					_, err = js.Publish(ctx, fmt.Sprintf("billing.%s.entities.%s.started", config.Stream, id.toSubject().String()), event)
+					_, err = js.Publish(ctx, fmt.Sprintf("billing.%s.entities.%s.started", config.Stream, id.ToSubject().String()), event)
 					if err != nil {
 						logger.Warn("Failed to publish billing event", zap.String("id", id.String()), zap.Error(err))
 					}
-					logger.Warn("Billed for one entity")
 				}
 			case "TaskCompleted":
 				fallthrough
 			case "TaskFailed":
-				_, err := activityTracker.Put(ctx, emittedBy.toSubject().String()+"_end", nowBytes)
+				_, err := activityTracker.Put(ctx, emittedBy.ToSubject().String()+"_end", nowBytes)
 				if err != nil {
 					panic(err)
 				}

@@ -1,0 +1,68 @@
+{
+  "project": "test",
+  "bootstrap": "src/bootstrap.php",
+  "nats": {
+    "url": "nats://127.0.0.1:4222",
+    "embeddedServer": true,
+    "jwt": null,
+    "nkey": null,
+    "tls": {
+      "ca": null,
+      "clientCert": null,
+      "keyFile": null
+    }
+  },
+  "historyRetentionDays": 7,
+  "extensions": {
+    "billing": {
+      "enabled": true,
+      "listen": true,
+      "costs": {
+        "orchestrations": {
+          "freeLimit": 150,
+          "maxFree": 1000,
+          "cost": 10000,
+          "limit": 0
+        },
+        "activities": {
+          "freeLimit": 500,
+          "maxFree": 2000,
+          "cost": 10,
+          "limit": 0
+        },
+        "entities": {
+          "freeLimit": 5000,
+          "maxFree": 5000,
+          "cost": 10000,
+          "limit": 0
+        },
+        "objectStorage": {
+          "freeLimit": 1000000000,
+          "maxFree": 1000000000,
+          "cost": 0,
+          "limit": 0
+        },
+        "fileStorage": {
+          "freeLimit": 1000000000,
+          "maxFree": 1000000000,
+          "cost": 0,
+          "limit": 0
+        }
+      }
+    },
+    "search": {
+      "url": "http://localhost:8108",
+      "key": "abc123",
+      "collections": [
+        "entities",
+        "orchestrations"
+      ]
+    },
+    "authz": {
+      "enabled": true,
+      "secrets": [
+        "8ZCnKRIIh5uDM4MeSEFWCdxBEKxeHzRN+KMsywW2QRA="
+      ]
+    }
+  }
+}

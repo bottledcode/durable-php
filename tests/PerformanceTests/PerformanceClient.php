@@ -39,6 +39,7 @@ use function Amp\Future\await;
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $client = DurableClient::get();
+$client->withAuth("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MTEwNTg2NjAsImlhdCI6MTcxMDc5OTE2MCwicm9sZXMiOlsidXNlciJdLCJzdWIiOiJyb2IifQ.pxnULi-osLhrmb9XypwmzcTpQCYmZuzwW0rPE_Tvv_I");
 $logger = new DurableLogger();
 
 $watch = new StopWatch();

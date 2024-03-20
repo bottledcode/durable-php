@@ -24,8 +24,11 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsSource;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsSource(Operation::Call)]
 class TaskFailed extends Event
 {
     public function __construct(

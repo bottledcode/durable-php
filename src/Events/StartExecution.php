@@ -24,9 +24,12 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsTarget(Operation::Signal)]
 class StartExecution extends Event
 {
     public function __construct(

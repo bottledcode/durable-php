@@ -41,10 +41,10 @@ return;
 
 verify_protocol:
 
-$logger = new DurableLogger(level: match (getenv('LOG_LEVEL') ?: 'INFO') {
+$logger = new DurableLogger(level: match (getenv('LOG_LEVEL')) {
     'DEBUG' => Level::Debug,
     'INFO' => Level::Info,
-    'ERROR' => Level::Error,
+    default => Level::Error,
 });
 
 if(($_SERVER['SERVER_PROTOCOL'] ?? null) !== 'DPHP/1.0') {

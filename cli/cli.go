@@ -24,6 +24,9 @@ package main
 
 import (
 	"context"
+	"durable_php/auth"
+	"durable_php/config"
+	"durable_php/glue"
 	di "durable_php/init"
 	"durable_php/lib"
 	"encoding/json"
@@ -40,11 +43,14 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
+
+var version string
 
 func getLogger(options map[string]string) *zap.Logger {
 	atom := zap.NewAtomicLevel()
@@ -64,7 +70,7 @@ func getLogger(options map[string]string) *zap.Logger {
 func execute(args []string, options map[string]string) int {
 	logger := getLogger(options)
 
-	config := lib.ApplyOptions(lib.GetProjectConfig(), options)
+	config := config.ApplyOptions(config.GetProjectConfig(), options)
 
 	boostrapNats := false
 
@@ -76,12 +82,27 @@ func execute(args []string, options map[string]string) int {
 		}
 
 		defer os.RemoveAll(data)
+
+		profile, err := os.CreateTemp("", "")
+		if err != nil {
+			panic(err)
+		}
+		err = pprof.StartCPUProfile(profile)
+		if err != nil {
+			panic(err)
+		}
+
 		go func() {
 			sigs := make(chan os.Signal, 1)
 
 			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 			<-sigs
+
+			pprof.StopCPUProfile()
+			profile.Close()
+
+			logger.Warn("Profile output", zap.String("Filename", profile.Name()))
 
 			os.RemoveAll(data)
 			os.Exit(0)
@@ -95,6 +116,7 @@ func execute(args []string, options map[string]string) int {
 			JetStream:      true,
 			MaxControlLine: 2048,
 			StoreDir:       data,
+			HTTPPort:       8222,
 		})
 		defer s.Shutdown()
 		boostrapNats = true
@@ -151,9 +173,9 @@ func execute(args []string, options map[string]string) int {
 		})
 
 		consumers := []string{
-			string(lib.Activity),
-			string(lib.Entity),
-			string(lib.Orchestration),
+			string(glue.Activity),
+			string(glue.Entity),
+			string(glue.Orchestration),
 		}
 
 		for _, kind := range consumers {
@@ -178,31 +200,33 @@ func execute(args []string, options map[string]string) int {
 	}
 	defer frankenphp.Shutdown()
 
+	rm := auth.GetResourceManager(ctx, js)
+
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, config, lib.Activity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Activity, logger, js, rm)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, config, lib.Entity, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Entity, logger, js, rm)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, config, lib.Orchestration, logger, js)
+		go lib.BuildConsumer(stream, ctx, config, glue.Orchestration, logger, js, rm)
 	}
 
 	if len(config.Extensions.Search.Collections) > 0 {
 		for _, collection := range config.Extensions.Search.Collections {
 			switch collection {
 			case "entities":
-				err := lib.IndexerListen(ctx, config, lib.Entity, js, logger)
+				err := lib.IndexerListen(ctx, config, glue.Entity, js, logger)
 				if err != nil {
 					panic(err)
 				}
 			case "orchestrations":
-				err := lib.IndexerListen(ctx, config, lib.Orchestration, js, logger)
+				err := lib.IndexerListen(ctx, config, glue.Orchestration, js, logger)
 				if err != nil {
 					panic(err)
 				}
@@ -387,7 +411,7 @@ func main() {
 			return di.Execute(args, options, getLogger(options))
 		})
 	version := cli.NewCommand("version", "The current version").WithAction(func(args []string, options map[string]string) int {
-		fmt.Println("{{VERSION}}")
+		fmt.Println(version)
 
 		return 0
 	})
@@ -416,13 +440,13 @@ func main() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var store lib.IdKind
+			var store glue.IdKind
 			switch args[0] {
-			case string(lib.Orchestration):
-				store = lib.Orchestration
+			case string(glue.Orchestration):
+				store = glue.Orchestration
 
 				if len(args) == 1 {
-					kv, err := js.KeyValue(ctx, string(lib.Orchestration))
+					kv, err := js.KeyValue(ctx, string(glue.Orchestration))
 					if err != nil {
 						fmt.Println("[]")
 						return 0
@@ -443,20 +467,20 @@ func main() {
 					fmt.Println(string(marshal))
 					return 0
 				}
-			case string(lib.Activity):
-				store = lib.Activity
-			case string(lib.Entity):
-				store = lib.Entity
+			case string(glue.Activity):
+				store = glue.Activity
+			case string(glue.Entity):
+				store = glue.Entity
 			default:
 				panic(fmt.Errorf("invalid type: %s", args[0]))
 			}
 
-			objectStore, err := lib.GetObjectStore(store, js, ctx)
+			objectStore, err := glue.GetObjectStore(store, js, ctx)
 			if err != nil {
 				panic(err)
 			}
 
-			writer := &lib.ConsumingResponseWriter{
+			writer := &glue.ConsumingResponseWriter{
 				Data:    "",
 				Headers: make(http.Header),
 			}
@@ -467,14 +491,14 @@ func main() {
 				return 0
 			}
 
-			var id *lib.StateId
+			var id *glue.StateId
 			switch store {
-			case lib.Entity:
+			case glue.Entity:
 				fallthrough
-			case lib.Orchestration:
-				id = lib.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
-			case lib.Activity:
-				id = lib.ParseStateId(fmt.Sprintf("%s:%s", string(lib.Activity), args[1]))
+			case glue.Orchestration:
+				id = glue.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
+			case glue.Activity:
+				id = glue.ParseStateId(fmt.Sprintf("%s:%s", string(glue.Activity), args[1]))
 			}
 
 			err = lib.OutputStatus(ctx, writer, id, js, logger)
@@ -483,6 +507,25 @@ func main() {
 				return 1
 			}
 			fmt.Println(writer.Data)
+			return 0
+		})
+	createUser := cli.NewCommand("create-user", "Create a new user").
+		WithArg(cli.NewArg("id", "The user id to assign to the user").WithType(cli.TypeString)).
+		WithOption(cli.NewOption("admin", "Create the user as an admin").WithType(cli.TypeBool)).
+		WithAction(func(args []string, options map[string]string) int {
+			config := config.GetProjectConfig()
+			rol := []auth.Role{"user"}
+			switch options["admin"] {
+			case "true":
+				rol = append(rol, "admin")
+			}
+
+			user, err := auth.CreateUser(auth.UserId(args[0]), rol, config)
+			if err != nil {
+				return 1
+			}
+			fmt.Println(user)
+
 			return 0
 		})
 
@@ -505,6 +548,7 @@ func main() {
 		WithCommand(initCmd).
 		WithCommand(version).
 		WithCommand(inspect).
+		WithCommand(createUser).
 		WithCommand(cli.NewCommand("composer", "Shim around composer.phar -- run dphp composer --help for composer help")).
 		WithCommand(cli.NewCommand("exec", "Execute a php script")).
 		WithAction(execute)
