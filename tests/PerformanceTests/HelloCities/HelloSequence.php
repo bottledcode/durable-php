@@ -24,8 +24,10 @@
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities;
 
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForUser;
 use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
+#[AllowCreateForUser("rob")]
 class HelloSequence
 {
     public function __invoke(OrchestrationContextInterface $context): array

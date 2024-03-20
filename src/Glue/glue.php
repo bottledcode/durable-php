@@ -238,9 +238,10 @@ class Glue
                 'global' => -1,
             ],
         ];
+        $class = null;
         switch ($this->target->getStateType()) {
             case ActivityHistory::class:
-                // todo
+                $permissions['users'] = [$this->provenance->userId];
                 break;
             case EntityHistory::class:
 
@@ -253,29 +254,31 @@ class Glue
                 break;
             default:
         }
-        foreach ($class->getAttributes(AllowCreateForAuth::class) as $attribute) {
-            $permissions['mode'] = 'auth';
-            /** @var AllowCreateForAuth $attribute */
-            $attribute = $attribute->newInstance();
-            $permissions['limits']['user'] = $attribute->userLimit;
-            $permissions['limits']['role'] = $attribute->roleLimit;
-            $permissions['limits']['global'] = $attribute->globalLimit;
-        }
+        if ($class !== null) {
+            foreach ($class->getAttributes(AllowCreateForAuth::class) as $attribute) {
+                $permissions['mode'] = 'auth';
+                /** @var AllowCreateForAuth $attribute */
+                $attribute = $attribute->newInstance();
+                $permissions['limits']['user'] = $attribute->userLimit;
+                $permissions['limits']['role'] = $attribute->roleLimit;
+                $permissions['limits']['global'] = $attribute->globalLimit;
+            }
 
-        foreach ($class->getAttributes(AllowCreateAll::class) as $attribute) {
-            $permissions['mode'] = 'anon';
-        }
+            foreach ($class->getAttributes(AllowCreateAll::class) as $attribute) {
+                $permissions['mode'] = 'anon';
+            }
 
-        foreach ($class->getAttributes(AllowCreateForRole::class) as $attribute) {
-            /** @var AllowCreateForRole $attribute */
-            $attribute = $attribute->newInstance();
-            $permissions['roles'][] = $attribute->role;
-        }
+            foreach ($class->getAttributes(AllowCreateForRole::class) as $attribute) {
+                /** @var AllowCreateForRole $attribute */
+                $attribute = $attribute->newInstance();
+                $permissions['roles'][] = $attribute->role;
+            }
 
-        foreach ($class->getAttributes(AllowCreateForUser::class) as $attribute) {
-            /** @var AllowCreateForUser $attribute */
-            $attribute = $attribute->newInstance();
-            $permissions['users'][] = $attribute->user;
+            foreach ($class->getAttributes(AllowCreateForUser::class) as $attribute) {
+                /** @var AllowCreateForUser $attribute */
+                $attribute = $attribute->newInstance();
+                $permissions['users'][] = $attribute->user;
+            }
         }
 
         $permissions = json_encode($permissions, JSON_THROW_ON_ERROR);

@@ -123,8 +123,8 @@ readonly class EventDescription
         }
 
         $this->innerEvent = $event;
-        $this->targetOperations = array_values(array_unique($targetOps));
-        $this->sourceOperations = array_values(array_unique($sourceOps));
+        $this->targetOperations = array_values(array_unique($targetOps, SORT_REGULAR));
+        $this->sourceOperations = array_values(array_unique($sourceOps, SORT_REGULAR));
 
         $this->locks ??= false;
         $this->isPoisoned ??= false;
