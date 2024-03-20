@@ -28,7 +28,7 @@ use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Ramsey\Uuid\Uuid;
 
 #[NeedsTarget(Operation::ShareMinus)]
-class RevokeRole extends Event
+class RevokeRole extends Event implements External
 {
     private function __construct(public string $role, public Operation|null $operation)
     {
@@ -38,11 +38,6 @@ class RevokeRole extends Event
     public function Completely(string $role): self
     {
         return new self($role, null);
-    }
-
-    public function ForOperation(string $role, Operation $operation): self
-    {
-        return new self($role, $operation);
     }
 
     public function __toString()

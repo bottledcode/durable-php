@@ -29,7 +29,7 @@ use Crell\Serde\Attributes\SequenceField;
 use Ramsey\Uuid\Uuid;
 
 #[NeedsTarget(Operation::SharePlus)]
-class ShareWithRole extends Event
+class ShareWithRole extends Event implements External
 {
     private function __construct(public string $role, #[SequenceField(Operation::class)] public array $allowedOperations)
     {

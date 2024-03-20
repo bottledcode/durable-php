@@ -23,26 +23,4 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
-use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
-use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Ramsey\Uuid\Uuid;
-
-#[NeedsTarget(Operation::ShareMinus)]
-class RevokeUser extends Event implements External
-{
-    private function __construct(public string $userId, public Operation|null $operation)
-    {
-        parent::__construct(Uuid::uuid7());
-    }
-
-    public function Completely(StateId $target, string $userId): self
-    {
-        return new self($userId, null);
-    }
-
-    public function __toString()
-    {
-        return sprintf("Revoke(user: %s)", $this->userId);
-    }
-}
+interface External {}

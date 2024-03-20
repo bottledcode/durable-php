@@ -60,6 +60,8 @@ readonly class EventDescription
      */
     public array $targetOperations;
 
+    public array $meta;
+
     public function __construct(public Event $event)
     {
         $this->describe($event);
@@ -71,7 +73,7 @@ readonly class EventDescription
 
         $targetOps = [];
         $sourceOps = [];
-        do {
+        while  ($event instanceof HasInnerEventInterface) {
             if ($event instanceof ReplyToInterface) {
                 $this->replyTo = $event->getReplyTo();
             }
@@ -87,6 +89,9 @@ readonly class EventDescription
             if ($event instanceof PoisonPill) {
                 $this->isPoisoned = true;
             }
+            if ($event instanceof External) {
+                $this->meta = Serializer::serialize($event);
+            }
 
             $reflection = new \ReflectionClass($event);
             foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
@@ -101,11 +106,21 @@ readonly class EventDescription
                 $sourceOps[] = $attr->operation;
             }
 
-            if ($event instanceof HasInnerEventInterface) {
-                $event = $event->getInnerEvent();
-            }
+            $event = $event->getInnerEvent();
+        }
 
-        } while  ($event instanceof HasInnerEventInterface);
+        $reflection = new \ReflectionClass($event);
+        foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
+            /** @var NeedsTarget $attr */
+            $attr = $target->newInstance();
+            $targetOps[] = $attr->operation;
+        }
+
+        foreach($reflection->getAttributes(NeedsSource::class) as $target) {
+            /** @var NeedsTarget $attr */
+            $attr = $target->newInstance();
+            $sourceOps[] = $attr->operation;
+        }
 
         $this->innerEvent = $event;
         $this->targetOperations = array_values(array_unique($targetOps));
@@ -156,8 +171,9 @@ readonly class EventDescription
             'eventId' => $this->eventId,
             'eventType' => $this->innerEvent->eventType(),
             'targetType' => $this->targetType->name,
-            'sourceOps' => implode(',', $this->sourceOperations),
-            'targetOps' => implode(',', $this->targetOperations),
+            'sourceOps' => implode(',', array_map(static fn($x) => $x->value, $this->sourceOperations)),
+            'targetOps' => implode(',', array_map(static fn($x) => $x->value, $this->targetOperations)),
+            'meta' => json_encode($this->meta ?? [], JSON_THROW_ON_ERROR),
             'event' => $event,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }

@@ -36,6 +36,9 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	if err != nil && !preventCreation {
 		// resource wasn't created yet, so we assume the user is creating the resource
 		resource := NewResourcePermissions(currentUser, ExplicitMode)
+		resource.kv = r.kv
+		resource.id = id
+		resource.revision = 0
 		if resource.CanCreate(id, ctx, logger) {
 			_, err := r.kv.Put(ctx, id.ToSubject().Bucket(), resource.toBytes())
 			if err != nil {
@@ -48,6 +51,9 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 		return nil, fmtError("resource not found")
 	}
 	resource := FromBytes(data.Value())
+	resource.kv = r.kv
+	resource.id = id
+	resource.revision = data.Revision()
 	if resource.ApplyPerms(id, ctx, logger) {
 		// if this fails, that is ok
 		r.kv.Update(ctx, id.ToSubject().Bucket(), resource.toBytes(), data.Revision())

@@ -174,6 +174,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 		query:     make(chan []string),
 		headers:   make(http.Header),
 		CurrentId: id,
+		Context:   ctx,
 	}
 
 	var wg sync.WaitGroup

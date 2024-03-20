@@ -64,6 +64,9 @@ class Glue
 
     public function __construct(private DurableLogger $logger)
     {
+        if(empty($_SERVER['STATE_ID'])) {
+            var_dump($_SERVER);
+        }
         $this->target = StateId::fromString($_SERVER['STATE_ID']);
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];

@@ -6,6 +6,7 @@ import (
 	"durable_php/glue"
 	"encoding/json"
 	"fmt"
+	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -15,10 +16,13 @@ import (
 )
 
 type Resource struct {
-	Owners map[UserId]struct{} `json:"owner"`
-	Shares []Share             `json:"Shares"`
-	Mode   Mode                `json:"mode"`
-	mu     sync.RWMutex
+	Owners   map[UserId]struct{} `json:"owner"`
+	Shares   []Share             `json:"Shares"`
+	Mode     Mode                `json:"mode"`
+	mu       sync.RWMutex
+	kv       jetstream.KeyValue
+	id       *glue.StateId
+	revision uint64
 }
 
 func NewResourcePermissions(owner *User, mode Mode) *Resource {
@@ -41,8 +45,17 @@ func FromBytes(data []byte) *Resource {
 	return &resource
 }
 
+func (r *Resource) Update(ctx context.Context) error {
+	_, err := r.kv.Update(ctx, r.id.ToSubject().Bucket(), r.toBytes(), r.revision)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ShareOwnership to another user, optionally keeping all permissions if the user still wants to access the resource
-func (r *Resource) ShareOwnership(newUser User, keepPermissions bool, ctx context.Context) error {
+func (r *Resource) ShareOwnership(newUser UserId, keepPermissions bool, ctx context.Context) error {
 	if r.WantTo(Owner, ctx) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -51,7 +64,7 @@ func (r *Resource) ShareOwnership(newUser User, keepPermissions bool, ctx contex
 			delete(r.Owners, cu.UserId)
 		}
 
-		r.Owners[newUser.UserId] = struct{}{}
+		r.Owners[newUser] = struct{}{}
 	}
 
 	return fmtError(Owner)
@@ -62,8 +75,9 @@ func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap
 	if err != nil {
 		panic(err)
 	}
+	env := map[string]string{"STATE_ID": id.String()}
 	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
-	glu.Execute(ctx, make(http.Header), logger, make(map[string]string), nil, id)
+	glu.Execute(ctx, make(http.Header), logger, env, nil, id)
 
 	data, err := io.ReadAll(result)
 	if err != nil {
@@ -92,7 +106,8 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 	result.Close()
 
 	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
-	_, headers, _ := glu.Execute(ctx, make(http.Header), logger, map[string]string{"STATE_ID": id.String()}, nil, id)
+	env := map[string]string{"STATE_ID": id.String()}
+	_, headers, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
 
 	data := headers["Permissions"][0]
 
@@ -149,7 +164,7 @@ func (r *Resource) IsOwner(ctx context.Context) bool {
 	return false
 }
 
-func (r *Resource) WantTo(operation Operation, ctx context.Context) bool {
+func (r *Resource) WantTo(operation Operation, ctx context.Context) (able bool) {
 	user := ctx.Value(appcontext.CurrentUserKey).(*User)
 
 	if r.Mode == AnonymousMode {
@@ -205,7 +220,7 @@ func (r *Resource) Grant(share Share, ctx context.Context) error {
 	return fmtError(SharePlus)
 }
 
-func (r *Resource) GrantUser(user User, operation Operation, ctx context.Context) error {
+func (r *Resource) GrantUser(user UserId, operation Operation, ctx context.Context) error {
 	if !r.WantTo(SharePlus, ctx) {
 		return fmtError(SharePlus)
 	}
@@ -213,14 +228,14 @@ func (r *Resource) GrantUser(user User, operation Operation, ctx context.Context
 	defer r.mu.Unlock()
 
 	for _, x := range r.Shares {
-		if u, ok := x.(UserShare); ok && u.UserId == user.UserId {
+		if u, ok := x.(UserShare); ok && u.UserId == user {
 			u.AllowedOperations[operation] = struct{}{}
 			return nil
 		}
 	}
 
 	r.Shares = append(r.Shares, UserShare{
-		UserId: user.UserId,
+		UserId: user,
 		Permissions: Permissions{
 			AllowedOperations: map[Operation]struct{}{
 				operation: {},

@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -81,19 +82,158 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	defer cancelCtx()
 
 	// configure the current user
-	var currentUser *auth.User
-	err := json.Unmarshal([]byte(msg.Headers().Get(string(glue.HeaderProvenance))), currentUser)
+	currentUser := &auth.User{}
+	b := msg.Headers().Get(string(glue.HeaderProvenance))
+	err := json.Unmarshal([]byte(b), currentUser)
 	if err != nil {
-		logger.Warn("Failed to unmarshal event provenance")
+		logger.Warn("Failed to unmarshal event provenance",
+			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
+			zap.Error(err),
+		)
 		currentUser = nil
 	} else {
 		ctx = auth.DecorateContextWithUser(ctx, currentUser)
 	}
 
 	if config.Extensions.Authz.Enabled {
-		// todo: event header should specify wanted access mode so we can decide if creation is reasonable, further
-		//   we can decide how to handle the event (glue vs. in-proc for access level change events)
-		//resource := rm.DiscoverResource(ctx, id, logger, false)
+		// extract the source operations
+		sourceOps := strings.Split(msg.Headers().Get(string(glue.HeaderSourceOps)), ",")
+		// retrieve the source
+		sourceId := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
+		if sourceR, err := rm.DiscoverResource(ctx, sourceId, logger, true); err != nil {
+			for _, op := range sourceOps {
+				if !sourceR.WantTo(auth.Operation(op), ctx) {
+					// user isn't allowed to do this, so warn
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", op), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
+			}
+		}
+
+		// extract the target operations
+		targetOps := strings.Split(msg.Headers().Get(string(glue.HeaderTargetOps)), ",")
+		shouldCreate := false
+		for _, op := range targetOps {
+			switch auth.Operation(op) {
+			case auth.Signal:
+				fallthrough
+			case auth.Call:
+				fallthrough
+			case auth.Lock:
+				fallthrough
+			case auth.Output:
+				shouldCreate = true
+			}
+		}
+
+		resource, err := rm.DiscoverResource(ctx, id, logger, !shouldCreate)
+		if err != nil {
+			logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "create"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+			msg.Ack()
+			return nil
+		}
+
+		m := msg.Headers().Get(string(glue.HeaderMeta))
+		var meta map[string]interface{}
+		if m != "[]" {
+			err = json.Unmarshal([]byte(m), &meta)
+			if err != nil {
+				return err
+			}
+
+			switch msg.Headers().Get(string(glue.HeaderEventType)) {
+			case "RevokeRole":
+				role := meta["role"].(string)
+
+				err := resource.RevokeRole(auth.Role(role), ctx)
+				if err != nil {
+					return err
+				}
+				err = resource.Update(ctx)
+				if err != nil {
+					return err
+				}
+				msg.Ack()
+				return nil
+			case "RevokeUser":
+				user := meta["userId"].(string)
+				err := resource.RevokeUser(auth.UserId(user), ctx)
+				if err != nil {
+					return err
+				}
+				err = resource.Update(ctx)
+				if err != nil {
+					return err
+				}
+				msg.Ack()
+				return nil
+			case "ShareWithRole":
+				role := meta["role"].(auth.Role)
+				operations := meta["allowedOperations"].([]auth.Operation)
+
+				for _, op := range operations {
+					err := resource.GrantRole(role, op, ctx)
+					if err != nil {
+						return err
+					}
+				}
+				err = resource.Update(ctx)
+				if err != nil {
+					return err
+				}
+				msg.Ack()
+				return nil
+			case "ShareWithUser":
+				role := meta["userId"].(auth.UserId)
+				operations := meta["allowedOperations"].([]auth.Operation)
+
+				for _, op := range operations {
+					err := resource.GrantUser(role, op, ctx)
+					if err != nil {
+						return err
+					}
+				}
+				err = resource.Update(ctx)
+				if err != nil {
+					return err
+				}
+				msg.Ack()
+				return nil
+			case "ShareOwnership":
+				userId := meta["userId"].(auth.UserId)
+				err := resource.ShareOwnership(userId, true, ctx)
+				if err != nil {
+					return err
+				}
+				err = resource.Update(ctx)
+				if err != nil {
+					return err
+				}
+				msg.Ack()
+				return nil
+			case "GiveOwnership":
+				userId := meta["userId"].(auth.UserId)
+				err := resource.ShareOwnership(userId, false, ctx)
+				if err != nil {
+					return err
+				}
+				err = resource.Update(ctx)
+				if err != nil {
+					return err
+				}
+				msg.Ack()
+				return nil
+			}
+		}
+
+		for _, op := range targetOps {
+			if !resource.WantTo(auth.Operation(op), ctx) {
+				logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", op), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+				msg.Ack()
+				return nil
+			}
+		}
 	}
 
 	// get the object

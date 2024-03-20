@@ -23,6 +23,9 @@ const (
 	HeaderEmittedBy  GlueHeaders = "Emitted-By"
 	HeaderEmittedAt  GlueHeaders = "Emitted-At"
 	HeaderProvenance GlueHeaders = "Provenance"
+	HeaderTargetOps  GlueHeaders = "Target-Operations"
+	HeaderSourceOps  GlueHeaders = "Source-Operations"
+	HeaderMeta       GlueHeaders = "P-Meta"
 )
 
 type ConsumingResponseWriter struct {
@@ -92,6 +95,9 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			header.Add(string(HeaderTargetType), body.TargetType)
 			header.Add(string(HeaderEmittedAt), string(now))
 			header.Add(string(HeaderProvenance), string(currentUser))
+			header.Add(string(HeaderTargetOps), body.TargetOps)
+			header.Add(string(HeaderSourceOps), body.SourceOps)
+			header.Add(string(HeaderMeta), body.Meta)
 			if w.CurrentId != nil {
 				header.Add(string(HeaderEmittedBy), w.CurrentId.String())
 			}
