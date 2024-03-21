@@ -69,9 +69,10 @@ class Glue
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
         try {
             $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? "null", true, 32, JSON_THROW_ON_ERROR);
-            if(!$provenance) {
+            if(!$provenance || $provenance === ['userId' => '', 'roles' => null]) {
                 $this->provenance = null;
             } else {
+                $provenance['roles'] ??= [];
                 $this->provenance = Serializer::deserialize($provenance, Provenance::class);
             }
         } catch (JsonException $e) {

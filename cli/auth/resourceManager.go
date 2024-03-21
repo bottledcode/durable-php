@@ -34,11 +34,7 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 }
 
 func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
-	currentUser, found := ctx.Value(appcontext.CurrentUserKey).(*User)
-	if !found {
-		logger.Warn("Anonymous user discovering resource")
-		//return nil, fmtError("no user in context")
-	}
+	currentUser, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 
 	data, err := r.kv.Get(ctx, id.ToSubject().Bucket())
 	if err != nil && !preventCreation {
