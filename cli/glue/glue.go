@@ -211,6 +211,38 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	return writer.events, writer.Header(), writer.status
 }
 
+func DeleteState(ctx context.Context, stream jetstream.JetStream, logger *zap.Logger, id *StateId) error {
+	logger.Info("Deleting state", zap.Any("id", id))
+	if id.Kind == Orchestration {
+		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket:      string(Orchestration),
+			Compression: true,
+		})
+		if err != nil {
+			return err
+		}
+
+		err = bucket.Delete(ctx, id.ToSubject().String())
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	obj, err := GetObjectStore(id.Kind, stream, ctx)
+	if err != nil {
+		return err
+	}
+
+	err = obj.Delete(ctx, id.ToSubject().String())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func GetStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*os.File, func() error) {
 	if id.Kind == Orchestration {
 		// orchestrations use optimistic concurrency and the kv store for state

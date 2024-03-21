@@ -35,6 +35,7 @@ use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateForAuth;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateForRole;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateForUser;
+use Bottledcode\DurablePhp\State\Attributes\TimeToLive;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
@@ -239,6 +240,7 @@ class Glue
                 'role' => -1,
                 'global' => -1,
             ],
+            'ttl' => 0,
         ];
         $class = null;
         switch ($this->target->getStateType()) {
@@ -246,7 +248,6 @@ class Glue
                 $permissions['users'] = [$this->provenance?->userId];
                 break;
             case EntityHistory::class:
-
                 $entity = $this->target->toEntityId();
                 $class = new \ReflectionClass($entity->name);
                 break;
@@ -257,29 +258,35 @@ class Glue
             default:
         }
         if ($class !== null) {
-            foreach ($class->getAttributes(AllowCreateForAuth::class) as $attribute) {
-                $permissions['mode'] = 'auth';
-                /** @var AllowCreateForAuth $attribute */
-                $attribute = $attribute->newInstance();
-                $permissions['limits']['user'] = $attribute->userLimit;
-                $permissions['limits']['role'] = $attribute->roleLimit;
-                $permissions['limits']['global'] = $attribute->globalLimit;
-            }
-
-            foreach ($class->getAttributes(AllowCreateAll::class) as $attribute) {
-                $permissions['mode'] = 'anon';
-            }
-
-            foreach ($class->getAttributes(AllowCreateForRole::class) as $attribute) {
-                /** @var AllowCreateForRole $attribute */
-                $attribute = $attribute->newInstance();
-                $permissions['roles'][] = $attribute->role;
-            }
-
-            foreach ($class->getAttributes(AllowCreateForUser::class) as $attribute) {
-                /** @var AllowCreateForUser $attribute */
-                $attribute = $attribute->newInstance();
-                $permissions['users'][] = $attribute->user;
+            foreach($class->getAttributes() as $attribute) {
+                switch (true) {
+                    case $attribute->getName() === AllowCreateForAuth::class:
+                        $permissions['mode'] = 'auth';
+                        /** @var AllowCreateForAuth $attribute */
+                        $attribute = $attribute->newInstance();
+                        $permissions['limits']['user'] = $attribute->userLimit;
+                        $permissions['limits']['role'] = $attribute->roleLimit;
+                        $permissions['limits']['global'] = $attribute->globalLimit;
+                        break;
+                    case $attribute->getName() === AllowCreateAll::class:
+                        $permissions['mode'] = 'anon';
+                        break;
+                    case $attribute->getName() === AllowCreateForRole::class:
+                        /** @var AllowCreateForRole $attribute */
+                        $attribute = $attribute->newInstance();
+                        $permissions['roles'][] = $attribute->role;
+                        break;
+                    case $attribute->getName() === AllowCreateForUser::class:
+                        /** @var AllowCreateForUser $attribute */
+                        $attribute = $attribute->newInstance();
+                        $permissions['users'][] = $attribute->user;
+                        break;
+                    case $attribute->getName() === TimeToLive::class:
+                        /** @var TimeToLive $attribute */
+                        $attribute = $attribute->newInstance();
+                        $permissions['ttl'] = $attribute->timeToLive()->inNanoseconds();
+                        break;
+                }
             }
         }
 

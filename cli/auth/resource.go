@@ -13,6 +13,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"time"
 )
 
 type Resource struct {
@@ -22,24 +23,27 @@ type Resource struct {
 	mu       sync.RWMutex
 	kv       jetstream.KeyValue
 	id       *glue.StateId
+	Expires  time.Time
 	revision uint64
 }
 
 func NewResourcePermissions(owner *User, mode Mode) *Resource {
 	if owner == nil {
 		return &Resource{
-			Owners: map[UserId]struct{}{},
-			Shares: make([]Share, 0),
-			Mode:   mode,
-			mu:     sync.RWMutex{},
+			Owners:  map[UserId]struct{}{},
+			Shares:  make([]Share, 0),
+			Mode:    mode,
+			mu:      sync.RWMutex{},
+			Expires: time.Now(),
 		}
 	}
 
 	return &Resource{
-		Owners: map[UserId]struct{}{owner.UserId: {}},
-		Shares: []Share{},
-		Mode:   mode,
-		mu:     sync.RWMutex{},
+		Owners:  map[UserId]struct{}{owner.UserId: {}},
+		Shares:  []Share{},
+		Mode:    mode,
+		mu:      sync.RWMutex{},
+		Expires: time.Now(),
 	}
 }
 
@@ -141,6 +145,7 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 
 	currentUser, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 	r.Mode = perms.Mode
+	r.Expires = time.Now().Add(time.Duration(perms.TimeToLive) * time.Nanosecond)
 
 	switch perms.Mode {
 	case AnonymousMode:

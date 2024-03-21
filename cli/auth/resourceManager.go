@@ -5,14 +5,17 @@ import (
 	"durable_php/appcontext"
 	"durable_php/glue"
 	"github.com/modern-go/concurrent"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
+	"time"
 )
 
 var cache *concurrent.Map
 
 type ResourceManager struct {
 	kv jetstream.KeyValue
+	js jetstream.JetStream
 }
 
 func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *ResourceManager {
@@ -30,6 +33,7 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 
 	return &ResourceManager{
 		kv: kv,
+		js: stream,
 	}
 }
 
@@ -49,6 +53,11 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 			if err != nil {
 				return nil, err
 			}
+
+			if resource.Expires.After(time.Now()) {
+				r.ScheduleDelete(ctx, resource, resource.Expires)
+			}
+
 			return resource, nil
 		}
 		return nil, fmtError("user cannot create resource")
@@ -66,4 +75,29 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	}
 
 	return resource, nil
+}
+
+func (r *ResourceManager) ScheduleDelete(ctx context.Context, resource *Resource, at time.Time) {
+	r.kv.Delete(ctx, resource.id.ToSubject().Bucket())
+
+	headers := nats.Header{}
+	headers.Add("Delay", at.Format(time.RFC3339))
+	headers.Add(string(glue.HeaderStateId), resource.id.String())
+
+	r.js.PublishMsg(ctx, &nats.Msg{
+		Subject: resource.id.ToSubject().String() + ".delete",
+		Header:  headers,
+	})
+}
+
+func (r *ResourceManager) Delete(ctx context.Context, resource *Resource) {
+	r.kv.Delete(ctx, resource.id.ToSubject().Bucket())
+
+	headers := nats.Header{}
+	headers.Add(string(glue.HeaderStateId), resource.id.String())
+
+	r.js.PublishMsg(ctx, &nats.Msg{
+		Subject: resource.id.ToSubject().String() + ".delete",
+		Header:  headers,
+	})
 }

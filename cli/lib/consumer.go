@@ -57,6 +57,15 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 				return
 			}
 
+			if strings.HasSuffix(msg.Subject(), ".delete") {
+				id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+				err := glue.DeleteState(ctx, js, logger, id)
+				if err != nil {
+					panic(err)
+				}
+				return
+			}
+
 			ctx := getCorrelationId(ctx, nil, &headers)
 
 			if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {

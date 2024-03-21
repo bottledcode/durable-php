@@ -7,6 +7,7 @@ type CreatePermissions struct {
 		Role   int `json:"role"`
 		Global int `json:"global"`
 	} `json:"limits"`
-	Users []UserId `json:"users"`
-	Roles []Role   `json:"roles"`
+	Users      []UserId `json:"users"`
+	Roles      []Role   `json:"roles"`
+	TimeToLive uint64   `json:"ttl"`
 }
