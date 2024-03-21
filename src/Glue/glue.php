@@ -243,7 +243,7 @@ class Glue
         $class = null;
         switch ($this->target->getStateType()) {
             case ActivityHistory::class:
-                $permissions['users'] = [$this->provenance->userId];
+                $permissions['users'] = [$this->provenance?->userId];
                 break;
             case EntityHistory::class:
 
