@@ -21,25 +21,17 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities;
+namespace Bottledcode\DurablePhp\State\Attributes;
 
-use Bottledcode\DurablePhp\OrchestrationContextInterface;
-use Bottledcode\DurablePhp\State\Attributes\AllowCreateForUser;
-use Bottledcode\DurablePhp\Tests\Common\SayHello;
+use Withinboredom\Time\AnyTime;
 
-#[AllowCreateForUser('rob')]
-class HelloSequence
+#[\Attribute(\Attribute::TARGET_CLASS)]
+readonly class TimeToLive
 {
-    public function __invoke(OrchestrationContextInterface $context): array
-    {
-        $outputs = [
-            $context->callActivity(SayHello::class, ['Tokyo']),
-            $context->callActivity(SayHello::class, ['Seattle']),
-            $context->callActivity(SayHello::class, ['London']),
-            $context->callActivity(SayHello::class, ['Amsterdam']),
-            $context->callActivity(SayHello::class, ['Seoul']),
-        ];
+    public function __construct(private AnyTime $unit, private int $amount) {}
 
-        return $context->waitAll(...$outputs);
+    public function timeToLive(): AnyTime
+    {
+        return $this->unit->multiply($this->amount);
     }
 }
