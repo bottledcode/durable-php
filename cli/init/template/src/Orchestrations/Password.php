@@ -4,7 +4,9 @@ namespace {{.Name}}\Orchestrations;
 
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
 
+#[AllowCreateAll]
 class Password
 {
     public function __construct(private OrchestrationContext $context) {}

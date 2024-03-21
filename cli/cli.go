@@ -356,7 +356,7 @@ func execute(args []string, options map[string]string) int {
 			defer consume.Drain()
 
 			activityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-				Durable:       "orchestrationAggregator",
+				Durable:       "activityAggregator",
 				FilterSubject: "billing." + config.Stream + ".activities.>",
 			})
 			if err != nil {

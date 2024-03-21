@@ -5,7 +5,9 @@ namespace {{.Name}}\Orchestrations;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
 use {{.Name}}\Activities\AddOne;
 use {{.Name}}\Entities\CountInterface;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
 
+#[AllowCreateAll]
 class Counter
 {
     public function __invoke(OrchestrationContextInterface $context): void
