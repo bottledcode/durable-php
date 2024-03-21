@@ -209,6 +209,10 @@ class Glue
     private function entityDecoder(): void
     {
         $state = file_get_contents($_SERVER['HTTP_ENTITY_STATE']);
+        if (empty($state)) {
+            fwrite($this->payloadHandle, "null");
+            return;
+        }
         $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
         $state = Serializer::deserialize($state, EntityHistory::class);
         fseek($this->payloadHandle, 0);

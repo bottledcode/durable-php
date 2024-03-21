@@ -26,6 +26,15 @@ type Resource struct {
 }
 
 func NewResourcePermissions(owner *User, mode Mode) *Resource {
+	if owner == nil {
+		return &Resource{
+			Owners: map[UserId]struct{}{},
+			Shares: make([]Share, 0),
+			Mode:   mode,
+			mu:     sync.RWMutex{},
+		}
+	}
+
 	return &Resource{
 		Owners: map[UserId]struct{}{owner.UserId: {}},
 		Shares: []Share{},
@@ -130,7 +139,7 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 		cache.Store(id.Name(), perms)
 	}
 
-	currentUser := ctx.Value(appcontext.CurrentUserKey).(*User)
+	currentUser, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 	r.Mode = perms.Mode
 
 	switch perms.Mode {
@@ -142,6 +151,9 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 		}
 		return true
 	case ExplicitMode:
+		if currentUser == nil {
+			return false
+		}
 		if slices.Contains(perms.Users, currentUser.UserId) {
 			return true
 		}
@@ -178,7 +190,7 @@ func (r *Resource) IsOwner(ctx context.Context) bool {
 }
 
 func (r *Resource) WantTo(operation Operation, ctx context.Context) (able bool) {
-	user := ctx.Value(appcontext.CurrentUserKey).(*User)
+	user, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 
 	if r.Mode == AnonymousMode {
 		return true
