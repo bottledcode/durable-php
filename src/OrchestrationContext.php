@@ -126,11 +126,10 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return $this->createFuture(function () use ($activity, $identity) {
             try {
                 $result = $activity();
-                $this->taskController->fire($ev = WithOrchestration::forInstance(StateId::fromInstance($this->id), TaskCompleted::forId($identity->toString(), $result)));
-                return $ev->eventId;
+                return $this->taskController->fire(WithOrchestration::forInstance(StateId::fromInstance($this->id), TaskCompleted::forId($identity->toString(), $result)));
             } catch (\Throwable $exception) {
-                $this->taskController->fire(
-                    $ev = WithOrchestration::forInstance(
+                return $this->taskController->fire(
+                    WithOrchestration::forInstance(
                         StateId::fromInstance($this->id),
                         TaskFailed::forTask(
                             $identity->toString(),
@@ -140,7 +139,6 @@ final class OrchestrationContext implements OrchestrationContextInterface
                         )
                     )
                 );
-                return $ev->eventId;
             }
         }, function (Event $event, string $eventIdentity) use ($identity): array {
             if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
