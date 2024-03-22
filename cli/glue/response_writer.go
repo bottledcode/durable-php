@@ -66,10 +66,9 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 	currentUser, err := json.Marshal(w.Context.Value(appcontext.CurrentUserKey))
 	if err != nil {
 		w.logger.Warn("Failed to create user for provenance events")
-		currentUser = []byte("null")
 	}
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
 		if after, found := strings.CutPrefix(line, "EVENT~!~"); found {
 			w.logger.Debug("Detected event", zap.String("line", after))
 			var body EventMessage
@@ -94,7 +93,9 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			header.Add(string(HeaderEventType), eventType)
 			header.Add(string(HeaderTargetType), body.TargetType)
 			header.Add(string(HeaderEmittedAt), string(now))
-			header.Add(string(HeaderProvenance), string(currentUser))
+			if currentUser != nil {
+				header.Add(string(HeaderProvenance), string(currentUser))
+			}
 			header.Add(string(HeaderTargetOps), body.TargetOps)
 			header.Add(string(HeaderSourceOps), body.SourceOps)
 			header.Add(string(HeaderMeta), body.Meta)
@@ -118,9 +119,9 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 			w.logger.Debug("Performing query", zap.String("line", after))
 			w.query <- strings.Split(after, "~!~")
 		} else if w.isError {
-			w.logger.Error(scanner.Text())
+			w.logger.Error(line)
 		} else {
-			w.logger.Info(scanner.Text())
+			w.logger.Info(line)
 		}
 	}
 

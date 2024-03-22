@@ -52,7 +52,7 @@ class DurableLogger implements LoggerInterface
             //$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
             $handler->setFormatter(
                 new class (new ConsoleFormatter(
-                    format: $this->name ? "%channel%.%level_name%: %message% %context% %extra%\n" : "[%datetime%] %level_name%: %message% %context% %extra%\n",
+                    format: $this->name ? "%channel%.%level_name%: %message% %context% %extra%" : "[%datetime%] %level_name%: %message% %context% %extra%",
                     allowInlineLineBreaks: true,
                     ignoreEmptyContextAndExtra: true
                 ), $this->name) implements FormatterInterface {
@@ -75,7 +75,7 @@ class DurableLogger implements LoggerInterface
                             ) => $this->colorize->error($text),
                         };
 
-                        return $color($this->innerFormat->format($record->with(channel: $this->name))) . "\033[0m";
+                        return $color($this->innerFormat->format($record->with(channel: $this->name))) . "\033[0m\n";
                     }
 
                     #[\Override]

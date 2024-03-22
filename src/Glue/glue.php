@@ -194,6 +194,7 @@ class Glue
         $signal = $_SERVER['HTTP_SIGNAL'];
         $event = WithOrchestration::forInstance($this->target, RaiseEvent::forCustom($signal, $this->payload));
         $this->outputEvent(new EventDescription($event));
+        $this->writePayload('');
     }
 
     private function entityDecoder(): void
