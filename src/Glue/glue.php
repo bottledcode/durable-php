@@ -172,8 +172,12 @@ class Glue
         $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
         $this->outputEvent(new EventDescription($event));
 
+        $actualId = $this->target->toOrchestrationInstance();
+
         $this->writePayload(json_encode([
             'id' => $this->target->id,
+            'execution' => $actualId->executionId,
+            'instance' => $actualId->instanceId,
         ], JSON_THROW_ON_ERROR));
     }
 
