@@ -39,6 +39,7 @@ import (
 	"github.com/teris-io/cli"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -498,15 +499,21 @@ func main() {
 			case glue.Orchestration:
 				id = glue.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
 			case glue.Activity:
-				id = glue.ParseStateId(fmt.Sprintf("%s:%s", string(glue.Activity), args[1]))
+				id = glue.ParseStateId(fmt.Sprintf("%s:%s", string(glue.Activity), args[0]))
 			}
 
-			err = lib.OutputStatus(ctx, writer, id, js, logger)
+			ctx, cancel = context.WithCancel(ctx)
+
+			res, _ := glue.GetStateFile(id, js, ctx, logger)
+			res, err = os.Open(res.Name())
+			defer res.Close()
+
+			out, err := io.ReadAll(res)
 			if err != nil {
-				logger.Fatal("Failed to output state", zap.Error(err))
-				return 1
+				panic(err)
 			}
-			fmt.Println(writer.Data)
+			fmt.Println(string(out))
+			cancel()
 			return 0
 		})
 	createUser := cli.NewCommand("create-user", "Create a new user").

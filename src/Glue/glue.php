@@ -171,6 +171,17 @@ class Glue
 
         $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
         $this->outputEvent(new EventDescription($event));
+
+        $this->writePayload(json_encode([
+            'id' => $this->target->id,
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    private function writePayload(string $payload): void
+    {
+        fseek($this->payloadHandle, 0);
+        ftruncate($this->payloadHandle, 0);
+        fwrite($this->payloadHandle, $payload);
     }
 
     private function orchestrationSignal(): void
@@ -190,16 +201,14 @@ class Glue
         }
         $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
         $state = Serializer::deserialize($state, EntityHistory::class);
-        fseek($this->payloadHandle, 0);
-        ftruncate($this->payloadHandle, 0);
         if ($state->getState() !== null) {
             $state = Serializer::serialize($state->getState(), ['API']);
         } else {
-            fwrite($this->payloadHandle, 'null');
+            $this->writePayload('null');
 
             return;
         }
-        fwrite($this->payloadHandle, json_encode($state, JSON_THROW_ON_ERROR));
+        $this->writePayload(json_encode($state, JSON_THROW_ON_ERROR));
     }
 
     private function getPermissions(): void

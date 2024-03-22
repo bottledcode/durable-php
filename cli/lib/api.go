@@ -63,9 +63,26 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	rm := auth.GetResourceManager(ctx, js)
 
+	// todo: allow specific origins from config
+	handleCors := func(writer http.ResponseWriter, request *http.Request) bool {
+		if request.Method == "OPTIONS" {
+			writer.Header().Set("Access-Control-Allow-Origin", "*")
+			writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+			writer.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Id")
+			return true
+		}
+
+		writer.Header().Set("Access-Control-Allow-Origin", "*")
+		return false
+	}
+
 	// GET /activities
 	// list all activities
 	r.HandleFunc("/activities", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
@@ -89,6 +106,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// GET /activity/{id}
 	// get the activity status
 	r.HandleFunc("/activity/{id}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		if request.Method != "GET" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
@@ -116,6 +137,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// POST /entities/filter
 	// list all entities
 	r.HandleFunc("/entities/filter/{page}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		if request.Method != "POST" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
@@ -240,6 +265,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// PUT /entity/{name}/{id}
 	// signal an entity
 	r.HandleFunc("/entity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		vars := mux.Vars(request)
 		id := &glue.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
@@ -285,6 +314,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// GET /orchestrations
 	// get list of orchestrations
 	r.HandleFunc("/orchestrations", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		if request.Method == "GET" {
 			if user, ok := auth.ExtractUser(request, config); ok && user.IsAdmin() {
 				http.Error(writer, "Not Authorized", http.StatusForbidden)
@@ -309,6 +342,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// PUT /orchestration/{name}
 	// start a new orchestration
 	r.HandleFunc("/orchestration/{name}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		if request.Method != "PUT" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
@@ -344,6 +381,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// GET /orchestration/{name}/{id}?wait=??
 	// get an orchestration status and optionally wait for it's completion
 	r.HandleFunc("/orchestration/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		vars := mux.Vars(request)
 
 		ctx := getCorrelationId(ctx, &request.Header, nil)
@@ -445,6 +486,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	// PUT /orchestration/{name}/{id}/{signal}
 	r.HandleFunc("/orchestration/{name}/{id}/{signal}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
 		if request.Method != "PUT" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
