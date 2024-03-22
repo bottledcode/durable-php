@@ -44,6 +44,11 @@ use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
 use DI\Container;
+use DI\Definition\AutowireDefinition;
+use DI\Definition\Definition;
+use DI\Definition\FactoryDefinition;
+use DI\Definition\InstanceDefinition;
+use DI\Definition\ObjectDefinition;
 use JsonException;
 use Ramsey\Uuid\Uuid;
 
@@ -212,6 +217,7 @@ class Glue
         ];
         $class = null;
         $container = $this->bootstrap();
+        $getDefinition = (new \ReflectionClass($container))->getMethod('getDefinition')->getClosure($container);
 
         switch ($this->target->getStateType()) {
             case ActivityHistory::class:
@@ -219,11 +225,11 @@ class Glue
                 break;
             case EntityHistory::class:
                 $entity = $this->target->toEntityId();
-                $class = new \ReflectionClass($container->debugEntry($entity->name));
+                $class = $this->getFromDefinition($getDefinition($entity->name));
                 break;
             case OrchestrationHistory::class:
                 $instance = $this->target->toOrchestrationInstance();
-                $class = new \ReflectionClass($container->debugEntry($instance->instanceId));
+                $class = $this->getFromDefinition($getDefinition($instance->instanceId));
                 break;
             default:
         }
@@ -271,6 +277,19 @@ class Glue
         }
 
         return new Container();
+    }
+
+    private function getFromDefinition(Definition $definition): \ReflectionClass|\ReflectionFunction|null
+    {
+        if($definition instanceof AutowireDefinition || $definition instanceof ObjectDefinition) {
+            return new \ReflectionClass($definition->getClassName());
+        } elseif ($definition instanceof InstanceDefinition) {
+            return new \ReflectionClass($definition->getInstance());
+        } elseif($definition instanceof FactoryDefinition) {
+            return new \ReflectionFunction($definition->getCallable());
+        }
+
+        return null;
     }
 }
 

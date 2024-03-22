@@ -59,8 +59,7 @@ func FromBytes(data []byte) *Resource {
 }
 
 func (r *Resource) Update(ctx context.Context, logger *zap.Logger) error {
-	logger.Debug("kv update")
-	_, err := r.kv.Update(ctx, r.id.ToSubject().Bucket(), r.toBytes(), r.revision)
+	_, err := r.kv.Update(ctx, r.id.ToSubject().String(), r.toBytes(), r.revision)
 	if err != nil {
 		return err
 	}

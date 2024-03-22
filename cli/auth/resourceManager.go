@@ -40,16 +40,16 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
 	currentUser, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 
-	data, err := r.kv.Get(ctx, id.ToSubject().Bucket())
-	if err != nil && !preventCreation {
+	data, err := r.kv.Get(ctx, id.ToSubject().String())
+
+	if (err != nil || data == nil) && !preventCreation {
 		// resource wasn't created yet, so we assume the user is creating the resource
 		resource := NewResourcePermissions(currentUser, ExplicitMode)
 		resource.kv = r.kv
 		resource.id = id
 		resource.revision = 0
 		if resource.CanCreate(id, ctx, logger) {
-			logger.Debug("kv put")
-			_, err := r.kv.Put(ctx, id.ToSubject().Bucket(), resource.toBytes())
+			err = resource.Update(ctx, logger)
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +61,7 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 			return resource, nil
 		}
 		return nil, fmtError("user cannot create resource")
-	} else if err != nil && preventCreation {
+	} else if (err != nil || data == nil) && preventCreation {
 		return nil, fmtError("resource not found")
 	}
 	resource := FromBytes(data.Value())
@@ -69,9 +69,8 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	resource.id = id
 	resource.revision = data.Revision()
 	if resource.ApplyPerms(id, ctx, logger) {
-		logger.Debug("kv update")
+		resource.Update(ctx, logger)
 		// if this fails, that is ok
-		r.kv.Update(ctx, id.ToSubject().Bucket(), resource.toBytes(), data.Revision())
 	}
 
 	return resource, nil
