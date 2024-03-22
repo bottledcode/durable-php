@@ -43,8 +43,8 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
+use DI\Container;
 use JsonException;
-use Psr\Container\ContainerInterface;
 use Ramsey\Uuid\Uuid;
 
 require_once __DIR__ . '/autoload.php';
@@ -139,38 +139,6 @@ class Glue
         $task->run();
     }
 
-    public function bootstrap(): ContainerInterface
-    {
-        if (file_exists($this->bootstrap)) {
-            return include $this->bootstrap;
-        }
-
-        return new class () implements ContainerInterface {
-            private array $things = [];
-
-            #[\Override]
-            public function get(string $id)
-            {
-                if (empty($this->things[$id])) {
-                    return $this->things[$id] = new $id();
-                }
-
-                return $this->things[$id];
-            }
-
-            #[\Override]
-            public function has(string $id): bool
-            {
-                return isset($this->things[$id]);
-            }
-
-            public function set(string $id, $value): void
-            {
-                $this->things[$id] = $value;
-            }
-        };
-    }
-
     private function entitySignal(): void
     {
         $input = SerializedArray::import($this->payload['input'])->toArray();
@@ -243,17 +211,19 @@ class Glue
             'ttl' => 0,
         ];
         $class = null;
+        $container = $this->bootstrap();
+
         switch ($this->target->getStateType()) {
             case ActivityHistory::class:
                 $permissions['users'] = [$this->provenance?->userId];
                 break;
             case EntityHistory::class:
                 $entity = $this->target->toEntityId();
-                $class = new \ReflectionClass($entity->name);
+                $class = new \ReflectionClass($container->debugEntry($entity->name));
                 break;
             case OrchestrationHistory::class:
                 $instance = $this->target->toOrchestrationInstance();
-                $class = new \ReflectionClass($instance->instanceId);
+                $class = new \ReflectionClass($container->debugEntry($instance->instanceId));
                 break;
             default:
         }
@@ -292,6 +262,15 @@ class Glue
 
         $permissions = json_encode($permissions, JSON_THROW_ON_ERROR);
         header("Permissions: $permissions");
+    }
+
+    public function bootstrap(): Container
+    {
+        if (file_exists($this->bootstrap)) {
+            return include $this->bootstrap;
+        }
+
+        return new Container();
     }
 }
 

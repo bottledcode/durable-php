@@ -129,11 +129,11 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 		defer os.Remove(result.Name())
 		result.Close()
 
-		glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
+		glu := glue.NewGlue(ctx.Value("bootstrap").(string), glue.GetPermissions, make([]any, 0), result.Name())
 		env := map[string]string{"STATE_ID": id.String()}
 		_, headers, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
 
-		data := headers["Permissions"][0]
+		data := headers.Get("Permissions")
 
 		err = json.Unmarshal([]byte(data), &perms)
 		if err != nil {

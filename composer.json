@@ -35,7 +35,8 @@
     "nesbot/carbon": ">2.0",
     "php": ">=8.3",
     "ramsey/uuid": "^4.7.5",
-    "withinboredom/time": "^4.0.1"
+    "withinboredom/time": "^4.0.1",
+    "php-di/php-di": "^7.0.6"
   },
   "require-dev": {
     "laravel/pint": "^1.13.11",
