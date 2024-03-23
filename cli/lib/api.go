@@ -89,13 +89,27 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		if path, ok := glue.GetLibraryDir("/../Gateway/Graph/index.php"); ok {
 			request.URL.Path = path
+			request.Proto = "DPHP/1.0"
 		} else {
 			http.Error(writer, "Missing vendor directory", http.StatusInternalServerError)
 			return
 		}
 
-		err := frankenphp.ServeHTTP(writer, request)
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		request, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestEnv(map[string]string{
+			"LOG_LEVEL": "DEBUG",
+		}), frankenphp.WithRequestLogger(logger))
 		if err != nil {
+			logger.Error("Failed to serve request", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		err = frankenphp.ServeHTTP(writer, request)
+		if err != nil {
+			logger.Error("Failed to serve request", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}

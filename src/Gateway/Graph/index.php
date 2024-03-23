@@ -30,6 +30,8 @@ use GraphQL\Server\ServerConfig;
 use GraphQL\Server\StandardServer;
 use GraphQL\Utils\BuildSchema;
 
+require_once __DIR__ . '/../../Glue/autoload.php';
+
 $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode): array {
     return $typeConfig;
 };
