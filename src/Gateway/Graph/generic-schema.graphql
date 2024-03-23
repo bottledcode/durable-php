@@ -10,7 +10,7 @@ type Query {
 
 type Mutation {
     SendEntitySignal(id: EntityId!, signal: String!, arguments: [Input!]!): Void
-    SendOrchestrationSignal(id: OrchestrationId!, signal: String!, arguments: [Input!]!): Void
+    RaiseOrchestrationEvent(id: OrchestrationId!, signal: String!, arguments: [Input!]!): Void
     StartOrchestration(name: String!, input: [Input!]!, id: String): Orchestration
 }
 
@@ -19,12 +19,12 @@ input EntityId {
     id: ID!
 }
 
-interface Orchestration {
+input OrchestrationId {
     instance: ID!
     execution: ID!
 }
 
-input OrchestrationId {
+type Orchestration {
     instance: ID!
     execution: ID!
 }
