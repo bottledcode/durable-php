@@ -1,0 +1,67 @@
+schema {
+    query: Query
+    mutation: Mutation
+}
+
+type Query {
+    entity(id: EntityId!): State
+    orchestration(id: OrchestrationId!, waitForCompletion: Boolean): Status
+}
+
+type Mutation {
+    SendEntitySignal(id: EntityId!, signal: String!, arguments: [Input!]!): Void
+    SendOrchestrationSignal(id: OrchestrationId!, signal: String!, arguments: [Input!]!): Void
+    StartOrchestration(name: String!, input: [Input!]!, id: String): Orchestration
+}
+
+input EntityId {
+    name: ID!
+    id: ID!
+}
+
+interface Orchestration {
+    instance: ID!
+    execution: ID!
+}
+
+input OrchestrationId {
+    instance: ID!
+    execution: ID!
+}
+
+type Status {
+    createdAt: Date!
+    customStatus: String!
+    input: [OriginalInput!]!
+    id: ID!
+    lastUpdated: Date!
+    output: State
+    runtimeStatus: RuntimeStatus!
+}
+
+enum RuntimeStatus {
+    Running
+    Completed
+    ContinuedAsNew
+    Failed
+    Canceled
+    Terminated
+    Pending
+    Suspended
+    Unknown
+}
+
+type OriginalInput {
+    key: String
+    value: Any!
+}
+
+input Input {
+    key: String,
+    value: Any!
+}
+
+scalar Any
+scalar Void
+scalar State
+scalar Date

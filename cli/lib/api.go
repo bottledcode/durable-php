@@ -7,6 +7,7 @@ import (
 	"durable_php/glue"
 	"encoding/json"
 	"fmt"
+	"github.com/dunglas/frankenphp"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
@@ -75,6 +76,30 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		writer.Header().Set("Access-Control-Allow-Origin", "*")
 		return false
 	}
+
+	r.HandleFunc("/query", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if user, ok := auth.ExtractUser(request, config); !ok || user == nil {
+			http.Error(writer, "Not Authorized", http.StatusForbidden)
+			return
+		}
+
+		if path, ok := glue.GetLibraryDir("/../Gateway/Graph/index.php"); ok {
+			request.URL.Path = path
+		} else {
+			http.Error(writer, "Missing vendor directory", http.StatusInternalServerError)
+			return
+		}
+
+		err := frankenphp.ServeHTTP(writer, request)
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	})
 
 	// GET /activities
 	// list all activities
