@@ -276,6 +276,8 @@ class Glue
         }
 
         if ($class !== null) {
+            $class = new \ReflectionClass($class);
+
             foreach ($class->getAttributes() as $attribute) {
                 switch (true) {
                     case $attribute->getName() === AllowCreateForAuth::class:

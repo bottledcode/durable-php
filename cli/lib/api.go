@@ -94,6 +94,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			http.Error(writer, "Missing vendor directory", http.StatusInternalServerError)
 			return
 		}
+		request.Header.Add("DPHP_BOOTSTRAP", config.Bootstrap)
 
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
