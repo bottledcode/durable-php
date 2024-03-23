@@ -23,8 +23,6 @@
 
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
-// todo: load user specific schema based on code
-
 use Bottledcode\DurablePhp\DurableClient;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -39,6 +37,9 @@ use GraphQL\Utils\BuildSchema;
 require_once __DIR__ . '/../../Glue/autoload.php';
 
 header('Content-Type: text/plain');
+
+$generator = new SchemaGenerator();
+echo($generator->generateSchema());
 
 $client = DurableClient::get();
 $client->withAuth(str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']));
