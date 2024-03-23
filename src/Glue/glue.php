@@ -47,6 +47,8 @@ use DI\Container;
 use DI\Definition\AutowireDefinition;
 use DI\Definition\Definition;
 use DI\Definition\FactoryDefinition;
+use DI\Definition\Helper\AutowireDefinitionHelper;
+use DI\Definition\Helper\CreateDefinitionHelper;
 use DI\Definition\InstanceDefinition;
 use DI\Definition\ObjectDefinition;
 use JsonException;
@@ -63,9 +65,13 @@ class Glue
     public $payloadHandle;
 
     public array $payload = [];
-    public Provenance|null $provenance;
+
+    public ?Provenance $provenance;
+
     private string $method;
+
     private $streamHandle;
+
     private array $queries = [];
 
     public function __construct(private DurableLogger $logger)
@@ -74,15 +80,15 @@ class Glue
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
         try {
-            $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? "null", true, 32, JSON_THROW_ON_ERROR);
-            if(!$provenance || $provenance === ['userId' => '', 'roles' => null]) {
+            $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? 'null', true, 32, JSON_THROW_ON_ERROR);
+            if (! $provenance || $provenance === ['userId' => '', 'roles' => null]) {
                 $this->provenance = null;
             } else {
                 $provenance['roles'] ??= [];
                 $this->provenance = Serializer::deserialize($provenance, Provenance::class);
             }
         } catch (JsonException $e) {
-            $this->logger->alert("Failed to capture provenance", ['provenance' => $_SERVER['HTTP_DPHP_PROVENANCE'] ?? null]);
+            $this->logger->alert('Failed to capture provenance', ['provenance' => $_SERVER['HTTP_DPHP_PROVENANCE'] ?? null]);
             $this->provenance = null;
         }
 
@@ -144,6 +150,16 @@ class Glue
         $task->run();
     }
 
+    public function bootstrap(): Container
+    {
+        $builder = new \DI\ContainerBuilder();
+        if ($this->bootstrap) {
+            $builder->addDefinitions(include $this->bootstrap);
+        }
+
+        return $builder->build();
+    }
+
     private function entitySignal(): void
     {
         $input = SerializedArray::import($this->payload['input'])->toArray();
@@ -155,7 +171,6 @@ class Glue
     public function outputEvent(EventDescription $event): void
     {
         // determine access level
-
 
         echo 'EVENT~!~' . trim($event->toStream()) . "\n";
     }
@@ -201,7 +216,8 @@ class Glue
     {
         $state = file_get_contents($_SERVER['HTTP_ENTITY_STATE']);
         if (empty($state)) {
-            fwrite($this->payloadHandle, "null");
+            fwrite($this->payloadHandle, 'null');
+
             return;
         }
         $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
@@ -230,25 +246,37 @@ class Glue
             'ttl' => 0,
         ];
         $class = null;
-        $container = $this->bootstrap();
-        $getDefinition = (new \ReflectionClass($container))->getMethod('getDefinition')->getClosure($container);
-
-        switch ($this->target->getStateType()) {
+        // todo: assert sanity in including this
+        if ($this->bootstrap) {
+            $definitions = include $this->bootstrap;
+        } else {
+            $definitions = [];
+        }
+        switch($this->target->getStateType()) {
             case ActivityHistory::class:
                 $permissions['users'] = [$this->provenance?->userId];
                 break;
             case EntityHistory::class:
                 $entity = $this->target->toEntityId();
-                $class = $this->getFromDefinition($getDefinition($entity->name));
+                $class = $definitions[$entity->name] ?? $entity->name;
+                if($class instanceof AutowireDefinitionHelper) {
+                    $class = $class->getDefinition('none')->getClassName();
+                } elseif ($class instanceof CreateDefinitionHelper) {
+                    $class = $class->getDefinition('none')->getClassName();
+                }
                 break;
             case OrchestrationHistory::class:
                 $instance = $this->target->toOrchestrationInstance();
-                $class = $this->getFromDefinition($getDefinition($instance->instanceId));
-                break;
-            default:
+                $class = $definitions[$instance->instanceId] ?? $instance->instanceId;
+                if($class instanceof AutowireDefinitionHelper) {
+                    $class = $class->getDefinition('none')->getClassName();
+                } elseif ($class instanceof CreateDefinitionHelper) {
+                    $class = $class->getDefinition('none')->getClassName();
+                }
         }
+
         if ($class !== null) {
-            foreach($class->getAttributes() as $attribute) {
+            foreach ($class->getAttributes() as $attribute) {
                 switch (true) {
                     case $attribute->getName() === AllowCreateForAuth::class:
                         $permissions['mode'] = 'auth';
@@ -284,22 +312,13 @@ class Glue
         header("Permissions: $permissions");
     }
 
-    public function bootstrap(): Container
-    {
-        if (file_exists($this->bootstrap)) {
-            return include $this->bootstrap;
-        }
-
-        return new Container();
-    }
-
     private function getFromDefinition(Definition $definition): \ReflectionClass|\ReflectionFunction|null
     {
-        if($definition instanceof AutowireDefinition || $definition instanceof ObjectDefinition) {
+        if ($definition instanceof AutowireDefinition || $definition instanceof ObjectDefinition) {
             return new \ReflectionClass($definition->getClassName());
         } elseif ($definition instanceof InstanceDefinition) {
             return new \ReflectionClass($definition->getInstance());
-        } elseif($definition instanceof FactoryDefinition) {
+        } elseif ($definition instanceof FactoryDefinition) {
             return new \ReflectionFunction($definition->getCallable());
         }
 

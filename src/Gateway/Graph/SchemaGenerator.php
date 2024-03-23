@@ -23,11 +23,22 @@
 
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
+use DI\Definition\Helper\AutowireDefinitionHelper;
+use DI\Definition\Helper\CreateDefinitionHelper;
+
 class SchemaGenerator
 {
+    private string $bootstrap;
+
+    public function __construct()
+    {
+        $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
+    }
+
     public function generateSchema(): string
     {
-        $projectRoot = $this->findComposerJson(__DIR__);
+        $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
+        var_dump($projectRoot);
 
         return $this->findPhpFiles($projectRoot);
     }
@@ -40,7 +51,7 @@ class SchemaGenerator
             $path = $dir . '/composer.json';
 
             if (file_exists($path)) {
-                return $path;
+                return dirname($path);
             }
 
             $dir = dirname($dir);
@@ -51,12 +62,12 @@ class SchemaGenerator
 
     public function findPhpFiles($dir): string
     {
-        $schema = "";
+        $schema = '';
 
         $items = glob($dir . '/*');
 
         foreach ($items as $item) {
-            if (is_dir($item)) {
+            if (is_dir($item) && ! str_ends_with($item, 'vendor')) {
                 $schema .= $this->findPhpFiles($item);
             } elseif (pathinfo($item, PATHINFO_EXTENSION) === 'php') {
                 $schema .= $this->processPhpFile($item);
@@ -70,10 +81,82 @@ class SchemaGenerator
     {
         $content = file_get_contents($file);
 
-        if (strpos($content, 'OrchestrationContext') !== false) {
-            return 'String found in ' . $file . "\n";
+        if (str_contains($content, 'OrchestrationContext')) {
+            return $this->defineOrchestration($file, $content);
+        }
+
+        if (str_contains($content, 'EntityState')) {
+            return $this->defineEntity($file, $content);
         }
 
         return '';
+    }
+
+    public function defineOrchestration(string $filename, string $contents): string
+    {
+        $name = ucfirst(mb_strtolower(basename($filename, '.php')));
+
+        $mutation = <<<GRAPHQL
+
+StartNew{$name}Orchestration(id String, input: [Input!]!): Orchestration
+
+GRAPHQL;
+
+        $waitForExternalEventCalls = [];
+        $tokens = token_get_all($contents);
+        $waitForExternalEventFound = false;
+        $nextStringIsArgument = false;
+        foreach ($tokens as $token) {
+            if (is_array($token)) {
+                if ($token[0] === \T_STRING && $token[1] === 'waitForExternalEvent') {
+                    $waitForExternalEventFound = true;
+                } elseif ($waitForExternalEventFound && $token[0] === T_CONSTANT_ENCAPSED_STRING) {
+                    $waitForExternalEventCalls[] = trim($token[1], '\'"');
+                    $waitForExternalEventFound = false;
+                }
+            }
+        }
+        foreach (array_unique($waitForExternalEventCalls) as $event) {
+            $event = str_replace(' ', '', ucwords($event));
+            $mutation .= "Send{$event}To{$name}Orchestration(input: [Input!]!): Void\n";
+        }
+
+        return $mutation;
+    }
+
+    public function defineEntity(string $filename, string $contents): string
+    {
+        $parsedName = basename($filename, '.php');
+        $shortName = $parsedName;
+
+        $parsed = MetaParser::parseFile($contents);
+        $definitions = include $this->bootstrap;
+
+        $parsedName = $parsed->namespace . '\\' . $parsedName;
+
+        $rootName = $this->findRootName($parsedName);
+
+        var_dump($rootName);
+
+        return '';
+    }
+
+    private function findRootName(string $parsedName): string
+    {
+        $definitions = include $this->bootstrap;
+
+        foreach ($definitions as $name => $class) {
+            if ($class instanceof AutowireDefinitionHelper) {
+                $class = $class->getDefinition('none')->getClassName();
+            } elseif ($class instanceof CreateDefinitionHelper) {
+                $class = $class->getDefinition('none')->getClassName();
+            }
+            if ($class === $parsedName) {
+                // we have an alias
+                return $this->findRootName($name);
+            }
+        }
+
+        return $parsedName;
     }
 }
