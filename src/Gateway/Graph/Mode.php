@@ -33,4 +33,6 @@ enum Mode
     case CapturingArguments;
     case CapturingReturn;
     case CapturingAttribute;
+    case MaybeProperty;
+    case CapturingProperty;
 }

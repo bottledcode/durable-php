@@ -4,7 +4,7 @@ schema {
 }
 
 type Query {
-    entity(id: EntityId!): State
+    entitySnapshot(id: EntityId!): State
     orchestration(id: OrchestrationId!, waitForCompletion: Boolean): Status
 }
 

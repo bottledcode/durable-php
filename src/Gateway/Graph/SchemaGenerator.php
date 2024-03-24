@@ -26,6 +26,8 @@ namespace Bottledcode\DurablePhp\Gateway\Graph;
 use Bottledcode\DurablePhp\State\Attributes\Name;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use DI\Definition\Helper\AutowireDefinitionHelper;
+use DI\Definition\Helper\CreateDefinitionHelper;
 
 class SchemaGenerator
 {
@@ -37,6 +39,8 @@ class SchemaGenerator
         'State',
         'Date',
     ];
+    private array $states = [];
+    private array $searchedStates = [];
 
     private array $handlers = [];
 
@@ -50,7 +54,25 @@ class SchemaGenerator
         $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
         $this->root = $projectRoot;
 
-        return $this->findPhpFiles($projectRoot);
+        $schema = $this->findPhpFiles($projectRoot);
+
+        $flipped = array_flip($this->searchedStates);
+        foreach($this->states as $realName => $properties) {
+            $rootName = $this->findRootName($realName, $flipped);
+            if($rootName === $realName) {
+                // todo: warn?
+                continue;
+            }
+            $name = $flipped[$rootName];
+            $schema .= <<<EOF
+
+type {$name}Snapshot {
+$properties
+}
+EOF;
+        }
+
+        return $schema;
     }
 
     public function findComposerJson(string $startDirectory): ?string
@@ -137,14 +159,32 @@ GRAPHQL;
     {
         $parsed = MetaParser::parseFile($contents);
 
+        $realName = explode('\\', $filename);
+        $realName = array_pop($realName);
+        $realName = $parsed->namespace . "\\" . $realName;
+
         foreach($parsed->attributes as $attribute) {
             if($attribute['name'] === 'Name' || $attribute['name'] === Name::class) {
                 $className = ucfirst(trim($attribute['args'][0]['type'], '"\''));
-                $realName = explode('\\', $filename);
-                $realName = array_pop($realName);
-                $realName = $parsed->namespace . "\\" . $realName;
                 goto found;
             }
+        }
+
+        if(str_contains($contents, 'EntityState')) {
+            $properties = [];
+            foreach($parsed->properties as ['type' => $type, 'name' => $name]) {
+                [$type, $scalar] = $this->extractScalars($type);
+                if($scalar) {
+                    $this->scalars[] = $scalar;
+                }
+                $name = trim($name, '$');
+                $properties[] = "$name: $type";
+            }
+
+            $properties = implode("\n", $properties);
+            $this->states[$realName] = $properties;
+
+            return "";
         }
 
         return '';
@@ -171,13 +211,16 @@ GRAPHQL;
             }
             $arguments = implode(", ", $arguments);
 
+            /*
             [$returnType, $scalar] = $this->extractScalars($method['return']);
             if($scalar) {
                 $this->scalars[] = $scalar;
-            }
+            }*/
+            $returnType = "Void!";
 
             $methods[] = "Signal{$className}With{$method['name']}($arguments): $returnType";
             $this->handlers[] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
+            $this->searchedStates[$className] = $realName;
         }
 
         return implode("\n", $methods) . "\n";
@@ -242,5 +285,24 @@ GRAPHQL;
         }
 
         return [$nullable ? $type : "$type!", $scalar];
+    }
+
+    private function findRootName(string $parsedName, array $matches): string
+    {
+        $definitions = include $this->bootstrap;
+
+        foreach ($definitions as $name => $class) {
+            if ($class instanceof AutowireDefinitionHelper) {
+                $class = $class->getDefinition('none')->getClassName();
+            } elseif ($class instanceof CreateDefinitionHelper) {
+                $class = $class->getDefinition('none')->getClassName();
+            }
+            if ($class === $parsedName && in_array($name, $matches, true)) {
+                // we have an alias
+                return $this->findRootName($name, $matches);
+            }
+        }
+
+        return $parsedName;
     }
 }

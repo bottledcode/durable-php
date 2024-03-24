@@ -25,12 +25,11 @@ namespace Bottledcode\DurablePhp\Gateway\Graph;
 
 class MetaParser
 {
-    public function __construct(public string $namespace, public array $uses, public array $methods, public array $implements, public array $attributes) {}
+    public function __construct(public string $namespace, public array $uses, public array $methods, public array $implements, public array $attributes, public array $properties) {}
 
     public static function parseFile(string $contents): self
     {
         $tokens = token_get_all($contents);
-
 
         $mode = Mode::None;
         $namespace = '';
@@ -42,20 +41,22 @@ class MetaParser
         $currentMethod = [];
         $currentArgument = [];
         $attributes = [];
+        $properties = [];
+        $currentProperty = [];
 
         foreach ($tokens as $token) {
             $currentToken = is_array($token) ? $token[0] : $token;
 
             $name = is_int($currentToken) ? token_name($currentToken) : $currentToken;
 
-            switch($currentToken) {
+            switch ($currentToken) {
                 case T_NAMESPACE:
                     $mode = Mode::CapturingNamespace;
                     break;
                 case T_NAME_QUALIFIED:
                 case T_NAME_FULLY_QUALIFIED:
                 case T_NAME_RELATIVE:
-                    switch($mode) {
+                    switch ($mode) {
                         case Mode::CapturingNamespace:
                             $namespace = $token[1];
                             break;
@@ -71,7 +72,7 @@ class MetaParser
                     break;
                 case T_STRING:
                 case T_CONSTANT_ENCAPSED_STRING:
-                    switch($mode) {
+                    switch ($mode) {
                         case Mode::CapturingUse:
                             $uses[$lastUse] = $token[1];
                             break;
@@ -94,21 +95,34 @@ class MetaParser
                             $currentMethod['name'] = $token[1];
                             $mode = Mode::CapturingArguments;
                             break;
+                        case Mode::MaybeProperty:
+                            $currentProperty = ['type' => $token[1]];
+                            $mode = Mode::CapturingProperty;
+                            break;
                     }
                     break;
                 case T_VARIABLE:
-                    switch($mode) {
+                    switch ($mode) {
                         case Mode::CapturingArguments:
                             $currentArgument['name'] = $token[1];
+                            break;
+                        case Mode::MaybeProperty:
+                            $currentProperty['type'] ??= 'mixed';
+                            // no break
+                        case Mode::CapturingProperty:
+                            $currentProperty['name'] = $token[1];
+                            $mode = Mode::None;
+                            $properties[] = $currentProperty;
+                            $currentProperty = [];
                             break;
                     }
                     break;
                 case ',':
                 case ')':
-                    switch($mode) {
+                    switch ($mode) {
                         case Mode::CapturingArguments:
-                            if(!empty($currentArgument)) {
-                                if(empty($currentArgument['type'])) {
+                            if (! empty($currentArgument)) {
+                                if (empty($currentArgument['type'])) {
                                     $currentArgument['type'] = 'mixed';
                                 }
                                 $currentMethod['args'][] = $currentArgument;
@@ -118,7 +132,7 @@ class MetaParser
                     }
                     break;
                 case ':':
-                    switch($mode) {
+                    switch ($mode) {
                         case Mode::CapturingArguments:
                             $mode = Mode::CapturingReturn;
                             break;
@@ -126,14 +140,14 @@ class MetaParser
                     break;
                 case ']':
                 case '{':
-                    switch($mode) {
+                    switch ($mode) {
                         case Mode::CapturingReturn:
                         case Mode::CapturingArguments:
                         case Mode::CapturingFunction:
                         case Mode::CapturingImplements:
                             $mode = Mode::None;
-                            if(!empty($currentMethod)) {
-                                if(($currentMethod['type'] ?? '') === 'attr') {
+                            if (! empty($currentMethod)) {
+                                if (($currentMethod['type'] ?? '') === 'attr') {
                                     $attributes[] = $currentMethod;
                                 } else {
                                     $methods[] = $currentMethod;
@@ -152,6 +166,7 @@ class MetaParser
                     break;
                 case T_PUBLIC:
                     $lastVisibility = 'public';
+                    $mode = Mode::MaybeProperty;
                     break;
                 case T_PRIVATE:
                     $lastVisibility = 'private';
@@ -160,7 +175,7 @@ class MetaParser
                     $lastVisibility = 'protected';
                     break;
                 case T_FUNCTION:
-                    if($lastVisibility === 'public') {
+                    if ($lastVisibility === 'public') {
                         $mode = Mode::CapturingFunction;
                     }
                     break;
@@ -171,15 +186,15 @@ class MetaParser
                     }
                     break;
             }
-            if($mode !== Mode::None && $token === ';') {
+            if ($mode !== Mode::None && $token === ';') {
                 $mode = Mode::None;
-                if(!empty($currentMethod)) {
+                if (! empty($currentMethod)) {
                     $methods[] = $currentMethod;
                     $currentMethod = [];
                 }
             }
         }
 
-        return new self($namespace, $uses, $methods, $implements, $attributes);
+        return new self($namespace, $uses, $methods, $implements, $attributes, $properties);
     }
 }
