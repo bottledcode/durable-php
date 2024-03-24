@@ -26,23 +26,23 @@
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
-    "adhocore/cli": "^v1.0.0",
+    "adhocore/cli": "^1.6.2",
     "amphp/file": "^3.0.2",
     "amphp/http-client": "^v5.0.1",
     "amphp/log": "^v2.0.0",
-    "amphp/parallel": "^v2",
+    "amphp/parallel": "^2.2.8",
     "crell/serde": "^1.1.0",
     "nesbot/carbon": ">2.0",
     "php": ">=8.3",
     "ramsey/uuid": "^4.7.5",
-    "withinboredom/time": "^4.0.1",
+    "withinboredom/time": "^4.0.3",
     "php-di/php-di": "^7.0.6",
-    "webonyx/graphql-php": "^15.11"
+    "webonyx/graphql-php": "^15.11.1"
   },
   "require-dev": {
-    "laravel/pint": "^1.13.11",
-    "mockery/mockery": "^1.6.7",
-    "pestphp/pest": "^2.33.6"
+    "laravel/pint": "^1.14.0",
+    "mockery/mockery": "^1.6.11",
+    "pestphp/pest": "^2.34.5"
   },
   "scripts": {
     "test": "pest"
