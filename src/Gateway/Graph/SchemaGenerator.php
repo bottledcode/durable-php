@@ -23,13 +23,22 @@
 
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
-use DI\Definition\Helper\AutowireDefinitionHelper;
-use DI\Definition\Helper\CreateDefinitionHelper;
+use Bottledcode\DurablePhp\State\Attributes\Name;
+use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
 class SchemaGenerator
 {
     private string $bootstrap;
     private string $root;
+    private array $scalars = [
+        'Any',
+        'Void',
+        'State',
+        'Date',
+    ];
+
+    private array $handlers = [];
 
     public function __construct()
     {
@@ -86,11 +95,7 @@ class SchemaGenerator
             return $this->defineOrchestration($file, $content);
         }
 
-        if (str_contains($content, 'EntityState')) {
-            return $this->defineEntity($file, $content);
-        }
-
-        return '';
+        return $this->defineEntity($file, $content);
     }
 
     public function defineOrchestration(string $filename, string $contents): string
@@ -102,6 +107,8 @@ class SchemaGenerator
 StartNew{$name}Orchestration(id String, input: [Input!]!): Orchestration
 
 GRAPHQL;
+
+        $this->handlers[] = ['op' => 'StartOrchestration', 'op-name' => "StartNew{$name}Orchestration", 'name' => $name,];
 
         $waitForExternalEventCalls = [];
         $tokens = token_get_all($contents);
@@ -120,6 +127,7 @@ GRAPHQL;
         foreach (array_unique($waitForExternalEventCalls) as $event) {
             $event = str_replace(' ', '', ucwords($event));
             $mutation .= "Send{$event}To{$name}Orchestration(input: [Input!]!): Void\n";
+            $this->handlers[] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $event, 'name' => $name];
         }
 
         return $mutation;
@@ -127,42 +135,112 @@ GRAPHQL;
 
     public function defineEntity(string $filename, string $contents): string
     {
-        $parsedName = basename($filename, '.php');
-        $shortName = $parsedName;
-
-        $parsed = MetaParser::parseFile($contents);
-        $definitions = include $this->bootstrap;
-
-        $parsedName = $parsed->namespace . '\\' . $parsedName;
-
-        $rootName = $this->findRootName($parsedName, $parsed->implements);
-
-        $filename = $this->getPathForClass($rootName);
-        $contents = file_get_contents($filename);
-
         $parsed = MetaParser::parseFile($contents);
 
-        var_dump($parsed);
-
-        return '';
-    }
-
-    private function findRootName(string $parsedName, array $matches): string
-    {
-        $definitions = include $this->bootstrap;
-
-        foreach ($definitions as $name => $class) {
-            if ($class instanceof AutowireDefinitionHelper) {
-                $class = $class->getDefinition('none')->getClassName();
-            } elseif ($class instanceof CreateDefinitionHelper) {
-                $class = $class->getDefinition('none')->getClassName();
-            }
-            if ($class === $parsedName && in_array($name, $matches)) {
-                // we have an alias
-                return $this->findRootName($name);
+        foreach($parsed->attributes as $attribute) {
+            if($attribute['name'] === 'Name' || $attribute['name'] === Name::class) {
+                $className = ucfirst(trim($attribute['args'][0]['type'], '"\''));
+                $realName = explode('\\', $filename);
+                $realName = array_pop($realName);
+                $realName = $parsed->namespace . "\\" . $realName;
+                goto found;
             }
         }
 
-        return $parsedName;
+        return '';
+
+        found:
+
+        $methods = [];
+
+        foreach($parsed->methods as $method) {
+            $originalMethodName = $method['name'];
+            $method['name'] = ucfirst($method['name']);
+
+            $arguments = [];
+            $method['args'] = array_map(fn(array $args) => ['type' => 'mixed', ...$args], $method['args']);
+
+            foreach($method['args'] as ['type' => $type, 'name' => $name]) {
+                [$type, $scalar] = $this->extractScalars($type);
+                if($scalar) {
+                    $this->scalars[] = $scalar;
+                }
+                $name = trim($name, '$');
+
+                $arguments[] = "$type $name";
+            }
+            $arguments = implode(", ", $arguments);
+
+            [$returnType, $scalar] = $this->extractScalars($method['return']);
+            if($scalar) {
+                $this->scalars[] = $scalar;
+            }
+
+            $methods[] = "Signal{$className}With{$method['name']}($arguments): $returnType";
+            $this->handlers[] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
+        }
+
+        return implode("\n", $methods) . "\n";
+    }
+
+    private function extractScalars(string $type): array
+    {
+        $scalar = null;
+        $nullable = false;
+
+        if(str_contains($type, '|')) {
+            if (substr_count($type, '|') === 1 && (str_contains($type, '|null') || str_contains($type, 'null|'))) {
+                $nullable = true;
+                $type = str_replace(['|null', 'null|'], '', $type);
+            } else {
+                $type = 'mixed';
+            }
+        }
+
+        if(str_contains($type, '?')) {
+            $nullable = true;
+            $type = str_replace('?', '', $type);
+        }
+
+        switch($type) {
+            case 'string':
+            case 'int':
+            case 'float':
+                $type = ucfirst($type);
+                break;
+            case 'bool':
+                $type = "Boolean";
+                break;
+            case 'EntityId':
+            case EntityId::class:
+                $type = 'EntityId';
+                break;
+            case 'OrchestrationInstance':
+            case OrchestrationInstance::class:
+                $type = 'OrchestrationId';
+                break;
+            case \DateTime::class:
+            case \DateTimeImmutable::class:
+            case \DateTimeInterface::class:
+                $type = 'Date';
+                $scalar = 'Date';
+                break;
+            case 'mixed':
+                $type = 'Any';
+                $scalar = 'Any';
+                break;
+            case 'array':
+                // todo: read doc block
+                $type = '[Any!]';
+                break;
+            default:
+                $scalar = explode('\\', $type);
+                $scalar = array_pop($scalar);
+                $scalar = ucfirst($scalar);
+                $type = $scalar;
+                break;
+        }
+
+        return [$nullable ? $type : "$type!", $scalar];
     }
 }

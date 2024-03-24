@@ -31,6 +31,7 @@ class MetaParser
     {
         $tokens = token_get_all($contents);
 
+
         $mode = Mode::None;
         $namespace = '';
         $uses = [];
@@ -107,6 +108,9 @@ class MetaParser
                     switch($mode) {
                         case Mode::CapturingArguments:
                             if(!empty($currentArgument)) {
+                                if(empty($currentArgument['type'])) {
+                                    $currentArgument['type'] = 'mixed';
+                                }
                                 $currentMethod['args'][] = $currentArgument;
                                 $currentArgument = [];
                             }
