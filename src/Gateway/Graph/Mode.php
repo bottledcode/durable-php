@@ -32,4 +32,5 @@ enum Mode
     case CapturingFunction;
     case CapturingArguments;
     case CapturingReturn;
+    case CapturingAttribute;
 }

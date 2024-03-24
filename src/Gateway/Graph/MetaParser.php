@@ -25,7 +25,7 @@ namespace Bottledcode\DurablePhp\Gateway\Graph;
 
 class MetaParser
 {
-    public function __construct(public string $namespace, public array $uses, public array $methods, public array $implements) {}
+    public function __construct(public string $namespace, public array $uses, public array $methods, public array $implements, public array $attributes) {}
 
     public static function parseFile(string $contents): self
     {
@@ -40,6 +40,7 @@ class MetaParser
         $methods = [];
         $currentMethod = [];
         $currentArgument = [];
+        $attributes = [];
 
         foreach ($tokens as $token) {
             $currentToken = is_array($token) ? $token[0] : $token;
@@ -68,6 +69,7 @@ class MetaParser
                     }
                     break;
                 case T_STRING:
+                case T_CONSTANT_ENCAPSED_STRING:
                     switch($mode) {
                         case Mode::CapturingUse:
                             $uses[$lastUse] = $token[1];
@@ -86,6 +88,10 @@ class MetaParser
                             break;
                         case Mode::CapturingReturn:
                             $currentMethod['return'] = $token[1];
+                            break;
+                        case Mode::CapturingAttribute:
+                            $currentMethod['name'] = $token[1];
+                            $mode = Mode::CapturingArguments;
                             break;
                     }
                     break;
@@ -114,6 +120,7 @@ class MetaParser
                             break;
                     }
                     break;
+                case ']':
                 case '{':
                     switch($mode) {
                         case Mode::CapturingReturn:
@@ -122,8 +129,13 @@ class MetaParser
                         case Mode::CapturingImplements:
                             $mode = Mode::None;
                             if(!empty($currentMethod)) {
-                                $methods[] = $currentMethod;
+                                if(($currentMethod['type'] ?? '') === 'attr') {
+                                    $attributes[] = $currentMethod;
+                                } else {
+                                    $methods[] = $currentMethod;
+                                }
                                 $currentArgument = [];
+                                $currentMethod = [];
                             }
                             break;
                     }
@@ -148,6 +160,12 @@ class MetaParser
                         $mode = Mode::CapturingFunction;
                     }
                     break;
+                case T_ATTRIBUTE:
+                    if ($mode === Mode::None) {
+                        $mode = Mode::CapturingAttribute;
+                        $currentMethod = ['type' => 'attr'];
+                    }
+                    break;
             }
             if($mode !== Mode::None && $token === ';') {
                 $mode = Mode::None;
@@ -158,6 +176,6 @@ class MetaParser
             }
         }
 
-        return new self($namespace, $uses, $methods, $implements);
+        return new self($namespace, $uses, $methods, $implements, $attributes);
     }
 }
