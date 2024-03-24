@@ -52,10 +52,9 @@ class SchemaGenerator
     {
         $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
         $this->root = $projectRoot;
-        $queries = '';
         $types = '';
 
-        $mutations = $this->findPhpFiles($projectRoot);
+        ['mutation' => $mutations, 'query' => $queries] = $this->findPhpFiles($projectRoot);
 
         $flipped = array_flip($this->searchedStates);
         foreach($this->states as $realName => $properties) {
@@ -106,24 +105,29 @@ EOF;
         return null;
     }
 
-    public function findPhpFiles($dir): string
+    public function findPhpFiles($dir): array
     {
-        $schema = '';
+        $mutation = '';
+        $query = '';
 
         $items = glob($dir . '/*');
 
         foreach ($items as $item) {
             if (is_dir($item) && ! str_ends_with($item, 'vendor')) {
-                $schema .= $this->findPhpFiles($item);
+                 $results = $this->findPhpFiles($item);
+                 $mutation .= $results['mutation'];
+                 $query .= $results['query'];
             } elseif (pathinfo($item, PATHINFO_EXTENSION) === 'php') {
-                $schema .= $this->processPhpFile($item);
+                $results = $this->processPhpFile($item);
+                $mutation .= $results['mutation'];
+                $query .= $results['query'];
             }
         }
 
-        return $schema;
+        return compact('mutation', 'query');
     }
 
-    public function processPhpFile(string $file): string
+    public function processPhpFile(string $file): array
     {
         $content = file_get_contents($file);
 
@@ -131,10 +135,10 @@ EOF;
             return $this->defineOrchestration($file, $content);
         }
 
-        return $this->defineEntity($file, $content);
+        return ['mutation' => $this->defineEntity($file, $content), 'query' => ''];
     }
 
-    public function defineOrchestration(string $filename, string $contents): string
+    public function defineOrchestration(string $filename, string $contents): array
     {
         $name = basename($filename, '.php');
         $parsed = MetaParser::parseFile($contents);
@@ -143,11 +147,19 @@ EOF;
 
         $mutation = <<<GRAPHQL
 
-StartNew{$name}Orchestration(input: [Input!]!, id: ID): Orchestration
+StartNew{$name}Orchestration(input: [Input!]!, execution: ID): Orchestration
 
 GRAPHQL;
 
+        $query = <<<GRAPHQL
+
+{$name}Status(execution: ID!): Orchestration
+
+GRAPHQL;
+
+
         $this->handlers['mutations'][] = ['op' => 'StartOrchestration', 'op-name' => "StartNew{$name}Orchestration", 'name' => $realName,];
+        $this->handlers['queries'][] = ['op' => 'OrchestrationStatus', 'op-name' => "{$name}Status", 'name' => $realName];
 
         $waitForExternalEventCalls = [];
         $tokens = token_get_all($contents);
@@ -170,7 +182,7 @@ GRAPHQL;
             $this->handlers['mutations'][] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $originalEvent, 'name' => $realName];
         }
 
-        return $mutation;
+        return compact('mutation', 'query');
     }
 
     public function defineEntity(string $filename, string $contents): string

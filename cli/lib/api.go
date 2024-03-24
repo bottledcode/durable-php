@@ -584,10 +584,12 @@ func authorize(
 	}
 	resource, err := rm.DiscoverResource(ctx, id, logger, preventCreation)
 	if err != nil {
+		logger.Warn("User attempted to create new resource not authorized to create", zap.Any("id", id.String()), zap.Error(err))
 		http.Error(writer, "Not Authorized", http.StatusForbidden)
 		return nil, true
 	}
 	if !resource.WantTo(operation, ctx) {
+		logger.Warn("User attempted to access resource they are not allowed to access", zap.Any("id", id.String()), zap.Error(err))
 		http.Error(writer, "Not Authorized", http.StatusForbidden)
 		return nil, true
 	}

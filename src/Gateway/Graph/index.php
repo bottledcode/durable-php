@@ -184,7 +184,13 @@ $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode
                         if($handler = $queries[$resolveInfo->fieldName]) {
                             switch($handler['op']) {
                                 case 'entity':
-                                    return getEntitySnapshot(['id' => ['id' => $args['id'], 'name' => $resolveInfo->fieldName], ...$args], $context);
+                                    $oargs = $args;
+                                    unset($args['id']);
+                                    return getEntitySnapshot(['id' => ['id' => $oargs['id'], 'name' => $resolveInfo->fieldName], ...$args], $context);
+                                case 'OrchestrationStatus':
+                                    $oargs = $args;
+                                    unset($args['id']);
+                                    return getOrchestrationStatus(['id' => ['execution' => $oargs['execution'], 'instance' => $handler['name']], ...$args], $context);
                             }
                         }
                 }
