@@ -31,6 +31,7 @@ use DI\Definition\Helper\CreateDefinitionHelper;
 
 class SchemaGenerator
 {
+    public array $handlers = [];
     private string $bootstrap;
     private string $root;
     private array $scalars = [
@@ -41,8 +42,6 @@ class SchemaGenerator
     ];
     private array $states = [];
     private array $searchedStates = [];
-
-    private array $handlers = [];
 
     public function __construct()
     {
@@ -81,7 +80,7 @@ EOF;
 
 {$name}(id: ID!): {$name}Snapshot
 EOF;
-            $this->handlers[] = ['op' => 'entity', 'op-name' => $name];
+            $this->handlers['queries'][] = ['op' => 'entity', 'op-name' => $name];
 
         }
         $scalars = array_map(fn($x) => 'scalar ' . $x, array_unique($this->scalars));
@@ -137,15 +136,18 @@ EOF;
 
     public function defineOrchestration(string $filename, string $contents): string
     {
-        $name = ucfirst(mb_strtolower(basename($filename, '.php')));
+        $name = basename($filename, '.php');
+        $parsed = MetaParser::parseFile($contents);
+        $realName = $parsed->namespace . "\\" . $name;
+        $name = ucfirst($name);
 
         $mutation = <<<GRAPHQL
 
-StartNew{$name}Orchestration(id String, input: [Input!]!): Orchestration
+StartNew{$name}Orchestration(input: [Input!]!, id: ID): Orchestration
 
 GRAPHQL;
 
-        $this->handlers[] = ['op' => 'StartOrchestration', 'op-name' => "StartNew{$name}Orchestration", 'name' => $name,];
+        $this->handlers['mutations'][] = ['op' => 'StartOrchestration', 'op-name' => "StartNew{$name}Orchestration", 'name' => $realName,];
 
         $waitForExternalEventCalls = [];
         $tokens = token_get_all($contents);
@@ -163,8 +165,8 @@ GRAPHQL;
         }
         foreach (array_unique($waitForExternalEventCalls) as $event) {
             $event = str_replace(' ', '', ucwords($event));
-            $mutation .= "Send{$event}To{$name}Orchestration(input: [Input!]!): Void\n";
-            $this->handlers[] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $event, 'name' => $name];
+            $mutation .= "Send{$event}To{$name}Orchestration(execution: ID!, arguments: [Input!]!): Void\n";
+            $this->handlers['mutations'][] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $event, 'name' => $realName];
         }
 
         return $mutation;
@@ -211,7 +213,7 @@ GRAPHQL;
             $originalMethodName = $method['name'];
             $method['name'] = ucfirst($method['name']);
 
-            $arguments = [];
+            $arguments = ['id: ID!'];
             $method['args'] = array_map(fn(array $args) => ['type' => 'mixed', ...$args], $method['args']);
 
             foreach($method['args'] as ['type' => $type, 'name' => $name]) {
@@ -221,7 +223,7 @@ GRAPHQL;
                 }
                 $name = trim($name, '$');
 
-                $arguments[] = "$type $name";
+                $arguments[] = "$name: $type";
             }
             $arguments = implode(", ", $arguments);
 
@@ -233,7 +235,7 @@ GRAPHQL;
             $returnType = "Void!";
 
             $methods[] = "Signal{$className}With{$method['name']}($arguments): $returnType";
-            $this->handlers[] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
+            $this->handlers['mutations'][] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
             $this->searchedStates[$className] = $realName;
         }
 

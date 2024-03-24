@@ -121,49 +121,106 @@ if($_SERVER['REQUEST_METHOD'] === 'GET') {
 $client = DurableClient::get();
 $client->withAuth(str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']));
 
-$decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode): array {
+function getOrchestrationStatus(array $args, DurableClient $context): array
+{
+    $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
+    if($args['waitForCompletion'] ?? false) {
+        return Serializer::serialize($context->waitForCompletion($id));
+    }
+
+    return Serializer::serialize($context->getStatus($id));
+}
+
+function getEntitySnapshot(array $args, DurableClient $context): array
+{
+    $id = new EntityId($args['id']['name'], $args['id']['id']);
+    return Serializer::serialize($context->getEntitySnapshot($id));
+}
+
+function startOrchestration(array $args, DurableClient $context): array
+{
+    $id = $context->startNew($args['name'], $args['input'], $args['id'] ?? null);
+    return [
+        'instance' => $id->instanceId,
+        'execution' => $id->executionId,
+    ];
+}
+
+function raiseEvent(array $args, DurableClient $context): array
+{
+    $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
+    $arguments = array_map(static fn($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
+    $arguments = array_column($arguments, 'value', 'key');
+    $context->raiseEvent($id, $args['signal'], $arguments);
+    return [];
+}
+
+function signal(array $args, DurableClient $context): array
+{
+    $id = new EntityId($args['id']['name'], $args['id']['id']);
+    $arguments = array_map(static fn($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
+    $arguments = array_column($arguments, 'value', 'key');
+    $context->signalEntity($id, $args['signal'], $arguments);
+    return [];
+}
+
+$decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode) use ($generator): array {
     $name = $typeConfig['name'];
 
     switch($name) {
         case 'Query':
-            $typeConfig['resolveField'] = function ($value, array $args, DurableClient $context, ResolveInfo $resolveInfo): mixed {
+            $queries = [];
+            foreach($generator->handlers['queries'] as $handler) {
+                $queries[$handler['op-name']] = $handler;
+            }
+            $typeConfig['resolveField'] = function ($value, array $args, DurableClient $context, ResolveInfo $resolveInfo) use ($queries): mixed {
                 switch($resolveInfo->fieldName) {
                     case 'orchestration':
-                        $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
-                        if($args['waitForCompletion'] ?? false) {
-                            return Serializer::serialize($context->waitForCompletion($id));
-                        }
-
-                        return Serializer::serialize($context->getStatus($id));
+                        return getOrchestrationStatus($args, $context);
+                        // no break
                     case 'entity':
-                        $id = new EntityId($args['id']['name'], $args['id']['id']);
-                        return Serializer::serialize($context->getEntitySnapshot($id));
+                        return getEntitySnapshot($args, $context);
+                    default:
+                        if($handler = $queries[$resolveInfo->fieldName]) {
+                            switch($handler['op']) {
+                                case 'entity':
+                                    return getEntitySnapshot(['id' => ['id' => $args['id'], 'name' => $resolveInfo->fieldName], ...$args], $context);
+                            }
+                        }
                 }
 
                 return 'error';
             };
             break;
         case 'Mutation':
-            $typeConfig['resolveField'] = function ($value, array $args, DurableClient $context, ResolveInfo $resolveInfo): mixed {
+            $queries = [];
+            foreach($generator->handlers['mutations'] as $handler) {
+                $queries[$handler['op-name']] = $handler;
+            }
+            $typeConfig['resolveField'] = function ($value, array $args, DurableClient $context, ResolveInfo $resolveInfo) use ($queries): mixed {
                 switch($resolveInfo->fieldName) {
                     case 'StartOrchestration':
-                        $id = $context->startNew($args['name'], $args['input'], $args['id'] ?? null);
-                        return [
-                            'instance' => $id->instanceId,
-                            'execution' => $id->executionId,
-                        ];
+                        return startOrchestration($args, $context);
+                        // no break
                     case 'RaiseOrchestrationEvent':
-                        $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
-                        $arguments = array_map(static fn($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
-                        $arguments = array_column($arguments, 'value', 'key');
-                        $context->raiseEvent($id, $args['signal'], $arguments);
-                        return [];
+                        return raiseEvent($args, $context);
                     case 'SendEntitySignal':
-                        $id = new EntityId($args['id']['name'], $args['id']['id']);
-                        $arguments = array_map(static fn($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
-                        $arguments = array_column($arguments, 'value', 'key');
-                        $context->signalEntity($id, $args['signal'], $arguments);
-                        return [];
+                        return signal($args, $context);
+                    default:
+                        if($handler = $queries[$resolveInfo->fieldName]) {
+                            switch($handler['op']) {
+                                case 'StartOrchestration':
+                                    return startOrchestration(['name' => $handler['name'], ...$args], $context);
+                                case 'RaiseOrchestrationEvent':
+                                    $originalArgs = $args;
+                                    unset($args['execution']);
+                                    return raiseEvent(['signal' => $handler['event'], 'id' => ['execution' => $originalArgs['execution'], 'instance' => $handler['name']], ...$args], $context);
+                                case 'SendEntitySignal':
+                                    $originalArgs = $args;
+                                    unset($args['id']);
+                                    return signal(['id' => ['name' => $handler['realName'], 'id' => $originalArgs['id']], 'signal' => $handler['method'], ...$args], $context);
+                            }
+                        }
                 }
 
                 return 'error';
