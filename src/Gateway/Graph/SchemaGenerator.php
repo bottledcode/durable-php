@@ -49,31 +49,45 @@ class SchemaGenerator
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
     }
 
-    public function generateSchema(): string
+    public function generateSchema(): array
     {
         $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
         $this->root = $projectRoot;
+        $queries = '';
+        $types = '';
 
-        $schema = $this->findPhpFiles($projectRoot);
+        $mutations = $this->findPhpFiles($projectRoot);
 
         $flipped = array_flip($this->searchedStates);
         foreach($this->states as $realName => $properties) {
+            if(empty(trim($properties))) {
+                continue;
+            }
+
             $rootName = $this->findRootName($realName, $flipped);
-            var_dump($rootName);
             if($rootName === $realName) {
                 // todo: warn?
                 continue;
             }
             $name = $flipped[$rootName];
-            $schema .= <<<EOF
+            $types .= <<<EOF
 
 type {$name}Snapshot {
 $properties
 }
 EOF;
-        }
 
-        return $schema;
+            $queries .= <<<EOF
+
+{$name}(id: ID!): {$name}Snapshot
+EOF;
+            $this->handlers[] = ['op' => 'entity', 'op-name' => $name];
+
+        }
+        $scalars = array_map(fn($x) => 'scalar ' . $x, array_unique($this->scalars));
+        $scalars = implode("\n", $scalars);
+
+        return compact('queries', 'types', 'mutations', 'scalars');
     }
 
     public function findComposerJson(string $startDirectory): ?string

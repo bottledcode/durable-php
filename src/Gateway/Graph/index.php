@@ -39,7 +39,84 @@ require_once __DIR__ . '/../../Glue/autoload.php';
 header('Content-Type: text/plain');
 
 $generator = new SchemaGenerator();
-echo($generator->generateSchema());
+$schemaParts = $generator->generateSchema();
+
+$schema = <<<SCHEMA
+schema {
+    query: Query
+    mutation: Mutation
+}
+
+type Query {
+    entitySnapshot(id: EntityId!): State
+    orchestration(id: OrchestrationId!, waitForCompletion: Boolean): Status
+    {$schemaParts['queries']}
+}
+
+type Mutation {
+    SendEntitySignal(id: EntityId!, signal: String!, arguments: [Input!]!): Void
+    RaiseOrchestrationEvent(id: OrchestrationId!, signal: String!, arguments: [Input!]!): Void
+    StartOrchestration(name: String!, input: [Input!]!, id: String): Orchestration
+    {$schemaParts['mutations']}
+}
+
+input EntityId {
+    name: ID!
+    id: ID!
+}
+
+input OrchestrationId {
+    instance: ID!
+    execution: ID!
+}
+
+type Orchestration {
+    instance: ID!
+    execution: ID!
+}
+
+type Status {
+    createdAt: Date!
+    customStatus: String!
+    input: [OriginalInput!]!
+    id: ID!
+    lastUpdated: Date!
+    output: State
+    runtimeStatus: RuntimeStatus!
+}
+
+enum RuntimeStatus {
+    Running
+    Completed
+    ContinuedAsNew
+    Failed
+    Canceled
+    Terminated
+    Pending
+    Suspended
+    Unknown
+}
+
+type OriginalInput {
+    key: String
+    value: Any!
+}
+
+input Input {
+    key: String,
+    value: Any!
+}
+
+{$schemaParts['types']}
+
+{$schemaParts['scalars']}
+
+SCHEMA;
+if($_SERVER['REQUEST_METHOD'] === 'GET') {
+    header('Content-Type: text/plain');
+    echo $schema;
+    die();
+}
 
 $client = DurableClient::get();
 $client->withAuth(str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']));
@@ -100,8 +177,7 @@ $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode
 };
 
 // todo: caching
-$contents = file_get_contents(__DIR__ . '/generic-schema.graphql');
-$schema = BuildSchema::build($contents, $decorator);
+$schema = BuildSchema::build($schema, $decorator);
 
 $config = ServerConfig::create()->setSchema($schema)->setContext($client)->setDebugFlag(DebugFlag::INCLUDE_DEBUG_MESSAGE);
 
