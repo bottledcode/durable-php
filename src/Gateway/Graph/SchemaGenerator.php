@@ -29,6 +29,7 @@ use DI\Definition\Helper\CreateDefinitionHelper;
 class SchemaGenerator
 {
     private string $bootstrap;
+    private string $root;
 
     public function __construct()
     {
@@ -38,7 +39,7 @@ class SchemaGenerator
     public function generateSchema(): string
     {
         $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
-        var_dump($projectRoot);
+        $this->root = $projectRoot;
 
         return $this->findPhpFiles($projectRoot);
     }
@@ -134,14 +135,19 @@ GRAPHQL;
 
         $parsedName = $parsed->namespace . '\\' . $parsedName;
 
-        $rootName = $this->findRootName($parsedName);
+        $rootName = $this->findRootName($parsedName, $parsed->implements);
 
-        var_dump($rootName);
+        $filename = $this->getPathForClass($rootName);
+        $contents = file_get_contents($filename);
+
+        $parsed = MetaParser::parseFile($contents);
+
+        var_dump($parsed);
 
         return '';
     }
 
-    private function findRootName(string $parsedName): string
+    private function findRootName(string $parsedName, array $matches): string
     {
         $definitions = include $this->bootstrap;
 
@@ -151,7 +157,7 @@ GRAPHQL;
             } elseif ($class instanceof CreateDefinitionHelper) {
                 $class = $class->getDefinition('none')->getClassName();
             }
-            if ($class === $parsedName) {
+            if ($class === $parsedName && in_array($name, $matches)) {
                 // we have an alias
                 return $this->findRootName($name);
             }
