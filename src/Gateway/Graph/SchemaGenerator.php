@@ -164,9 +164,10 @@ GRAPHQL;
             }
         }
         foreach (array_unique($waitForExternalEventCalls) as $event) {
+            $originalEvent = $event;
             $event = str_replace(' ', '', ucwords($event));
             $mutation .= "Send{$event}To{$name}Orchestration(execution: ID!, arguments: [Input!]!): Void\n";
-            $this->handlers['mutations'][] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $event, 'name' => $realName];
+            $this->handlers['mutations'][] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $originalEvent, 'name' => $realName];
         }
 
         return $mutation;

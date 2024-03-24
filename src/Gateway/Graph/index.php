@@ -125,7 +125,7 @@ function getOrchestrationStatus(array $args, DurableClient $context): array
 {
     $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
     if($args['waitForCompletion'] ?? false) {
-        return Serializer::serialize($context->waitForCompletion($id));
+        $context->waitForCompletion($id);
     }
 
     return Serializer::serialize($context->getStatus($id));
