@@ -114,9 +114,9 @@ EOF;
 
         foreach ($items as $item) {
             if (is_dir($item) && ! str_ends_with($item, 'vendor')) {
-                 $results = $this->findPhpFiles($item);
-                 $mutation .= $results['mutation'];
-                 $query .= $results['query'];
+                $results = $this->findPhpFiles($item);
+                $mutation .= $results['mutation'];
+                $query .= $results['query'];
             } elseif (pathinfo($item, PATHINFO_EXTENSION) === 'php') {
                 $results = $this->processPhpFile($item);
                 $mutation .= $results['mutation'];
@@ -153,7 +153,7 @@ GRAPHQL;
 
         $query = <<<GRAPHQL
 
-{$name}Status(execution: ID!): Orchestration
+{$name}Status(execution: ID!): Status!
 
 GRAPHQL;
 
