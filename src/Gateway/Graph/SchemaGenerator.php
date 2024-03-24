@@ -59,6 +59,7 @@ class SchemaGenerator
         $flipped = array_flip($this->searchedStates);
         foreach($this->states as $realName => $properties) {
             $rootName = $this->findRootName($realName, $flipped);
+            var_dump($rootName);
             if($rootName === $realName) {
                 // todo: warn?
                 continue;
@@ -159,8 +160,7 @@ GRAPHQL;
     {
         $parsed = MetaParser::parseFile($contents);
 
-        $realName = explode('\\', $filename);
-        $realName = array_pop($realName);
+        $realName = basename($filename, '.php');
         $realName = $parsed->namespace . "\\" . $realName;
 
         foreach($parsed->attributes as $attribute) {
@@ -297,7 +297,7 @@ GRAPHQL;
             } elseif ($class instanceof CreateDefinitionHelper) {
                 $class = $class->getDefinition('none')->getClassName();
             }
-            if ($class === $parsedName && in_array($name, $matches, true)) {
+            if ($class === $parsedName && !in_array($name, $matches, true)) {
                 // we have an alias
                 return $this->findRootName($name, $matches);
             }
