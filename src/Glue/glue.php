@@ -254,7 +254,7 @@ class Glue
         }
         switch($this->target->getStateType()) {
             case ActivityHistory::class:
-                $permissions['users'] = [$this->provenance?->userId];
+                $permissions['mode'] = 'anon';
                 break;
             case EntityHistory::class:
                 $entity = $this->target->toEntityId();

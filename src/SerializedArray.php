@@ -29,6 +29,12 @@ final readonly class SerializedArray
 {
     private function __construct(public array $source, public array $types, public array $keys) {}
 
+    /**
+     * Convert a regular array to a serialized array
+     *
+     * @param array $array
+     * @return SerializedArray
+     */
     public static function fromArray(array $array): SerializedArray
     {
         $source = array_map(static function (mixed $x) {
@@ -62,6 +68,12 @@ final readonly class SerializedArray
         );
     }
 
+    /**
+     * Import a serialized array
+     *
+     * @param array $source
+     * @return SerializedArray
+     */
     public static function import(array $source): SerializedArray
     {
         return new self($source['source'], $source['types'], $source['keys']);

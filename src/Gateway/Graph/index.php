@@ -24,6 +24,7 @@
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
 use Bottledcode\DurablePhp\DurableClient;
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
@@ -128,7 +129,10 @@ function getOrchestrationStatus(array $args, DurableClient $context): array
         $context->waitForCompletion($id);
     }
 
-    return Serializer::serialize($context->getStatus($id));
+    $result = Serializer::serialize($context->getStatus($id));
+    $result['output'] = Serializer::serialize((SerializedArray::import($result['output']))->toArray());
+
+    return $result;
 }
 
 function getEntitySnapshot(array $args, DurableClient $context): array
