@@ -71,7 +71,7 @@ func NewGlue(bootstrap string, function Method, input []any, payload string) *Gl
 	}
 }
 
-func GlueFromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
+func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
 		return nil, "", err, nil

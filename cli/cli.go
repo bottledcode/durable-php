@@ -71,11 +71,18 @@ func getLogger(options map[string]string) *zap.Logger {
 func execute(args []string, options map[string]string) int {
 	logger := getLogger(options)
 
-	config := config.ApplyOptions(config.GetProjectConfig(), options)
+	cfg, err := config.GetProjectConfig()
+	if err != nil {
+		panic(err)
+	}
+	cfg, err = config.ApplyOptions(cfg, options)
+	if err != nil {
+		panic(err)
+	}
 
 	boostrapNats := false
 
-	if config.Nat.Internal {
+	if cfg.Nat.Internal {
 		logger.Warn("Running in dev mode, all data will be deleted at the end of this")
 		data, err := os.MkdirTemp("", "nats-state-*")
 		if err != nil {
@@ -128,19 +135,19 @@ func execute(args []string, options map[string]string) int {
 		nats.RetryOnFailedConnect(true),
 	}
 
-	if config.Nat.Jwt != "" && config.Nat.Nkey != "" {
-		nopts = append(nopts, nats.UserCredentials(config.Nat.Jwt, config.Nat.Nkey))
+	if cfg.Nat.Jwt != "" && cfg.Nat.Nkey != "" {
+		nopts = append(nopts, nats.UserCredentials(cfg.Nat.Jwt, cfg.Nat.Nkey))
 	}
 
-	if config.Nat.Tls.Ca != "" {
-		nopts = append(nopts, nats.RootCAs(strings.Split(config.Nat.Tls.Ca, ",")...))
+	if cfg.Nat.Tls.Ca != "" {
+		nopts = append(nopts, nats.RootCAs(strings.Split(cfg.Nat.Tls.Ca, ",")...))
 	}
 
-	if config.Nat.Tls.KeyFile != "" {
-		nopts = append(nopts, nats.ClientCert(config.Nat.Tls.ClientCert, config.Nat.Tls.KeyFile))
+	if cfg.Nat.Tls.KeyFile != "" {
+		nopts = append(nopts, nats.ClientCert(cfg.Nat.Tls.ClientCert, cfg.Nat.Tls.KeyFile))
 	}
 
-	ns, err := nats.Connect(config.Nat.Url, nopts...)
+	ns, err := nats.Connect(cfg.Nat.Url, nopts...)
 	if err != nil {
 		panic(err)
 	}
@@ -148,13 +155,13 @@ func execute(args []string, options map[string]string) int {
 	if err != nil {
 		panic(err)
 	}
-	ctx := context.WithValue(context.Background(), "bootstrap", config.Bootstrap)
+	ctx := context.WithValue(context.Background(), "bootstrap", cfg.Bootstrap)
 
 	if boostrapNats {
 		stream, _ := js.CreateStream(ctx, jetstream.StreamConfig{
-			Name:        config.Stream,
+			Name:        cfg.Stream,
 			Description: "Handles durable-php events",
-			Subjects:    []string{config.Stream + ".>"},
+			Subjects:    []string{cfg.Stream + ".>"},
 			Retention:   jetstream.WorkQueuePolicy,
 			Storage:     jetstream.FileStorage,
 			AllowRollup: false,
@@ -162,10 +169,10 @@ func execute(args []string, options map[string]string) int {
 			DenyPurge:   true,
 		})
 		_, _ = js.CreateStream(ctx, jetstream.StreamConfig{
-			Name:        config.Stream + "_history",
+			Name:        cfg.Stream + "_history",
 			Description: "The history of the stream",
 			Mirror: &jetstream.StreamSource{
-				Name: config.Stream,
+				Name: cfg.Stream,
 			},
 			Retention:   jetstream.LimitsPolicy,
 			AllowRollup: true,
@@ -181,15 +188,15 @@ func execute(args []string, options map[string]string) int {
 
 		for _, kind := range consumers {
 			_, _ = stream.CreateConsumer(ctx, jetstream.ConsumerConfig{
-				Durable:       config.Stream + "-" + kind,
-				FilterSubject: config.Stream + "." + kind + ".>",
+				Durable:       cfg.Stream + "-" + kind,
+				FilterSubject: cfg.Stream + "." + kind + ".>",
 				AckPolicy:     jetstream.AckExplicitPolicy,
 				AckWait:       5 * time.Minute,
 			})
 		}
 	}
 
-	stream, err := js.Stream(ctx, config.Stream)
+	stream, err := js.Stream(ctx, cfg.Stream)
 	if err != nil {
 		panic(err)
 	}
@@ -205,29 +212,29 @@ func execute(args []string, options map[string]string) int {
 
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, config, glue.Activity, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, glue.Activity, logger, js, rm)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, config, glue.Entity, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, glue.Entity, logger, js, rm)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, config, glue.Orchestration, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, glue.Orchestration, logger, js, rm)
 	}
 
-	if len(config.Extensions.Search.Collections) > 0 {
-		for _, collection := range config.Extensions.Search.Collections {
+	if len(cfg.Extensions.Search.Collections) > 0 {
+		for _, collection := range cfg.Extensions.Search.Collections {
 			switch collection {
 			case "entities":
-				err := lib.IndexerListen(ctx, config, glue.Entity, js, logger)
+				err := lib.IndexerListen(ctx, cfg, glue.Entity, js, logger)
 				if err != nil {
 					panic(err)
 				}
 			case "orchestrations":
-				err := lib.IndexerListen(ctx, config, glue.Orchestration, js, logger)
+				err := lib.IndexerListen(ctx, cfg, glue.Orchestration, js, logger)
 				if err != nil {
 					panic(err)
 				}
@@ -235,8 +242,8 @@ func execute(args []string, options map[string]string) int {
 		}
 	}
 
-	if config.Extensions.Billing.Enabled {
-		if config.Extensions.Billing.Listen {
+	if cfg.Extensions.Billing.Enabled {
+		if cfg.Extensions.Billing.Listen {
 
 			billings := sync.Map{}
 			billings.Store("e", 0)
@@ -283,9 +290,9 @@ func execute(args []string, options map[string]string) int {
 				ac, _ := billings.Load("ac")
 				a, _ := billings.Load("a")
 
-				ecost := costC(e, config.Extensions.Billing.Costs.Entities.Cost)
-				ocost := costC(o, config.Extensions.Billing.Costs.Orchestrations.Cost)
-				acost := costA(a, config.Extensions.Billing.Costs.Activities.Cost)
+				ecost := costC(e, cfg.Extensions.Billing.Costs.Entities.Cost)
+				ocost := costC(o, cfg.Extensions.Billing.Costs.Orchestrations.Cost)
+				acost := costA(a, cfg.Extensions.Billing.Costs.Activities.Cost)
 
 				logger.Warn("Billing estimate",
 					zap.Any("launched entities", e),
@@ -310,7 +317,7 @@ func execute(args []string, options map[string]string) int {
 			billingStream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 				Name: "billing",
 				Subjects: []string{
-					"billing." + config.Stream + ".>",
+					"billing." + cfg.Stream + ".>",
 				},
 				Storage:   jetstream.FileStorage,
 				Retention: jetstream.LimitsPolicy,
@@ -323,7 +330,7 @@ func execute(args []string, options map[string]string) int {
 			entityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 				Durable: "entityAggregator",
 				FilterSubjects: []string{
-					"billing." + config.Stream + ".entities.>",
+					"billing." + cfg.Stream + ".entities.>",
 				},
 			})
 			if err != nil {
@@ -341,7 +348,7 @@ func execute(args []string, options map[string]string) int {
 
 			orchestrationConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 				Durable:       "orchestrationAggregator",
-				FilterSubject: "billing." + config.Stream + ".orchestrations.>",
+				FilterSubject: "billing." + cfg.Stream + ".orchestrations.>",
 			})
 			if err != nil {
 				panic(err)
@@ -358,7 +365,7 @@ func execute(args []string, options map[string]string) int {
 
 			activityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 				Durable:       "activityAggregator",
-				FilterSubject: "billing." + config.Stream + ".activities.>",
+				FilterSubject: "billing." + cfg.Stream + ".activities.>",
 			})
 			if err != nil {
 				panic(err)
@@ -380,7 +387,7 @@ func execute(args []string, options map[string]string) int {
 			defer consume.Drain()
 		}
 
-		err := lib.StartBillingProcessor(ctx, config, js, logger)
+		err := lib.StartBillingProcessor(ctx, cfg, js, logger)
 		if err != nil {
 			panic(err)
 		}
@@ -392,7 +399,7 @@ func execute(args []string, options map[string]string) int {
 	}
 
 	if options["no-api"] != "true" {
-		lib.Startup(ctx, js, logger, port, config)
+		lib.Startup(ctx, js, logger, port, cfg)
 	} else {
 		block := make(chan struct{})
 		<-block
@@ -520,14 +527,17 @@ func main() {
 		WithArg(cli.NewArg("id", "The user id to assign to the user").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("admin", "Create the user as an admin").WithType(cli.TypeBool)).
 		WithAction(func(args []string, options map[string]string) int {
-			config := config.GetProjectConfig()
+			cfg, err := config.GetProjectConfig()
+			if err != nil {
+				panic(err)
+			}
 			rol := []auth.Role{"user"}
 			switch options["admin"] {
 			case "true":
 				rol = append(rol, "admin")
 			}
 
-			user, err := auth.CreateUser(auth.UserId(args[0]), rol, config)
+			user, err := auth.CreateUser(auth.UserId(args[0]), rol, cfg)
 			if err != nil {
 				return 1
 			}

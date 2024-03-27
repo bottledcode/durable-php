@@ -53,23 +53,28 @@ type User struct {
 	Roles  []Role `json:"roles"`
 }
 
+// IsAdmin checks if the user has the "admin" role.
 func (u *User) IsAdmin() bool {
 	return u.Is("admin")
 }
 
+// Is checks if the user has the specified role.
 func (u *User) Is(role Role) bool {
 	return slices.Contains(u.Roles, role)
 }
 
+// Share represents an interface for sharing permissions on a resource.
 type Share interface {
 	// WantTo returns true if the user can perform the Operation
 	WantTo(operation Operation, ctx context.Context) bool
 }
 
+// Permissions represents a set of allowed operations on a resource.
 type Permissions struct {
 	AllowedOperations map[Operation]struct{} `json:"allowedOperations"`
 }
 
+// WantTo checks if the specified operation is allowed based on the Permissions.
 func (p Permissions) WantTo(operation Operation, ctx context.Context) bool {
 	if _, exists := p.AllowedOperations[operation]; exists {
 		return true
@@ -83,6 +88,10 @@ type UserShare struct {
 	Permissions
 }
 
+// WantTo checks if the user associated with the UserShare has the permission to perform the given operation.
+// It retrieves the current user from the context and compares the user ID with the user ID of the UserShare.
+// If the IDs match, it delegates the permission check to the WantTo method of the Permissions object of the UserShare.
+// If the IDs do not match or if the user is nil, it returns false.
 func (u UserShare) WantTo(operation Operation, ctx context.Context) bool {
 	if user := ctx.Value(appcontext.CurrentUserKey).(*User); user != nil && user.UserId == u.UserId {
 		return u.Permissions.WantTo(operation, ctx)
@@ -96,6 +105,8 @@ type RoleShare struct {
 	Permissions
 }
 
+// WantTo checks if the user associated with the RoleShare has the given Role and if so, calls the WantTo method of the
+// Permissions struct to check if the user is allowed to perform
 func (r RoleShare) WantTo(operation Operation, ctx context.Context) bool {
 	if user := ctx.Value(appcontext.CurrentUserKey).(*User); user != nil && user.Is(r.Role) {
 		return r.Permissions.WantTo(operation, ctx)

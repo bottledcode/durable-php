@@ -17,99 +17,108 @@ type BillingUnit struct {
 	Limit     int `json:"limit"`
 }
 
-type Config struct {
-	Stream    string `json:"project"`
-	Bootstrap string `json:"bootstrap"`
-	Nat       struct {
-		Url      string `json:"url"`
-		Internal bool   `json:"embeddedServer"`
-		Jwt      string `json:"jwt,omitempty"`
-		Nkey     string `json:"nkey,omitempty"`
-		Tls      struct {
-			Ca         string `json:"ca,omitempty"`
-			ClientCert string `json:"clientCert,omitempty"`
-			KeyFile    string `json:"keyFile,omitempty"`
-		} `json:"tls,omitempty"`
-	} `json:"nats,omitempty"`
-	HistoryRetentionDays int `json:"historyRetentionDays"`
-	Extensions           struct {
-		Billing struct {
-			Enabled bool `json:"enabled"`
-			Listen  bool `json:"listen"`
-			Costs   struct {
-				Orchestrations BillingUnit `json:"orchestrations"`
-				Activities     BillingUnit `json:"activities"`
-				Entities       BillingUnit `json:"entities"`
-				ObjectStorage  BillingUnit `json:"objectStorage"`
-				FileStorage    BillingUnit `json:"fileStorage"`
-			} `json:"costs"`
-		} `json:"billing,omitempty"`
-		Search struct {
-			Url         string   `json:"url"`
-			Key         string   `json:"key"`
-			Collections []string `json:"collections"`
-		} `json:"search,omitempty"`
-		Authz struct {
-			Enabled bool     `json:"enabled"`
-			Secrets []string `json:"secrets"`
-		} `json:"authz,omitempty"`
-	} `json:"extensions,omitempty"`
+type NatConfig struct {
+	Url      string    `json:"url"`
+	Internal bool      `json:"embeddedServer"`
+	Jwt      string    `json:"jwt,omitempty"`
+	Nkey     string    `json:"nkey,omitempty"`
+	Tls      TlsConfig `json:"tls,omitempty"`
 }
 
-func GetProjectConfig() *Config {
+type TlsConfig struct {
+	Ca         string `json:"ca,omitempty"`
+	ClientCert string `json:"clientCert,omitempty"`
+	KeyFile    string `json:"keyFile,omitempty"`
+}
+
+type BillingConfig struct {
+	Enabled bool        `json:"enabled"`
+	Listen  bool        `json:"listen"`
+	Costs   CostsConfig `json:"costs"`
+}
+
+type CostsConfig struct {
+	Orchestrations BillingUnit `json:"orchestrations"`
+	Activities     BillingUnit `json:"activities"`
+	Entities       BillingUnit `json:"entities"`
+	ObjectStorage  BillingUnit `json:"objectStorage"`
+	FileStorage    BillingUnit `json:"fileStorage"`
+}
+
+type SearchConfig struct {
+	Url         string   `json:"url"`
+	Key         string   `json:"key"`
+	Collections []string `json:"collections"`
+}
+
+type AuthzConfig struct {
+	Enabled bool     `json:"enabled"`
+	Secrets []string `json:"secrets"`
+}
+
+type ExtensionsConfig struct {
+	Billing BillingConfig `json:"billing,omitempty"`
+	Search  SearchConfig  `json:"search,omitempty"`
+	Authz   AuthzConfig   `json:"authz,omitempty"`
+}
+
+type Config struct {
+	Stream               string           `json:"project"`
+	Bootstrap            string           `json:"bootstrap"`
+	Nat                  NatConfig        `json:"nats,omitempty"`
+	HistoryRetentionDays int              `json:"historyRetentionDays"`
+	Extensions           ExtensionsConfig `json:"extensions,omitempty"`
+}
+
+func GetProjectConfig() (*Config, error) {
 	var config Config
 	err := json.Unmarshal([]byte(defaultConfig), &config)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
 	if _, err := os.Stat("dphp.json"); err != nil {
-		return &config
+		return &config, nil
 	}
-
 	configData, err := os.ReadFile("dphp.json")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
 	err = json.Unmarshal(configData, &config)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return &config
+	return &config, nil
 }
 
-func findBootstrap(config *Config) {
+func findBootstrap(config *Config) error {
 	bootstrap := config.Bootstrap
 	if bootstrap == "" {
 		bootstrap = "src/bootstrap.php"
 	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return err
 	} else {
 		bootstrap = filepath.Join(cwd, bootstrap)
 	}
-
 	config.Bootstrap = bootstrap
+	return nil
 }
 
-func ApplyOptions(config *Config, options map[string]string) *Config {
+func ApplyOptions(config *Config, options map[string]string) (*Config, error) {
 	if options["stream"] != "" {
 		config.Stream = options["stream"]
 	}
-
 	if options["nats-server"] != "" {
 		config.Nat.Url = options["nats-server"]
 		config.Nat.Internal = false
 	}
-
 	if options["bootstrap"] != "" {
 		config.Bootstrap = options["bootstrap"]
 	}
-
-	findBootstrap(config)
-
-	return config
+	err := findBootstrap(config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }

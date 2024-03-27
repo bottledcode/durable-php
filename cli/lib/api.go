@@ -260,7 +260,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
 
-		msgs, stateFile, err, responseHeaders := glue.GlueFromApiRequest(ctx, request, function, logger, js, id, headers)
+		msgs, stateFile, err, responseHeaders := glue.FromApiRequest(ctx, request, function, logger, js, id, headers)
 		if err != nil {
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			logger.Error("Failed to glue", zap.Error(err))

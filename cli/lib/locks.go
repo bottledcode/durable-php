@@ -3,12 +3,65 @@ package lib
 import (
 	"context"
 	"durable_php/glue"
+	"errors"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"time"
 )
 
-func lockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStream, logger *zap.Logger) {
+const (
+	LockValue string = "locked"
+	LockKey   string = "lock"
+)
+
+func acquireLock(ctx context.Context, subject *glue.Subject, kv jetstream.KeyValue, logger *zap.Logger) (bool, uint64) {
+	value, err := kv.Get(ctx, LockKey)
+	// not found or empty value
+	if err != nil || string(value.Value()) == "" {
+		logger.Debug("Freely taking lock", zap.String("Subject", subject.String()))
+		revision, err := kv.Create(ctx, "lock", []byte(LockValue))
+		// race to create value failed
+		if err != nil {
+			return false, 0
+		}
+		logger.Debug("Got lock", zap.String("Subject", subject.String()))
+		return true, revision
+	}
+
+	return false, value.Revision()
+}
+
+func waitForLock(ctx context.Context, subject *glue.Subject, kv jetstream.KeyValue, logger *zap.Logger) bool {
+	logger.Debug("Waiting for lock", zap.String("Subject", subject.String()))
+
+	ok, revision := acquireLock(ctx, subject, kv, logger)
+	if ok {
+		return true
+	}
+
+	watcher, err := kv.Watch(ctx, LockKey, jetstream.ResumeFromRevision(revision))
+	if err != nil {
+		logger.Warn("Failed to wait for lock", zap.Error(err))
+		return false
+	}
+	defer watcher.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case updated := <-watcher.Updates():
+			if updated != nil {
+				ok, _ = acquireLock(ctx, subject, kv, logger)
+				if ok {
+					return true
+				}
+			}
+		}
+	}
+}
+
+func lockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStream, logger *zap.Logger) (func() error, error) {
 	logger.Debug("Attempting to take lock", zap.String("Subject", subject.String()))
 	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket: subject.Bucket(),
@@ -18,57 +71,15 @@ func lockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStr
 		panic(err)
 	}
 
-	value, err := kv.Get(ctx, "lock")
-	if err != nil || value.Value() == nil {
-		// a lock is free
-		logger.Debug("Freely taking lock", zap.String("Subject", subject.String()))
-		_, err := kv.Create(ctx, "lock", []byte("locked"))
-		if err != nil {
-			lockSubject(ctx, subject, js, logger)
-			return
-		}
-		logger.Debug("Successfully got lock")
-		return
+	if ok := waitForLock(ctx, subject, kv, logger); ok {
+		return func() error {
+			err := kv.Delete(ctx, LockKey)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, nil
 	}
 
-	// is the value locked
-	if string(value.Value()) == "locked" {
-		logger.Debug("Currently waiting for lock", zap.String("Subject", subject.String()))
-		// watch for updates
-		watcher, err := kv.Watch(ctx, "lock", jetstream.ResumeFromRevision(value.Revision()+1))
-		if err != nil {
-			panic(err)
-		}
-		var update jetstream.KeyValueEntry
-		for update == nil {
-			update = <-watcher.Updates()
-		}
-		logger.Debug("Update detected", zap.Any("update", update))
-		lockSubject(ctx, subject, js, logger)
-		return
-	}
-
-	logger.Debug("Freely taking lock", zap.String("Subject", subject.String()))
-	// looks like we can take the lock
-	_, err = kv.Update(ctx, "lock", []byte("locked"), value.Revision())
-	if err != nil {
-		lockSubject(ctx, subject, js, logger)
-		return
-	}
-	logger.Debug("Successfully got lock")
-}
-
-func unlockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStream, logger *zap.Logger) {
-	logger.Debug("Unlocking", zap.String("Subject", subject.String()))
-	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket: subject.Bucket(),
-		TTL:    5 * time.Minute,
-	})
-	if err != nil {
-		panic(err)
-	}
-	_, err = kv.PutString(ctx, "lock", "unlocked")
-	if err != nil {
-		return
-	}
+	return nil, errors.New("failed to get lock")
 }

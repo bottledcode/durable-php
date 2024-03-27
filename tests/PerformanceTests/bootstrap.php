@@ -23,26 +23,4 @@
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-if(!class_exists(FakeContainer::class)) {
-    class FakeContainer implements \Psr\Container\ContainerInterface
-    {
-        public function __construct(private array $objects) {}
-
-        #[\Override] public function get(string $id)
-        {
-            return $this->objects[$id] ?? new $id();
-        }
-
-        #[\Override] public function has(string $id): bool
-        {
-            return isset($this->objects[$id]);
-        }
-
-        public function set(string $id, $value): void
-        {
-            $this->objects[$id] = $value;
-        }
-    }
-}
-
-return new FakeContainer([]);
+return [];

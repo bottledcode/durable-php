@@ -18,6 +18,11 @@ type ResourceManager struct {
 	js jetstream.JetStream
 }
 
+// GetResourceManager is a function that creates and returns a ResourceManager instance based on the provided context and JetStream stream.
+// If the cache is nil, it initializes the cache variable as a concurrent map.
+// It also creates or updates a key-value pair in the JetStream stream using the provided context and KeyValeConfig.
+// It panics if an error occurs during the creation or update of the key-value pair.
+// Finally, it returns a pointer to the created ResourceManager instance.
 func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *ResourceManager {
 	if cache == nil {
 		cache = &concurrent.Map{}
@@ -37,6 +42,8 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 	}
 }
 
+// DiscoverResource is a method of the ResourceManager struct that is responsible for discovering a resource based on
+// the provided context, state ID, logger, and preventCreation flag
 func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
 	currentUser, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 
@@ -64,7 +71,10 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	} else if (err != nil || data == nil) && preventCreation {
 		return nil, fmtError("resource not found")
 	}
-	resource := FromBytes(data.Value())
+	resource, err := FromBytes(data.Value())
+	if err != nil {
+		return nil, err
+	}
 	resource.kv = r.kv
 	resource.id = id
 	resource.revision = data.Revision()
@@ -76,6 +86,10 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	return resource, nil
 }
 
+// ScheduleDelete is a method of the ResourceManager struct that is responsible for scheduling the deletion of a
+// resource based on the provided context, resource, and time. It deletes the resource from the key-value store and
+// publishes a delete message to NATS JetStream with a delay specified by the provided time. The resource is identified
+// by its ID, which is added to the message headers.
 func (r *ResourceManager) ScheduleDelete(ctx context.Context, resource *Resource, at time.Time) {
 	r.kv.Delete(ctx, resource.id.ToSubject().Bucket())
 
@@ -89,6 +103,8 @@ func (r *ResourceManager) ScheduleDelete(ctx context.Context, resource *Resource
 	})
 }
 
+// Delete is a method of the ResourceManager struct that is responsible for deleting a resource based on the provided
+// context and resource object
 func (r *ResourceManager) Delete(ctx context.Context, resource *Resource) {
 	r.kv.Delete(ctx, resource.id.ToSubject().Bucket())
 

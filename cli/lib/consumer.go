@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"durable_php/appcontext"
 	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
@@ -83,8 +84,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	// lock the Subject, if it is a lockable Subject
 	id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
 	if id.Kind == glue.Entity {
-		lockSubject(ctx, id.ToSubject(), js, logger)
-		defer unlockSubject(ctx, id.ToSubject(), js, logger)
+		unlocker, err := lockSubject(ctx, id.ToSubject(), js, logger)
+		if err != nil {
+			return err
+		}
+		defer unlocker()
 	}
 
 	ctx, cancelCtx := context.WithCancel(ctx)
@@ -211,7 +215,8 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "ShareOwnership":
 				userId := meta["userId"].(auth.UserId)
-				err := resource.ShareOwnership(userId, true, ctx)
+				user := ctx.Value(appcontext.CurrentUserKey).(*auth.User)
+				err := resource.ShareOwnership(userId, user, true)
 				if err != nil {
 					return err
 				}
@@ -223,7 +228,8 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "GiveOwnership":
 				userId := meta["userId"].(auth.UserId)
-				err := resource.ShareOwnership(userId, false, ctx)
+				user := ctx.Value(appcontext.CurrentUserKey).(*auth.User)
+				err := resource.ShareOwnership(userId, user, true)
 				if err != nil {
 					return err
 				}
