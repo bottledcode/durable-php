@@ -44,6 +44,7 @@ use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
 use DI\Container;
+use DI\ContainerBuilder;
 use DI\Definition\AutowireDefinition;
 use DI\Definition\Definition;
 use DI\Definition\FactoryDefinition;
@@ -52,7 +53,10 @@ use DI\Definition\Helper\CreateDefinitionHelper;
 use DI\Definition\InstanceDefinition;
 use DI\Definition\ObjectDefinition;
 use JsonException;
+use LogicException;
 use Ramsey\Uuid\Uuid;
+use ReflectionClass;
+use ReflectionFunction;
 
 require_once __DIR__ . '/autoload.php';
 
@@ -93,7 +97,7 @@ class Glue
         }
 
         if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
-            throw new \LogicException('Unable to load payload');
+            throw new LogicException('Unable to load payload');
         }
 
         $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'r+b'));
@@ -152,12 +156,17 @@ class Glue
 
     public function bootstrap(): Container
     {
-        $builder = new \DI\ContainerBuilder();
+        $builder = new ContainerBuilder();
         if ($this->bootstrap) {
             $builder->addDefinitions(include $this->bootstrap);
         }
 
         return $builder->build();
+    }
+
+    public function outputDelete(): void
+    {
+        echo 'DELETE~!~';
     }
 
     private function entitySignal(): void
@@ -252,14 +261,14 @@ class Glue
         } else {
             $definitions = [];
         }
-        switch($this->target->getStateType()) {
+        switch ($this->target->getStateType()) {
             case ActivityHistory::class:
                 $permissions['mode'] = 'anon';
                 break;
             case EntityHistory::class:
                 $entity = $this->target->toEntityId();
                 $class = $definitions[$entity->name] ?? $entity->name;
-                if($class instanceof AutowireDefinitionHelper) {
+                if ($class instanceof AutowireDefinitionHelper) {
                     $class = $class->getDefinition('none')->getClassName();
                 } elseif ($class instanceof CreateDefinitionHelper) {
                     $class = $class->getDefinition('none')->getClassName();
@@ -268,7 +277,7 @@ class Glue
             case OrchestrationHistory::class:
                 $instance = $this->target->toOrchestrationInstance();
                 $class = $definitions[$instance->instanceId] ?? $instance->instanceId;
-                if($class instanceof AutowireDefinitionHelper) {
+                if ($class instanceof AutowireDefinitionHelper) {
                     $class = $class->getDefinition('none')->getClassName();
                 } elseif ($class instanceof CreateDefinitionHelper) {
                     $class = $class->getDefinition('none')->getClassName();
@@ -276,7 +285,7 @@ class Glue
         }
 
         if ($class !== null) {
-            $class = new \ReflectionClass($class);
+            $class = new ReflectionClass($class);
 
             foreach ($class->getAttributes() as $attribute) {
                 switch (true) {
@@ -314,14 +323,14 @@ class Glue
         header("Permissions: $permissions");
     }
 
-    private function getFromDefinition(Definition $definition): \ReflectionClass|\ReflectionFunction|null
+    private function getFromDefinition(Definition $definition): ReflectionClass|ReflectionFunction|null
     {
         if ($definition instanceof AutowireDefinition || $definition instanceof ObjectDefinition) {
-            return new \ReflectionClass($definition->getClassName());
+            return new ReflectionClass($definition->getClassName());
         } elseif ($definition instanceof InstanceDefinition) {
-            return new \ReflectionClass($definition->getInstance());
+            return new ReflectionClass($definition->getInstance());
         } elseif ($definition instanceof FactoryDefinition) {
-            return new \ReflectionFunction($definition->getCallable());
+            return new ReflectionFunction($definition->getCallable());
         }
 
         return null;

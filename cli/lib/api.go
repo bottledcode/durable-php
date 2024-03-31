@@ -304,6 +304,8 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// get an entity state and status
 	// PUT /entity/{name}/{id}
 	// signal an entity
+	// DELETE /entity/{name}/{id}
+	// delete an entity
 	r.HandleFunc("/entity/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		if stop := handleCors(writer, request); stop {
 			return
@@ -345,6 +347,24 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 			logger.Debug("Signal entity", zap.String("id", id.String()))
 			processReq(ctx, writer, request, id.ToStateId(), glue.SignalEntity, make(http.Header))
+			return
+		}
+
+		if request.Method == "DELETE" {
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, true, auth.Signal)
+			if done {
+				return
+			}
+
+			logger.Debug("Delete entity", zap.String("id", id.String()))
+			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), logger, true)
+			if err != nil {
+				logger.Error("Failed to discover resource", zap.Error(err))
+				http.Error(writer, "Not Found", http.StatusNotFound)
+				return
+			}
+			rm.Delete(ctx, rs)
+			http.Error(writer, "Deleted", http.StatusNoContent)
 			return
 		}
 
@@ -420,6 +440,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	// start a new orchestration
 	// GET /orchestration/{name}/{id}?wait=??
 	// get an orchestration status and optionally wait for it's completion
+	// DELETE /orchestration/{name}/{id}
 	r.HandleFunc("/orchestration/{name}/{id}", func(writer http.ResponseWriter, request *http.Request) {
 		if stop := handleCors(writer, request); stop {
 			return
@@ -442,6 +463,24 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			}
 
 			processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
+			return
+		}
+
+		if request.Method == "DELETE" {
+			ctx, done := authorize(writer, request, config, ctx, rm, id.ToStateId(), logger, true, auth.Signal)
+			if done {
+				return
+			}
+
+			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), logger, true)
+			if err != nil {
+				logger.Error("Failed to discover a resource for deletion", zap.Error(err))
+				http.Error(writer, "Not Found", http.StatusNotFound)
+				return
+			}
+
+			rm.Delete(ctx, rs)
+			http.Error(writer, "Deleted", http.StatusNoContent)
 			return
 		}
 

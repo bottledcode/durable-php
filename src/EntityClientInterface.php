@@ -27,6 +27,9 @@ namespace Bottledcode\DurablePhp;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
+use Closure;
+use DateTimeImmutable;
+use Generator;
 
 interface EntityClientInterface
 {
@@ -34,49 +37,47 @@ interface EntityClientInterface
 
     /**
      * Removes empty entities and releases orphaned locks
-     *
-     * @return void
      */
     public function cleanEntityStorage(): void;
 
     /**
      * Get a list of entities
      *
-     * @return \Generator<EntityId>
+     * @return Generator<EntityId>
      */
-    public function listEntities(EntityFilter $filter, int $page): \Generator;
+    public function listEntities(EntityFilter $filter, int $page): Generator;
 
     /**
      * Signal an entity either now, or at some point in the future
-     *
-     * @param EntityId $entityId
-     * @param string $operationName
-     * @param array $input
-     * @param \DateTimeImmutable|null $scheduledTime
-     * @return void
      */
     public function signalEntity(
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        \DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null
     ): void;
 
     /**
      * Signals an entity using a closure
      *
      * @template T
-     * @param EntityId<T>|class-string<T> $entityId The id of the entity to signal
-     * @param \Closure<T> $signal
-     * @return void
+     *
+     * @param  EntityId<T>|class-string<T>  $entityId  The id of the entity to signal
+     * @param  Closure<T>  $signal
      */
-    public function signal(EntityId|string $entityId, \Closure $signal): void;
+    public function signal(EntityId|string $entityId, Closure $signal): void;
 
     /**
      * @template T of EntityState
-     * @param EntityId<T> $entityId
-     * @param class-string<T> $type
+     *
+     * @param  EntityId<T>  $entityId
+     * @param  class-string<T>  $type
      * @return T|null
      */
-    public function getEntitySnapshot(EntityId $entityId, string $type): EntityState|null;
+    public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState;
+
+    /**
+     * Deletes an entity
+     */
+    public function deleteEntity(EntityId $entityId): void;
 }
