@@ -47,14 +47,15 @@ func (c *ConsumingResponseWriter) WriteHeader(statusCode int) {
 }
 
 type InternalLoggingResponseWriter struct {
-	logger    *zap.Logger
-	isError   bool
-	status    int
-	events    []*nats.Msg
-	query     chan []string
-	headers   http.Header
-	CurrentId *StateId
-	Context   context.Context
+	logger      *zap.Logger
+	isError     bool
+	status      int
+	events      []*nats.Msg
+	query       chan []string
+	headers     http.Header
+	CurrentId   *StateId
+	Context     context.Context
+	DeleteAfter bool
 }
 
 func (w *InternalLoggingResponseWriter) Header() http.Header {
@@ -118,6 +119,8 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 		} else if after, found := strings.CutPrefix(line, "QUERY~!~"); found {
 			w.logger.Debug("Performing query", zap.String("line", after))
 			w.query <- strings.Split(after, "~!~")
+		} else if _, found := strings.CutPrefix(line, "DELETE~!~"); found {
+			w.DeleteAfter = true
 		} else if w.isError {
 			w.logger.Error(line)
 		} else {

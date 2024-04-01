@@ -263,7 +263,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	env["EVENT"] = string(msg.Data())
 	env["STATE_ID"] = msg.Headers().Get(string(glue.HeaderStateId))
 
-	msgs, headers, _ := glu.Execute(ctx, headers, logger, env, js, id)
+	msgs, headers, _, deleteAfter := glu.Execute(ctx, headers, logger, env, js, id)
 
 	// now update the stored state, if this fails due to optimistic concurrency, we immediately nak and fail
 	err = update()
@@ -290,6 +290,14 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	err = msg.Ack()
 	if err != nil {
 		return err
+	}
+
+	if deleteAfter {
+		resource, err := rm.DiscoverResource(ctx, id, logger, false)
+		if err != nil {
+			return err
+		}
+		rm.Delete(ctx, resource)
 	}
 
 	return nil

@@ -71,10 +71,10 @@ func NewGlue(bootstrap string, function Method, input []any, payload string) *Gl
 	}
 }
 
-func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header) {
+func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header, bool) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
-		return nil, "", err, nil
+		return nil, "", err, nil, false
 	}
 	go func() {
 		<-ctx.Done()
@@ -84,7 +84,7 @@ func FromApiRequest(ctx context.Context, r *http.Request, function Method, logge
 
 	_, err = io.Copy(temp, r.Body)
 	if err != nil {
-		return nil, "", err, nil
+		return nil, "", err, nil, false
 	}
 	temp.Close()
 
@@ -99,12 +99,12 @@ func FromApiRequest(ctx context.Context, r *http.Request, function Method, logge
 	env["FROM_REQUEST"] = "1"
 	env["STATE_ID"] = id.String()
 
-	msgs, responseHeaders, _ := glu.Execute(ctx, headers, logger, env, stream, id)
+	msgs, responseHeaders, _, deleteAfter := glu.Execute(ctx, headers, logger, env, stream, id)
 
-	return msgs, temp.Name(), nil, &responseHeaders
+	return msgs, temp.Name(), nil, &responseHeaders, deleteAfter
 }
 
-func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int) {
+func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int, bool) {
 	var dir string
 	var ok bool
 	if dir, ok = GetLibraryDir("glue.php"); !ok {
@@ -167,14 +167,15 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	}
 
 	writer := &InternalLoggingResponseWriter{
-		logger:    logger,
-		isError:   false,
-		status:    0,
-		events:    make([]*nats.Msg, 0),
-		query:     make(chan []string),
-		headers:   make(http.Header),
-		CurrentId: id,
-		Context:   ctx,
+		logger:      logger,
+		isError:     false,
+		status:      0,
+		events:      make([]*nats.Msg, 0),
+		query:       make(chan []string),
+		headers:     make(http.Header),
+		CurrentId:   id,
+		Context:     ctx,
+		DeleteAfter: false,
 	}
 
 	var wg sync.WaitGroup
@@ -208,7 +209,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	cancelCtx()
 	wg.Wait()
 
-	return writer.events, writer.Header(), writer.status
+	return writer.events, writer.Header(), writer.status, writer.DeleteAfter
 }
 
 func DeleteState(ctx context.Context, stream jetstream.JetStream, logger *zap.Logger, id *StateId) error {
