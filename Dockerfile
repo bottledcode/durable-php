@@ -66,31 +66,41 @@ COPY cli/ ./cli/
 WORKDIR /go/src/app/cli
 RUN ./build.sh
 
-FROM php:8-zts AS base
-
-COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/bin/
-
-RUN install-php-extensions ev apcu pcntl parallel @composer && \
-    mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" && \
-    apt update && \
-    apt install -y procps && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY composer.json composer.lock /app/
+FROM php:8-zts AS common
 
 WORKDIR /app
 
-RUN composer install --no-interaction --optimize-autoloader
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
+ARG VERSION=dev
 
-COPY . /app
+FROM common AS builder
 
-#RUN groupadd -g 1000 app && \
-#    useradd -d /app -s /bin/bash -g 1000 -u 1000 app && \
-#    chown -R app:app /app && \
-#    adduser app sudo
+COPY --from=golang:1.22 /usr/local/go /usr/local/go
+ENV PATH /usr/local/go/bin:$PATH
 
-ENTRYPOINT [ "php", "-d", "opcache.enable_cli=1", "-d", "opcache.jit_buffer_size=50M", "-d", "opcache.jit=tracing", "src/Run.php" ]
+RUN apt-get update && \
+	apt-get -y --no-install-recommends install \
+	libargon2-dev \
+	libbrotli-dev \
+	libcurl4-openssl-dev \
+	libonig-dev \
+	libreadline-dev \
+	libsodium-dev \
+	libsqlite3-dev \
+	libssl-dev \
+	libxml2-dev \
+	zlib1g-dev \
+	&& \
+	apt-get clean
 
-FROM base as dev
+WORKDIR /go/src/app
+COPY --link cli/go.mod cli/go.sum ./
+RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
 
-RUN install-php-extensions xdebug
+COPY --link cli/ .
+
+ENV CGO_LDFLAGS="-lssl -lcrypto -lreadline -largon2 -lcurl -lonig -lz $PHP_LDFLAGS" CGO_CFLAGS="-DFRANKENPHP_VERSION=$VERSION $PHP_CFLAGS" CGO_CPPFLAGS=$PHP_CPPFLAGS
+RUN GOBIN=/usr/local/bin go install -ldflags "-w -s -X 'main.version=$VERSION'"
+
+FROM common AS durable-php
+COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp

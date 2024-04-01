@@ -231,12 +231,14 @@ func execute(args []string, options map[string]string) int {
 			case "entities":
 				err := lib.IndexerListen(ctx, cfg, glue.Entity, js, logger)
 				if err != nil {
-					panic(err)
+					cfg.Extensions.Search.Collections = []string{}
+					logger.Warn("Disabling search extension due to failing to connect to typesense")
 				}
 			case "orchestrations":
 				err := lib.IndexerListen(ctx, cfg, glue.Orchestration, js, logger)
 				if err != nil {
-					panic(err)
+					cfg.Extensions.Search.Collections = []string{}
+					logger.Warn("Disabling search extension due to failing to connect to typesense")
 				}
 			}
 		}
