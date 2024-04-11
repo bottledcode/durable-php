@@ -26,7 +26,13 @@ jobs:
         run: cd cli && ./build.sh
       - run: ls -lah cli/dist/
   build-osx:
-    runs-on: macos-latest-large
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: [ 'arm64', 'x86_64' ]
+    runs-on: ${{ matrix.platform == 'arm64' && 'macos-14' || 'macos-13' }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
     steps:
       - uses: actions/checkout@v4
       - name: Setup build cache
@@ -35,6 +41,15 @@ jobs:
           path: dist/static-php-cli
           key: ${{runner.os}}-php-${{hashFiles('cli/*.mod')}}
           restore-keys: ${{runner.os}}-php-
+      - name: Configure Version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" == "tag" ]; then
+            export VERSION=${GITHUB_REF_NAME:1}
+          else
+            export VERSION=${GITHUB_SHA}
+          fi
+
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
       - name: Build php
         run: cli/build-php.sh
       - name: Build cli
