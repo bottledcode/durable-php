@@ -100,7 +100,9 @@ RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
 COPY --link cli/ .
 
 ENV CGO_LDFLAGS="-lssl -lcrypto -lreadline -largon2 -lcurl -lonig -lz $PHP_LDFLAGS" CGO_CFLAGS="-DFRANKENPHP_VERSION=$VERSION $PHP_CFLAGS" CGO_CPPFLAGS=$PHP_CPPFLAGS
-RUN GOBIN=/usr/local/bin go install -ldflags "-w -s -X 'main.version=$VERSION'"
+ENV GOBIN=/usr/local/bin
+RUN go get durable_php
+RUN go install -ldflags "-w -s -X 'main.version=$VERSION'"
 
 FROM common AS durable-php
 COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp
