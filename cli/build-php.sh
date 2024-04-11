@@ -34,8 +34,7 @@ os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 export CFLAGS="$CFLAGS -O2" CXXFLAGS="$CXXFLAGS -O2"
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
-  #export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gd,gmp,iconv,igbinary,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,phar,posix,readline,simplexml,soap,sockets,sodium,sysvmsg,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,xsl,yaml,zip,zlib"
-  export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,zip,zlib"
+  export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uv,xml,xmlreader,xmlwriter,zip,zlib"
 fi
 
 if [ -z "${PHP_EXTENSION_LIBS}" ]; then

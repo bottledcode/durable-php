@@ -37,3 +37,4 @@ jobs:
       - run: ls -lah dist/
       - name: Build cli
         run: cd cli && ./build.sh
+      - run: ls -lah dist/
