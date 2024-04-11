@@ -6,7 +6,7 @@ BUILD_PATH := /go/src/app/cli/dist
 
 ${BIN_PATH}/${TARGET}: cli.go */* go.mod build.sh build-php.sh ../Dockerfile
 	mkdir -p ${BIN_PATH}
-	cd .. && docker build --pull --target ${DOCKER_TARGET} -t ${DOCKER_IMAGE} .
+	cd .. && docker buildx build --pull --target ${DOCKER_TARGET} -t ${DOCKER_IMAGE} .
 	docker create --name ${DOCKER_IMAGE} ${DOCKER_IMAGE} || ( docker rm -f ${DOCKER_IMAGE} && false )
 	docker cp ${DOCKER_IMAGE}:${BUILD_PATH}/${TARGET} ${BIN_PATH}/${TARGET} || ( docker rm -f ${DOCKER_IMAGE} && false )
 	docker rm -f ${DOCKER_IMAGE}
