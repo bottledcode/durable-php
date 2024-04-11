@@ -35,11 +35,11 @@ export CFLAGS="$CFLAGS -O2" CXXFLAGS="$CXXFLAGS -O2"
 
 if [ -z "${PHP_EXTENSIONS}" ]; then
   #export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gd,gmp,iconv,igbinary,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,phar,posix,readline,simplexml,soap,sockets,sodium,sysvmsg,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,xsl,yaml,zip,zlib"
-  export PHP_EXTENSIONS="apcu,bz2,ctype,curl,dom,filter,igbinary,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,sockets,sodium,tokenizer,uuid,uv,zip"
+  export PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uuid,uv,xml,xmlreader,xmlwriter,zip,zlib"
 fi
 
 if [ -z "${PHP_EXTENSION_LIBS}" ]; then
-  export PHP_EXTENSION_LIBS=""
+  export PHP_EXTENSION_LIBS="bzip2,freetype,libavif,libjpeg,libwebp,libzip"
 fi
 
 if [ -z "${PHP_VERSION}" ]; then
@@ -120,6 +120,6 @@ else
   # shellcheck disable=SC2086
 
   if [ -z $BUILD ]; then
-    ./bin/spc build --enable-zts --build-embed ${extraOpts} "${PHP_EXTENSIONS}" --with-libs="brotli,${PHP_EXTENSION_LIBS}"
+    ./bin/spc build --debug --enable-zts --build-embed ${extraOpts} "${PHP_EXTENSIONS}" --with-libs="brotli,${PHP_EXTENSION_LIBS}"
   fi
 fi
