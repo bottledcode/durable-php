@@ -19,9 +19,9 @@ jobs:
           restore-keys: ${{runner.os}}-php-
       - name: Build php
         run: cd cli && ./build-php.sh
-      - run: ls -lah dist/
       - name: Build cli
         run: cd cli && ./build.sh
+      - run: ls -lah cli/dist/
   build-osx:
     runs-on: macos-latest-large
     steps:
@@ -34,7 +34,6 @@ jobs:
           restore-keys: ${{runner.os}}-php-
       - name: Build php
         run: cd cli && ./build-php.sh
-      - run: ls -lah dist/
       - name: Build cli
         run: cd cli && ./build.sh
-      - run: ls -lah dist/
+      - run: ls -lah cli/dist/
