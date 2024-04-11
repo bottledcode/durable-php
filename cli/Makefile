@@ -7,7 +7,11 @@ BUILD_PATH := /go/src/app/cli/dist
 ${BIN_PATH}/${TARGET}: cli.go */* go.mod build.sh build-php.sh ../Dockerfile
 	mkdir -p ${BIN_PATH}
 	cd .. && docker build --pull --target ${DOCKER_TARGET} -t ${DOCKER_IMAGE} .
-	docker create --name builder builder || ( docker rm -f builder && false )
-	docker cp ${DOCKER_IMAGE}:${BUILD_PATH}/${TARGET} ${BIN_PATH}/${TARGET} || ( docker rm -f builder && false )
-	docker rm -f builder
+	docker create --name ${DOCKER_IMAGE} ${DOCKER_IMAGE} || ( docker rm -f ${DOCKER_IMAGE} && false )
+	docker cp ${DOCKER_IMAGE}:${BUILD_PATH}/${TARGET} ${BIN_PATH}/${TARGET} || ( docker rm -f ${DOCKER_IMAGE} && false )
+	docker rm -f ${DOCKER_IMAGE}
 	upx -9 --force-pie ../bin/dphp-*
+
+../dist: ${BIN_PATH}/${TARGET}
+	docker create --name builder builder
+	docker cp ${DOCKER_IMAGE}:${BUILD_PATH} ../dist
