@@ -12,10 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Setup build cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: dist/static-php-cli
-          key: ${{runner.os}}-php-${{hashFiles(cli/*.mod)}}
+          key: ${{runner.os}}-php-${{hashFiles('cli/*.mod')}}
           restore-keys: ${{runner.os}}-php-
       - name: Build php
         run: cli/build-php.sh
@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: dist/static-php-cli
-          key: ${{runner.os}}-php-${{hashFiles(cli/*.mod)}}
+          key: ${{runner.os}}-php-${{hashFiles('cli/*.mod')}}
           restore-keys: ${{runner.os}}-php-
       - name: Build php
         run: cli/build-php.sh
