@@ -8,8 +8,14 @@ on:
       - v2
 jobs:
   build-linux:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Build php
+        run: cli/build-php.sh
+  build-osx:
+    runs-on: macos-latest-large
+    steps:
+      - uses: actions/checkout@v2
+      - name: build php
         run: cli/build-php.sh
