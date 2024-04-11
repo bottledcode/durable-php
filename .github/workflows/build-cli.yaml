@@ -26,7 +26,14 @@ jobs:
     runs-on: macos-latest-large
     steps:
       - uses: actions/checkout@v2
+      - name: Setup build cache
+        uses: actions/cache@v2
+        with:
+          path: dist/static-php-cli
+          key: ${{runner.os}}-php-${{hashFiles(cli/*.mod)}}
+          restore-keys: ${{runner.os}}-php-
       - name: Build php
         run: cli/build-php.sh
+      - run: ls -lah dist/
       - name: Build cli
         run: cli/build.sh
