@@ -8,13 +8,29 @@ on:
       - v2
 jobs:
   build-linux:
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: [ 'linux/amd64', 'linux/arm64' ]
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
+      - name: Configure QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Configure docker
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
       - name: Build cli
         run: |
           cd cli
           make
+          cd ..
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dphp-${{ runner.os }}
+          path: bin/dphp-*
   build-osx:
     strategy:
       fail-fast: true
