@@ -18,7 +18,7 @@ jobs:
           key: ${{runner.os}}-php-${{hashFiles('cli/*.mod')}}
           restore-keys: ${{runner.os}}-php-
       - name: Build php
-        run: cd cli && ./build-php.sh
+        run: cli/build-php.sh
       - name: Build cli
         run: cd cli && ./build.sh
       - run: ls -lah cli/dist/
@@ -33,7 +33,7 @@ jobs:
           key: ${{runner.os}}-php-${{hashFiles('cli/*.mod')}}
           restore-keys: ${{runner.os}}-php-
       - name: Build php
-        run: cd cli && ./build-php.sh
+        run: cli/build-php.sh
       - name: Build cli
         run: cd cli && ./build.sh
       - run: ls -lah cli/dist/
