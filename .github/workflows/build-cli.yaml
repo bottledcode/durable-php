@@ -45,6 +45,15 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Login to Docker
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+      - name: Calculate version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" == "tag" ]; then
+            export VERSION=${GITHUB_REF_NAME:1}
+          else
+            export VERSION=${GITHUB_SHA}
+          fi
+          
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
@@ -63,6 +72,8 @@ jobs:
           context: ./
           file: Dockerfile
           target: durable-php
+          build-args: |
+            VERSION=${{ env.VERSION }}
           push: true
           pull: true
           tags: ${{ steps.meta.outputs.tags }}
