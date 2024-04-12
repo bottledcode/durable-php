@@ -71,8 +71,6 @@ FROM php:8-zts AS common
 WORKDIR /app
 
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-ARG VERSION=dev
-
 RUN install-php-extensions @composer apcu bcmath bz2 calendar ctype curl dom exif fileinfo filter gmp gd iconv igbinary mbstring opcache openssl pcntl phar posix readline simplexml sockets sodium sysvsem tokenizer uv xml xmlreader xmlwriter zip zlib
 
 FROM common AS builder
@@ -101,6 +99,7 @@ RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
 
 COPY --link cli/ .
 
+ARG VERSION=dev
 ENV CGO_LDFLAGS="-lssl -lcrypto -lreadline -largon2 -lcurl -lonig -lz $PHP_LDFLAGS" CGO_CFLAGS="-DFRANKENPHP_VERSION=$VERSION $PHP_CFLAGS" CGO_CPPFLAGS=$PHP_CPPFLAGS
 ENV GOBIN=/usr/local/bin
 RUN go get durable_php
