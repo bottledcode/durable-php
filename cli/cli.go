@@ -80,7 +80,7 @@ func execute(args []string, options map[string]string) int {
 		panic(err)
 	}
 
-	boostrapNats := false
+	boostrapNats := cfg.Nat.Bootstrap
 
 	if cfg.Nat.Internal {
 		logger.Warn("Running in dev mode, all data will be deleted at the end of this")

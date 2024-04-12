@@ -18,11 +18,12 @@ type BillingUnit struct {
 }
 
 type NatConfig struct {
-	Url      string    `json:"url"`
-	Internal bool      `json:"embeddedServer"`
-	Jwt      string    `json:"jwt,omitempty"`
-	Nkey     string    `json:"nkey,omitempty"`
-	Tls      TlsConfig `json:"tls,omitempty"`
+	Url       string    `json:"url"`
+	Internal  bool      `json:"embeddedServer"`
+	Bootstrap bool      `json:"bootstrap"`
+	Jwt       string    `json:"jwt,omitempty"`
+	Nkey      string    `json:"nkey,omitempty"`
+	Tls       TlsConfig `json:"tls,omitempty"`
 }
 
 type TlsConfig struct {
