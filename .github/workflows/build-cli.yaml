@@ -164,4 +164,4 @@ jobs:
           path: dphp
       - run: |
           ls -lah
-          ./dphp version
+          ls -lah dphp/
