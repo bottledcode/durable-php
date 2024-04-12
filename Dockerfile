@@ -106,6 +106,7 @@ RUN go install -ldflags "-w -s -X 'main.version=$VERSION'"
 
 FROM common AS durable-php
 COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp
-RUN install-php-extensions @composer
+RUN install-php-extensions @composer apcu bcmath bz2 calendar ctype curl dom exif fileinfo filter gmp gd iconv igbinary mbstring opcache openssl pcntl phar posix readline simplexml sockets sodium sysvsem tokenizer uv xml xmlreader xmlwriter zip zlib
+CMD ["dphp"]
 
 WORKDIR /app
