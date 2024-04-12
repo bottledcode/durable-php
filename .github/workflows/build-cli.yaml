@@ -1,4 +1,7 @@
 name: build-cli
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.ref }}-build
 on:
   push:
     tags:
