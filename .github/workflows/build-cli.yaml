@@ -24,7 +24,7 @@ jobs:
       - name: Build cli
         run: |
           cd cli
-          make
+          make PLATFORM=${{ matrix.platform }}
           cd ..
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
