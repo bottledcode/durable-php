@@ -2,7 +2,7 @@ name: build-cli
 on:
   push:
     tags:
-      - *
+      - '*'
     branches:
       - v2
   pull_request:
