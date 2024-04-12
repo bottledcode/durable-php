@@ -108,6 +108,6 @@ RUN go install -ldflags "-w -s -X 'main.version=$VERSION'"
 
 FROM common AS durable-php
 COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp
-CMD ["dphp"]
+ENTRYPOINT ["dphp"]
 
 WORKDIR /app
