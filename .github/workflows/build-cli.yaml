@@ -47,8 +47,6 @@ jobs:
         with:
           name: dphp-${{ runner.os }}-${{ matrix.platform }}
           path: bin/dphp
-          upload-release-files: ${{ startsWith(github.ref, 'refs/tags/') && true || false }}
-          release-upload-url: ${{ steps.get_release.outputs.upload_url }}
   build-docker:
     runs-on: self-hosted
     steps:
@@ -143,5 +141,3 @@ jobs:
         with:
           name: dphp-${{ runner.os }}-${{ matrix.platform }}
           path: cli/dist/dphp
-          upload-release-files: ${{ startsWith(github.ref, 'refs/tags/') && true || false }}
-          release-upload-url: ${{ steps.get_release.outputs.upload_url }}
