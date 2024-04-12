@@ -149,6 +149,7 @@ jobs:
     name: Performance Tests
     needs:
       - build-docker
+      - build-linux
     runs-on: self-hosted
     services:
       dphp:
