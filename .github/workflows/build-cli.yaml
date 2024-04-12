@@ -9,7 +9,7 @@ on:
 jobs:
   build-linux:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         platform: [ 'amd64', 'arm64' ]
     runs-on: self-hosted
