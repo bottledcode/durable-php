@@ -36,7 +36,10 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Transmutation\Router;
+use Closure;
+use JsonException;
 use Psr\Container\ContainerInterface;
+use Throwable;
 
 require_once __DIR__ . '/Glue/autoload.php';
 
@@ -97,11 +100,13 @@ class Task
                         break;
                     }
                     $this->fire($eventOrCallable);
-                } elseif ($eventOrCallable instanceof \Closure) {
+                } elseif ($eventOrCallable instanceof Closure) {
                     $eventOrCallable($this);
+                } elseif ($eventOrCallable === 'delete') {
+                    $this->glue->outputDelete();
                 }
             }
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->emitError(
                 500,
                 'Failed to process',
@@ -113,7 +118,7 @@ class Task
         $state->ackedEvent($event->event);
         try {
             $this->commit($state);
-        } catch (\JsonException $e) {
+        } catch (JsonException $e) {
             $this->emitError(500, 'json encoding error when committing state', ['exception' => $e]);
         }
 

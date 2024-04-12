@@ -1,0 +1,124 @@
+name: build-cli
+on:
+  push:
+    branches:
+      - v2
+  pull_request:
+    branches:
+      - v2
+jobs:
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ 'amd64', 'arm64' ]
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: Configure QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Configure docker
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
+      - name: Expose GitHub Runtime
+        uses: crazy-max/ghaction-github-runtime@v3
+      - name: Build sources
+        run: |
+          docker buildx build --cache-to type=gha,mode=max,scope=${{ matrix.platform }} --cache-from type=gha,scope=${{ matrix.platform }} --pull --load --platform linux/${{ matrix.platform }} --target cli-base-alpine -t builder .
+      - name: Copy build
+        run: |
+          docker create --name builder builder
+          docker cp builder:/go/src/app/cli/dist/dphp bin/dphp
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dphp-${{ runner.os }}-${{ matrix.platform }}
+          path: bin/dphp
+  build-docker:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: Configure QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Configure docker
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+      - name: Calculate version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" == "tag" ]; then
+            export VERSION=${GITHUB_REF_NAME:1}
+          else
+            export VERSION=${GITHUB_SHA}
+          fi
+          
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/durable-php/runtime
+          tags: |
+            type=schedule,pattern=latest
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+      - name: Build
+        uses: docker/build-push-action@v3
+        with:
+          context: ./
+          file: Dockerfile
+          target: durable-php
+          build-args: |
+            VERSION=${{ env.VERSION }}
+          push: true
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,mode=max,scope=image
+          platforms: linux/amd64,linux/arm64
+  build-osx:
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: [ 'arm64', 'x86_64' ]
+    runs-on: ${{ matrix.platform == 'arm64' && 'macos-14' || 'macos-13' }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.22'
+      - name: Configure Version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" == "tag" ]; then
+            export VERSION=${GITHUB_REF_NAME:1}
+          else
+            export VERSION=${GITHUB_SHA}
+          fi
+
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+      - name: Configure cache
+        uses: actions/cache@v4
+        with:
+          path: dist
+          key: ${{ matrix.platform }}-${{ hashFiles('cli/*.mod') }}
+      - name: Run doctor
+        run: BUILD=no cli/build-php.sh
+      - name: Build php
+        run: cli/build-php.sh
+      - name: Build cli
+        run: cd cli && ./build.sh
+      - run: ls -lah cli/dist/
+      - run: ls -lah dist/ || true
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dphp-${{ runner.os }}-${{ matrix.platform }}
+          path: cli/dist/dphp

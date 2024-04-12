@@ -30,10 +30,17 @@ use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Serializer;
+use Closure;
+use DateTimeImmutable;
+use Exception;
+use Generator;
+use Override;
+use ReflectionFunction;
+use Throwable;
 
 class RemoteEntityClient implements EntityClientInterface
 {
-    private string $userToken = "";
+    private string $userToken = '';
 
     public function __construct(
         private string $apiHost = 'http://localhost:8080',
@@ -43,11 +50,11 @@ class RemoteEntityClient implements EntityClientInterface
         $this->apiHost = rtrim($this->apiHost, '/');
     }
 
-    #[\Override]
+    #[Override]
     public function cleanEntityStorage(): void {}
 
-    #[\Override]
-    public function listEntities(EntityFilter $filter, int $page): \Generator
+    #[Override]
+    public function listEntities(EntityFilter $filter, int $page): Generator
     {
         $req = new Request($this->apiHost . '/entities/filter/' . $page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
         if ($this->userToken) {
@@ -58,13 +65,13 @@ class RemoteEntityClient implements EntityClientInterface
         yield from $result;
     }
 
-    #[\Override]
-    public function signal(EntityId|string $entityId, \Closure $signal): void
+    #[Override]
+    public function signal(EntityId|string $entityId, Closure $signal): void
     {
-        $interfaceReflector = new \ReflectionFunction($signal);
+        $interfaceReflector = new ReflectionFunction($signal);
         $interfaceName = $interfaceReflector->getParameters()[0]->getType()?->getName();
-        if(interface_exists($interfaceName) === false) {
-            throw new \Exception("Interface $interfaceName does not exist");
+        if (interface_exists($interfaceName) === false) {
+            throw new Exception("Interface $interfaceName does not exist");
         }
         $spy = $this->spyProxy->define($interfaceName);
         $operationName = '';
@@ -72,41 +79,41 @@ class RemoteEntityClient implements EntityClientInterface
         try {
             $class = new $spy($operationName, $arguments);
             $signal($class);
-        } catch(\Throwable) {
+        } catch (Throwable) {
             // spies always throw
         }
         $this->signalEntity(is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments);
     }
 
-    #[\Override]
+    #[Override]
     public function signalEntity(
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        ?\DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null
     ): void {
         $name = rawurlencode($entityId->name);
         $id = rawurlencode($entityId->id);
 
         $input = [
             'signal' => $operationName,
-            'input' => SerializedArray::fromArray($input)
+            'input' => SerializedArray::fromArray($input),
         ];
 
         $req = new Request("{$this->apiHost}/entity/{$name}/{$id}   ", 'PUT', json_encode($input, JSON_THROW_ON_ERROR));
-        if($scheduledTime) {
-            $req->setHeader("At", $scheduledTime->format(DATE_ATOM));
+        if ($scheduledTime) {
+            $req->setHeader('At', $scheduledTime->format(DATE_ATOM));
         }
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
-        if($result->getStatus() >= 300) {
-            throw new \Exception("error calling " . $req->getUri()->getPath() . "\n" . $result->getBody()->read());
+        if ($result->getStatus() >= 300) {
+            throw new Exception('error calling ' . $req->getUri()->getPath() . "\n" . $result->getBody()->read());
         }
     }
 
-    #[\Override]
+    #[Override]
     public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState
     {
         $req = new Request($this->apiHost . '/entity/' . $entityId->name . '/' . $entityId->id);
@@ -123,8 +130,23 @@ class RemoteEntityClient implements EntityClientInterface
         return Serializer::deserialize($result, EntityState::class);
     }
 
-    #[\Override] public function withAuth(string $token): void
+    #[Override]
+    public function withAuth(string $token): void
     {
         $this->userToken = $token;
+    }
+
+    #[Override]
+    public function deleteEntity(EntityId $entityId): void
+    {
+        $req = new Request("$this->apiHost/entity/{$entityId->name}/{$entityId->id}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+
+        if ($result->getStatus() !== 204) {
+            throw new Exception('Failed to delete entity');
+        }
     }
 }

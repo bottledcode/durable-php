@@ -44,7 +44,9 @@ use Bottledcode\DurablePhp\State\Attributes\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Generator;
+use Override;
 use ReflectionClass;
+use ReflectionException;
 use ReflectionNamedType;
 
 class EntityHistory extends AbstractHistory
@@ -54,13 +56,18 @@ class EntityHistory extends AbstractHistory
     public EntityId $entityId;
 
     public string $name;
+
     public array $history = [];
-    public string|null $lock;
+
+    public ?string $lock;
+
     private bool $debugHistory = false;
-    private EntityState|null $state = null;
+
+    private ?EntityState $state = null;
+
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, #[Field(exclude: true)] public DurableLogger|null $logger = null)
+    public function __construct(public StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger = null)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -77,7 +84,7 @@ class EntityHistory extends AbstractHistory
         unset($this->history[$event->eventId]);
     }
 
-    public function getState(): EntityState|null
+    public function getState(): ?EntityState
     {
         return $this->state;
     }
@@ -189,20 +196,21 @@ class EntityHistory extends AbstractHistory
             }
             try {
                 $operationReflection = $reflector->getMethod($operation);
-            } catch(\ReflectionException) {
+            } catch (ReflectionException) {
                 // search attributes for matching operation
-                foreach($reflector->getMethods() as $method) {
-                    foreach($method->getAttributes(Operation::class) as $attribute) {
+                foreach ($reflector->getMethods() as $method) {
+                    foreach ($method->getAttributes(Operation::class) as $attribute) {
                         /** @var Operation $attributeClass */
                         $attributeClass = $attribute->newInstance();
 
-                        if($attributeClass->name === $operation) {
+                        if ($attributeClass->name === $operation) {
                             $operationReflection = $reflector->getMethod($attributeClass->name);
                             goto done;
                         }
                     }
                 }
                 $this->logger->critical('Unknown operation', ['operation' => $operation]);
+
                 return;
             }
             done:
@@ -210,13 +218,21 @@ class EntityHistory extends AbstractHistory
             try {
                 $result = $operationReflection->getClosure($this->state);
                 $result = $result(...$input);
-            } catch (Unwind) {
+            } catch (Unwind $e) {
+                if ($e->getMessage() === 'delete') {
+                    yield 'delete';
+                }
+
                 return;
             }
         } elseif (is_callable($this->name)) {
             try {
                 $result = ($this->name)($context);
-            } catch (Unwind) {
+            } catch (Unwind $e) {
+                if ($e->getMessage() === 'delete') {
+                    yield 'delete';
+                }
+
                 return;
             }
         }
@@ -263,8 +279,10 @@ class EntityHistory extends AbstractHistory
         if ($this->isLocked($original)) {
             // queue the event
             $this->lockQueue['_']['events'][] = $original;
+
             return true;
         }
+
         return false;
     }
 
@@ -279,6 +297,7 @@ class EntityHistory extends AbstractHistory
             }
             $original = $original->getInnerEvent();
         }
+
         return true;
     }
 
@@ -300,7 +319,8 @@ class EntityHistory extends AbstractHistory
         yield from $this->finalize($event);
     }
 
-    #[\Override] public function setLogger(DurableLogger $logger): void
+    #[Override]
+    public function setLogger(DurableLogger $logger): void
     {
         $this->logger = $logger;
     }

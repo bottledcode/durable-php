@@ -176,7 +176,7 @@ func (r *Resource) getOrCreatePermissions(id *glue.StateId, ctx context.Context,
 
 		glu := glue.NewGlue(ctx.Value("bootstrap").(string), glue.GetPermissions, make([]any, 0), result.Name())
 		env := map[string]string{"STATE_ID": id.String()}
-		_, headers, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
+		_, headers, _, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
 		data := headers.Get("Permissions")
 		if err = json.Unmarshal([]byte(data), &perms); err != nil {
 			return perms, err
