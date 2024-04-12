@@ -6,6 +6,7 @@ on:
   release:
     types:
       - created
+  push:
     branches:
       - v2
   pull_request:
