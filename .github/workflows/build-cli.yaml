@@ -29,12 +29,12 @@ jobs:
       - name: Copy build
         run: |
           docker create --name builder builder
-          docker cp builder:/go/src/app/cli/dist/dphp-* bin/
+          docker cp builder:/go/src/app/cli/dist/dphp bin/dphp
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dphp-${{ runner.os }}-${{ matrix.platform }}
-          path: bin/dphp-*
+          path: bin/dphp
   build-osx:
     strategy:
       fail-fast: true
@@ -67,4 +67,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dphp-${{ runner.os }}-${{ matrix.platfom }}
-          path: cli/dist/dphp-*
+          path: cli/dist/dphp
