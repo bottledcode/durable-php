@@ -25,7 +25,7 @@ jobs:
         uses: crazy-max/ghaction-github-runtime@v3
       - name: Build sources
         run: |
-          docker buildx build --cache-to type=gha --cache-from type=gha --pull --load --platform linux/${{ matrix.platform }} --target cli-base-alpine -t builder .
+          docker buildx build --cache-to type=gha,mode=max,scope=${{ matrix.platform }} --cache-from type=gha,scope=${{ matrix.platform }} --pull --load --platform linux/${{ matrix.platform }} --target cli-base-alpine -t builder .
       - name: Copy build
         run: |
           docker create --name builder builder
@@ -68,8 +68,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           builder: ${{ steps.buildx.outputs.name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,mode=max,scope=image
           platforms: linux/amd64,linux/arm64
   build-osx:
     strategy:
