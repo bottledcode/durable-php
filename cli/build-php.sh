@@ -73,6 +73,7 @@ fi
 # Build libphp if necessary
 if [ -f "dist/static-php-cli/buildroot/lib/libphp.a" ]; then
   cd dist/static-php-cli
+  ./bin/spc doctor
 else
   mkdir -p dist/
   cd dist/
