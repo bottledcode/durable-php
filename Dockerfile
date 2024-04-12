@@ -112,3 +112,7 @@ COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp
 ENTRYPOINT ["dphp"]
 
 WORKDIR /app
+
+FROM durable-php AS test
+COPY . .
+CMD ["--bootstrap=tests/PerformanceTests/bootstrap.php"]

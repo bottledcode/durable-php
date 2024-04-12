@@ -104,6 +104,19 @@ jobs:
           cache-from: type=gha,scope=image
           cache-to: type=gha,mode=max,scope=image
           platforms: linux/amd64,linux/arm64
+      - name: Build Test Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./
+          file: Dockerfile
+          target: test
+          push: true
+          pull: true
+          tags: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha,scope=image
+          platforms: linux/amd64
   build-osx:
     strategy:
       fail-fast: true
@@ -153,9 +166,11 @@ jobs:
     runs-on: self-hosted
     services:
       dphp:
-        image: ${{ needs.build-docker.outputs.image }}
+        image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
         ports:
           - 8080
+        volumes:
+          - ${{ github.workspace }}:/app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -163,5 +178,4 @@ jobs:
           name: dphp-Linux-amd64
           path: dphp
       - run: |
-          ls -lah
-          ls -lah dphp/
+          dphp/dphp exec tests/PerformanceTests/PerformanceClient.php > OUTPUT
