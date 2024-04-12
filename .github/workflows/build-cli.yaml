@@ -24,6 +24,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Get release
         id: get_release
+        continue-on-error: true
         uses: bruceadams/get-release@v1.3.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -106,6 +107,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Get release
         id: get_release
+        continue-on-error: true
         uses: bruceadams/get-release@v1.3.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
