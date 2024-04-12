@@ -8,7 +8,7 @@ on:
       - v2
 jobs:
   unit-tests-go:
-    name: Unit Tests
+    name: Unit Tests - Go
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
           cd cli
           go test -race
   unit-tests-php:
-    name: Unit Tests
+    name: Unit Tests - PHP
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
