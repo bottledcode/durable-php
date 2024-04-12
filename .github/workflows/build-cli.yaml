@@ -46,6 +46,7 @@ jobs:
       - name: Login to Docker
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
       - name: Docker meta
+        id: meta
         uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ github.repository_owner }}/durable-php/runtime
