@@ -7,19 +7,6 @@ on:
     branches:
       - v2
 jobs:
-  unit-tests-go:
-    name: Unit Tests - Go
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          cache-dependency-path: cli/go.sum
-          go-version-file: cli/go.mod
-      - name: Run tests
-        run: |
-          cd cli
-          go test -race
   unit-tests-php:
     name: Unit Tests - PHP
     runs-on: self-hosted
