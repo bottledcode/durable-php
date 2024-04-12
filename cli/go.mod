@@ -6,7 +6,7 @@ require github.com/dunglas/frankenphp v1.1.3-0.20240411151147-a910e39b0637
 
 require github.com/nats-io/nats.go v1.34.1
 
-require github.com/nats-io/nats-server/v2 v2.10.12
+require github.com/nats-io/nats-server/v2 v2.10.14
 
 require github.com/teris-io/cli v1.0.1
 
