@@ -179,8 +179,11 @@ jobs:
       - run: |
           dphp composer install
       - run: |
+          echo "Running perf test"
           dphp exec tests/PerformanceTests/PerformanceClient.php
+          echo "Running fan out/in test"
           dphp exec tests/PerformanceTests/FanOutFanInClient.php
+          echo "Running seq test"
           dphp exec tests/PerformanceTests/SequenceClient.php
       - uses: peter-evans/find-comment@v3
         id: fc
