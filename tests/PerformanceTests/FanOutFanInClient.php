@@ -29,7 +29,7 @@ use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$client = DurableClient::get();
+$client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
 $logger = new DurableLogger();
 
 $watch = new StopWatch();

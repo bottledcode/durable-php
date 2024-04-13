@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -23,20 +23,18 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
-use Bottledcode\DurablePhp\Config\Config;
-use Bottledcode\DurablePhp\Logger;
-use Bottledcode\DurablePhp\OrchestrationClient;
+use Bottledcode\DurablePhp\DurableClient;
+use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$config = Config::fromArgs($argv);
-$client = new OrchestrationClient($config, SourceFactory::fromConfig($config));
+$client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
+$logger = new DurableLogger();
 
 $watch = new StopWatch();
 $sequence = [];
-for ($i = 0; $i < (getenv('ACTIVITY_COUNT') ?: 10); $i++) {
+for ($i = 0; $i < (getenv('ACTIVITY_COUNT') ?: 500); $i++) {
     $sequence[] = $i;
 }
 $watch->start();
@@ -44,7 +42,4 @@ $instance = $client->startNew(Sequence::class, $sequence);
 $client->waitForCompletion($instance);
 $watch->stop();
 
-var_dump($client->getStatus($instance));
-var_dump($instance);
-
-Logger::log("Completed in %s seconds", number_format($watch->getSeconds(), 2));
+$logger->alert(sprintf('Completed in %s seconds', number_format($watch->getSeconds(), 2)));

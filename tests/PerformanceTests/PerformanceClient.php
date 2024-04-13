@@ -38,7 +38,7 @@ use function Amp\Future\await;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$client = DurableClient::get();
+$client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
 //$client->withAuth("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MTEwNTg2NjAsImlhdCI6MTcxMDc5OTE2MCwicm9sZXMiOlsidXNlciJdLCJzdWIiOiJyb2IifQ.pxnULi-osLhrmb9XypwmzcTpQCYmZuzwW0rPE_Tvv_I");
 $logger = new DurableLogger();
 
@@ -59,7 +59,7 @@ delay(1);
 $ids = array_keys(array_fill(0, $numberToLaunch * $numberLaunchers, true));
 $ids = array_chunk($ids, 100);
 
-foreach($ids as $num => $chunk) {
+foreach ($ids as $num => $chunk) {
     $getters = array_map(static fn($id) => async(fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
     $logger->alert(sprintf('Waiting for chunk %d of %d', $num, count($ids)));
     await($getters);
@@ -67,4 +67,4 @@ foreach($ids as $num => $chunk) {
 
 $watch->stop();
 
-$logger->alert(sprintf("Completed in %s seconds", number_format($watch->getSeconds(), 3)));
+$logger->alert(sprintf('Completed in %s seconds', number_format($watch->getSeconds(), 3)));
