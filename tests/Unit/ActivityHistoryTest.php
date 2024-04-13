@@ -46,7 +46,7 @@ test('exampleaa', function () {
     expect(true)->toBeTrue();
 });
 
-it('fails on an exception', function () {
+it('real: fails on an exception', function () {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()));
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),

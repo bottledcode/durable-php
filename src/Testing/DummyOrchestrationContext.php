@@ -66,7 +66,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     private array $events;
 
-    public function __construct(public object $orchestration, private array $input)
+    public function __construct(public mixed $orchestration, private array $input)
     {
         $this->status = new Status(new DateTimeImmutable(), '', SerializedArray::fromArray($input), StateId::fromInstance(new OrchestrationInstance('test', 'test')), new DateTimeImmutable(), null, RuntimeStatus::Running);
     }
