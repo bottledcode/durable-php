@@ -182,6 +182,7 @@ jobs:
       - run: chmod +x dphp/dphp
       - run: |
           dphp/dphp composer install
+      - run: |
           dphp/dphp exec tests/PerformanceTests/PerformanceClient.php
   sequence-test:
     name: Sequence Test
@@ -207,6 +208,7 @@ jobs:
       - run: chmod +x dphp/dphp
       - run: |
           dphp/dphp composer install
+      - run: |
           dphp/dphp exec tests/PerformanceTests/SequenceClient.php
   fanout-tests:
     name: Fan Out/In Test
@@ -222,7 +224,7 @@ jobs:
         volumes:
           - ${{ github.workspace }}:/app
     env:
-      DPHP_HOST: http://dphp:8080
+      DPHP_HOST: http://localhost:8080
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -232,4 +234,5 @@ jobs:
       - run: chmod +x dphp/dphp
       - run: |
           dphp/dphp composer install
+      - run: |
           dphp/dphp exec tests/PerformanceTests/FanOutFanInClient.php
