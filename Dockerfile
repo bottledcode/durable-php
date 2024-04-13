@@ -115,4 +115,4 @@ WORKDIR /app
 
 FROM durable-php AS test
 COPY . .
-CMD ["--bootstrap=tests/PerformanceTests/bootstrap.php"]
+CMD ["--bootstrap=tests/PerformanceTests/bootstrap.php","--port=8080"]
