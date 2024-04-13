@@ -24,8 +24,10 @@
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
 use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
+#[AllowCreateAll]
 class FanOutFanIn
 {
     public function __invoke(OrchestrationContextInterface $context)

@@ -179,4 +179,5 @@ jobs:
           path: dphp
       - run: chmod +x dphp/dphp
       - run: |
+          dphp/dphp composer install
           dphp/dphp exec tests/PerformanceTests/PerformanceClient.php

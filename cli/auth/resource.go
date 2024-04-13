@@ -210,7 +210,7 @@ func (r *Resource) isUserPermitted(perms CreatePermissions, ctx context.Context)
 }
 
 func (r *Resource) isUserExplicitlyPermitted(perms CreatePermissions, ctx context.Context) bool {
-	if user := ctx.Value(appcontext.CurrentUserKey).(*User); user != nil {
+	if user, ok := ctx.Value(appcontext.CurrentUserKey).(*User); ok {
 		if slices.Contains(perms.Users, user.UserId) {
 			return true
 		}

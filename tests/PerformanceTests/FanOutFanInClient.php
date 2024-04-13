@@ -23,29 +23,22 @@
 
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
-use Bottledcode\DurablePhp\Abstractions\BeanstalkEventSource;
-use Bottledcode\DurablePhp\Abstractions\RethinkDbProjector;
 use Bottledcode\DurablePhp\DurableClient;
 use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\EntityClient;
-use Bottledcode\DurablePhp\OrchestrationClient;
-use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$queue = new BeanstalkEventSource();
-$projector = new RethinkDbProjector();
-$client = new DurableClient(new EntityClient(new SpyProxy(), $projector, $queue), new OrchestrationClient($queue, $projector));
+$client = DurableClient::get();
 $logger = new DurableLogger();
 
 $watch = new StopWatch();
 $watch->start();
-$instance = $client->startNew(FanOutFanIn::class, ['count' => getenv('ACTIVITY_COUNT') ?: 10]);
+$instance = $client->startNew(FanOutFanIn::class, ['count' => getenv('ACTIVITY_COUNT') ?: 5000]);
 $client->waitForCompletion($instance);
 $watch->stop();
 
 var_dump($client->getStatus($instance));
 var_dump($instance);
 
-$logger->alert(sprintf("Completed in %s seconds", number_format($watch->getSeconds(), 2)));
+$logger->alert(sprintf('Completed in %s seconds', number_format($watch->getSeconds(), 2)));

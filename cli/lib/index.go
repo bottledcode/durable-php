@@ -21,9 +21,6 @@ func CreateEntityIndex(ctx context.Context, client *typesense.Client, config *co
 				Name: "name", Type: "string", Facet: pointer.True(),
 			},
 			{
-				Name: "id", Type: "string",
-			},
-			{
 				Name: ".*", Type: "auto",
 			},
 			{
@@ -55,9 +52,6 @@ func CreateOrchestrationIndex(ctx context.Context, client *typesense.Client, con
 				Name: "instance_id", Type: "string", Facet: pointer.True(),
 			},
 			{
-				Name: "id", Type: "string",
-			},
-			{
 				Name: "created_at", Type: "string",
 			},
 			{
@@ -72,6 +66,9 @@ func CreateOrchestrationIndex(ctx context.Context, client *typesense.Client, con
 		},
 		Name: config.Stream + "_orchestrations",
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
