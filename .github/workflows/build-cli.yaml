@@ -177,6 +177,6 @@ jobs:
         with:
           name: dphp-Linux-amd64
           path: dphp
+      - run: chmod +x dphp/dphp
       - run: |
-          chmod +x dphp/dphp
-          dphp/dphp exec tests/PerformanceTests/PerformanceClient.php > OUTPUT
+          dphp/dphp exec tests/PerformanceTests/PerformanceClient.php
