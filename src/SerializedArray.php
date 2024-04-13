@@ -24,6 +24,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\State\Serializer;
+use Throwable;
 
 final readonly class SerializedArray
 {
@@ -31,13 +32,14 @@ final readonly class SerializedArray
 
     /**
      * Convert a regular array to a serialized array
-     *
-     * @param array $array
-     * @return SerializedArray
      */
     public static function fromArray(array $array): SerializedArray
     {
         $source = array_map(static function (mixed $x) {
+            if ($x instanceof Throwable) {
+                return (array) $x;
+            }
+
             if (is_object($x)) {
                 return Serializer::serialize($x);
             }
@@ -70,12 +72,13 @@ final readonly class SerializedArray
 
     /**
      * Import a serialized array
-     *
-     * @param array $source
-     * @return SerializedArray
      */
     public static function import(array $source): SerializedArray
     {
+        if (empty($source)) {
+            return new self([], [], []);
+        }
+
         return new self($source['source'], $source['types'], $source['keys']);
     }
 }

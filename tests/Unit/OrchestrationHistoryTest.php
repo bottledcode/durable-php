@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
@@ -49,7 +50,7 @@ class SerializedType
 
 it('can handle oop orchestration', function () {
     $orchestration = new class (null) {
-        public function __construct(private OrchestrationContextInterface|null $orchestrationContext) {}
+        public function __construct(private ?OrchestrationContextInterface $orchestrationContext) {}
 
         #[EntryPoint]
         public function entry(string $test, SerializedType $type): string
@@ -58,7 +59,7 @@ it('can handle oop orchestration', function () {
         }
     };
 
-    $instance = getOrchestration(id: 'test', orchestration: $orchestration, input: ['test' => 'hello world', 'type' => Serializer::serialize(new SerializedType("test"))], nextEvent: $nextEvent);
+    $instance = getOrchestration(id: 'test', orchestration: $orchestration, input: ['test' => 'hello world', 'type' => Serializer::serialize(new SerializedType('test'))], nextEvent: $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
@@ -83,6 +84,7 @@ it('properly delays when using timers', function () {
         $interval = $context->createInterval(hours: 1);
         $timeout = $context->createTimer($start->add($interval));
         $context->waitOne($timeout);
+
         return true;
     }, [], $nextEvent);
     $timer = processEvent($nextEvent, $instance->applyStartOrchestration(...));
@@ -101,6 +103,7 @@ it('can wait for a signal after starting', function () {
             $waiter[] = $context->waitForExternalEvent('test');
         }
         $context->waitAll(...$waiter);
+
         return true;
     }, [], $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
@@ -108,7 +111,7 @@ it('can wait for a signal after starting', function () {
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
-        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])),
+        WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', SerializedArray::fromArray([])->toArray())),
         $instance->applyRaiseEvent(...)
     );
     $instance->resetState();

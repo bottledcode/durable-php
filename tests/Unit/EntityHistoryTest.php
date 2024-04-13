@@ -21,7 +21,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\Unit;
+//namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
