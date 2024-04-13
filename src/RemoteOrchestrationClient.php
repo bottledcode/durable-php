@@ -86,7 +86,11 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
-        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
+        $body = '';
+        while ($result->getBody()->isReadable()) {
+            $body .= $result->getBody()->read();
+        }
+        $result = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
 
         return Serializer::deserialize($result, Status::class);
     }

@@ -7,8 +7,8 @@ on:
     branches:
       - v2
 jobs:
-  unit-tests:
-    name: Unit Tests
+  unit-tests-php:
+    name: Unit Tests - PHP
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4

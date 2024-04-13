@@ -47,13 +47,19 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\Task;
 use Crell\Serde\Attributes\Field;
 use Crell\Serde\Attributes\SequenceField;
+use DateTimeImmutable;
+use Generator;
+use Override;
+use ReflectionClass;
+use RuntimeException;
+use Throwable;
 
 class OrchestrationHistory extends AbstractHistory
 {
-    use ParameterFillerTrait;
     use EntrypointLocatorTrait;
+    use ParameterFillerTrait;
 
-    public \DateTimeImmutable $now;
+    public DateTimeImmutable $now;
 
     public string $name;
 
@@ -63,7 +69,7 @@ class OrchestrationHistory extends AbstractHistory
 
     public OrchestrationInstance $instance;
 
-    public OrchestrationInstance|null $parentInstance;
+    public ?OrchestrationInstance $parentInstance;
 
     public HistoricalStateTracker $historicalTaskResults;
 
@@ -76,11 +82,13 @@ class OrchestrationHistory extends AbstractHistory
      */
     #[SequenceField(StateId::class)]
     public array $locks = [];
+
     private bool $debugHistory = false;
+
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public DurableLogger|null $logger = null)
+    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger = null)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -91,10 +99,9 @@ class OrchestrationHistory extends AbstractHistory
      * that is applied to the history. The next phase is to actually run the
      * orchestration now that we've set up the history.
      *
-     * @param StartExecution $event
      * @return array
      */
-    public function applyStartExecution(StartExecution $event, Event $original): \Generator
+    public function applyStartExecution(StartExecution $event, Event $original): Generator
     {
         if ($this->isFinished()) {
             return;
@@ -123,7 +130,7 @@ class OrchestrationHistory extends AbstractHistory
         yield from $this->finalize($event);
     }
 
-    private function finalize(Event $event): \Generator
+    private function finalize(Event $event): Generator
     {
         $this->addEventToHistory($event);
         ($this->status?->with(lastUpdated: MonotonicClock::current()->now())) ?? $this->status = new Status(
@@ -147,7 +154,7 @@ class OrchestrationHistory extends AbstractHistory
         $this->history = array_filter($this->history, static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value);
     }
 
-    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): Generator
     {
         if ($this->isFinished()) {
             return;
@@ -161,15 +168,8 @@ class OrchestrationHistory extends AbstractHistory
         yield from $this->construct();
     }
 
-    private function construct(): \Generator
+    private function construct(): Generator
     {
-        try {
-            $class = new \ReflectionClass($this->instance->instanceId);
-        } catch (\ReflectionException) {
-            // we should handle this more gracefully...
-            $this->logger->warning('unable to reflect on instance', [$this->instance->instanceId]);
-        }
-
         $proxyGenerator = $this->container->get(OrchestratorProxy::class);
         $spyGenerator = $this->container->get(SpyProxy::class);
 
@@ -180,12 +180,12 @@ class OrchestrationHistory extends AbstractHistory
 
         $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $this->logger);
 
-        if(method_exists($this->container, 'set')) {
+        if (method_exists($this->container, 'set')) {
             $this->container->set(OrchestrationContext::class, $context);
             $this->container->set(OrchestrationContextInterface::class, $context);
         }
 
-        if(!is_callable($this->instance->instanceId)) {
+        if (! is_callable($this->instance->instanceId)) {
             $this->constructed = $this->container->get($this->instance->instanceId);
         } else {
             $this->constructed = $this->instance->instanceId;
@@ -193,11 +193,11 @@ class OrchestrationHistory extends AbstractHistory
 
         try {
             try {
-                if(is_callable($this->constructed)) {
+                if (is_callable($this->constructed)) {
                     $result = ($this->constructed)($context);
-                } elseif(is_object($this->constructed)) {
-                    $reflection = new \ReflectionClass($this->constructed);
-                    $entrypoint = $this->locateEntrypoint($reflection) ?? throw new \RuntimeException('Missing entrypoint for ' . $this->instance->instanceId);
+                } elseif (is_object($this->constructed)) {
+                    $reflection = new ReflectionClass($this->constructed);
+                    $entrypoint = $this->locateEntrypoint($reflection) ?? throw new RuntimeException('Missing entrypoint for ' . $this->instance->instanceId);
                     $arguments = $this->fillParameters($context->getInput(), $entrypoint);
                     $result = ($entrypoint->getClosure($this->constructed))(...$arguments);
                 }
@@ -212,7 +212,7 @@ class OrchestrationHistory extends AbstractHistory
                 output: SerializedArray::fromArray([$result ?? null]),
             );
             $completion = TaskCompleted::forId(StateId::fromInstance($this->instance), $result);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->critical('Failed to process orchestration', ['exception' => $e]);
             $this->status = $this->status->with(
                 runtimeStatus: RuntimeStatus::Failed,
@@ -225,7 +225,7 @@ class OrchestrationHistory extends AbstractHistory
                 $e::class
             );
         } finally {
-            if (!$this->isRunning()) {
+            if (! $this->isRunning()) {
                 // ok, we now need to release all of the locks that we have
                 yield from $this->releaseAllLocks();
             }
@@ -242,7 +242,7 @@ class OrchestrationHistory extends AbstractHistory
         yield $completion;
     }
 
-    public function releaseAllLocks(): \Generator
+    public function releaseAllLocks(): Generator
     {
         foreach ($this->locks as $lock) {
             yield WithLock::onEntity(
@@ -252,7 +252,7 @@ class OrchestrationHistory extends AbstractHistory
         }
     }
 
-    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): Generator
     {
         if ($this->isFinished()) {
             return;
@@ -265,7 +265,7 @@ class OrchestrationHistory extends AbstractHistory
         yield from $this->construct();
     }
 
-    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+    public function applyTaskFailed(TaskFailed $event, Event $original): Generator
     {
         if ($this->isFinished()) {
             return;
@@ -278,7 +278,7 @@ class OrchestrationHistory extends AbstractHistory
         yield from $this->construct();
     }
 
-    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): Generator
     {
         yield from $this->finalize($event);
 
@@ -304,7 +304,7 @@ class OrchestrationHistory extends AbstractHistory
         }
     }
 
-    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): Generator
     {
         if ($this->isFinished()) {
             return;
@@ -330,7 +330,7 @@ class OrchestrationHistory extends AbstractHistory
     {
         $this->historicalTaskResults->restartAsNew();
         $this->status = $this->status->with(input: $args, runtimeStatus: RuntimeStatus::ContinuedAsNew);
-        ++$this->version;
+        $this->version++;
     }
 
     public function ackedEvent(Event $event): void
@@ -338,7 +338,8 @@ class OrchestrationHistory extends AbstractHistory
         unset($this->history[$event->eventId]);
     }
 
-    #[\Override] public function setLogger(DurableLogger $logger): void
+    #[Override]
+    public function setLogger(DurableLogger $logger): void
     {
         $this->logger = $logger;
     }

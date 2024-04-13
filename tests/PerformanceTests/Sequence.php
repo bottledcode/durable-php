@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -24,8 +24,10 @@
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
 
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
 use Bottledcode\DurablePhp\Tests\Common\SayHello;
 
+#[AllowCreateAll]
 class Sequence
 {
     public function __invoke(OrchestrationContextInterface $context)

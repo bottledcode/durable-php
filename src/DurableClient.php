@@ -29,8 +29,10 @@ use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Status;
+use Closure;
 use DateTimeImmutable;
 use Generator;
+use Override;
 
 final readonly class DurableClient implements DurableClientInterface
 {
@@ -123,14 +125,20 @@ final readonly class DurableClient implements DurableClientInterface
         return $this->entityClient->getEntitySnapshot($entityId, $type);
     }
 
-    public function signal(EntityId|string $entityId, \Closure $signal): void
+    public function signal(EntityId|string $entityId, Closure $signal): void
     {
         $this->entityClient->signal($entityId, $signal);
     }
 
-    #[\Override] public function withAuth(string $token): void
+    #[Override]
+    public function withAuth(string $token): void
     {
         $this->orchestrationClient->withAuth($token);
         $this->entityClient->withAuth($token);
+    }
+
+    public function deleteEntity(EntityId $entityId): void
+    {
+        $this->entityClient->deleteEntity($entityId);
     }
 }

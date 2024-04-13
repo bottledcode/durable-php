@@ -48,6 +48,8 @@ jobs:
           path: bin/dphp
   build-docker:
     runs-on: self-hosted
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
@@ -102,6 +104,19 @@ jobs:
           cache-from: type=gha,scope=image
           cache-to: type=gha,mode=max,scope=image
           platforms: linux/amd64,linux/arm64
+      - name: Build Test Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./
+          file: Dockerfile
+          target: test
+          push: true
+          pull: true
+          tags: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha,scope=image
+          platforms: linux/amd64
   build-osx:
     strategy:
       fail-fast: true
@@ -143,3 +158,40 @@ jobs:
         with:
           name: dphp-${{ runner.os }}-${{ matrix.platform }}
           path: cli/dist/dphp
+  performance-test:
+    name: Performance Test
+    needs:
+      - build-docker
+      - build-linux
+    runs-on: self-hosted
+    container: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
+    services:
+      dphp:
+        image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
+        ports:
+          - 8080:8080
+        volumes:
+          - ${{ github.workspace }}:/app
+    env:
+      DPHP_HOST: http://dphp:8080
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          dphp composer install
+      - run: |
+          echo "Running perf test"
+          dphp exec tests/PerformanceTests/PerformanceClient.php
+          echo "Running fan out/in test"
+          dphp exec tests/PerformanceTests/FanOutFanInClient.php
+          echo "Running seq test"
+          dphp exec tests/PerformanceTests/SequenceClient.php
+      - uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: Performance Metrics
+      - uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: report.md

@@ -76,7 +76,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 						BatchSize: pointer.Int(40),
 					})
 					if err != nil {
-						logger.Warn("Failure uploading batch to index", zap.Error(err))
+						logger.Warn("Failure uploading entity batch to index", zap.Error(err))
 						continue
 					}
 				}
@@ -200,7 +200,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 						BatchSize: pointer.Int(40),
 					})
 					if err != nil {
-						logger.Warn("Failure uploading batch to index", zap.Error(err))
+						logger.Warn("Failure uploading orchestration batch to index", zap.Error(err))
 						continue
 					}
 				}

@@ -26,11 +26,11 @@
   "license": "MIT",
   "name": "bottledcode/durable-php",
   "require": {
-    "adhocore/cli": "^1.6.2",
+    "adhocore/cli": "^1.7.1",
     "amphp/file": "^3.0.2",
     "amphp/http-client": "^v5.0.1",
     "amphp/log": "^v2.0.0",
-    "amphp/parallel": "^2.2.8",
+    "amphp/parallel": "^2.2.9",
     "crell/serde": "^1.1.0",
     "nesbot/carbon": ">2.0",
     "php": ">=8.3",
@@ -40,9 +40,9 @@
     "webonyx/graphql-php": "^15.11.1"
   },
   "require-dev": {
-    "laravel/pint": "^1.14.0",
+    "laravel/pint": "^1.15.1",
     "mockery/mockery": "^1.6.11",
-    "pestphp/pest": "^2.34.5"
+    "pestphp/pest": "^2.34.7"
   },
   "scripts": {
     "test": "pest"

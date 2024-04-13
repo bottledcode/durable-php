@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -21,7 +21,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\Unit;
+//namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\EntityId;
@@ -33,8 +33,10 @@ test('multilock example', function () {
         expect($lock->isLocked())->toBeTrue();
         $result = $context->callEntity(new EntityId('test', 'test'), 'test');
         $result = $context->waitOne($result);
+        expect($result)->toBe('hello world');
         $lock->unlock();
         expect($lock->isLocked())->toBeFalse();
+
         return $result;
     }, [], $nextEvent);
     $entity = getEntityHistory(new class () extends EntityState {

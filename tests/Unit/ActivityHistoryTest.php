@@ -22,7 +22,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\Unit;
+//namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
@@ -32,16 +32,21 @@ use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
+use DI\Container;
 use Ramsey\Uuid\Uuid;
 
 function activity(bool $fail)
 {
     if ($fail) {
-        throw new \Exception('test');
+        throw new Exception('test');
     }
 }
 
-it('fails on an exception', function () {
+test('exampleaa', function () {
+    expect(true)->toBeTrue();
+});
+
+it('real: fails on an exception', function () {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()));
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
@@ -57,8 +62,8 @@ it('fails on an exception', function () {
 });
 
 it('succeeds on no exception', function () {
-    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), );
-    $container = new \SimpleContainer([__NAMESPACE__ . '\activity' => activity(...)]);
+    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()));
+    $container = new Container([__NAMESPACE__ . '\activity' => activity(...)]);
     $history->setContainer($container);
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),

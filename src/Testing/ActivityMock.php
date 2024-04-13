@@ -21,26 +21,30 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
+namespace Bottledcode\DurablePhp\Testing;
 
-use Bottledcode\DurablePhp\DurableClient;
-use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\Tests\StopWatch;
+use Closure;
+use Throwable;
 
-require_once __DIR__ . '/../../vendor/autoload.php';
-require_once __DIR__ . '/report.php';
+class ActivityMock
+{
+    public function __construct(public string $name, private mixed $result = null, private ?Closure $callback = null) {}
 
-$client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
-$logger = new DurableLogger();
+    public function isError(): bool
+    {
+        return $this->result instanceof Throwable;
+    }
 
-$watch = new StopWatch();
-$watch->start();
-$instance = $client->startNew(FanOutFanIn::class, ['count' => getenv('ACTIVITY_COUNT') ?: 5000]);
-$client->waitForCompletion($instance);
-$watch->stop();
+    public function getResult(array $args): array
+    {
+        if ($this->callback) {
+            try {
+                $this->result = ($this->callback)(...$args);
+            } catch (Throwable $e) {
+                $this->result = $e;
+            }
+        }
 
-var_dump($client->getStatus($instance));
-var_dump($instance);
-
-$logger->alert(sprintf('Completed in %s seconds', number_format($watch->getSeconds(), 2)));
-export_report('Fan out/in', $watch->getSeconds());
+        return [$this->result];
+    }
+}
