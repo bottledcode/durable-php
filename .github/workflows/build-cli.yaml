@@ -163,7 +163,7 @@ jobs:
     needs:
       - build-docker
       - build-linux
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     services:
       dphp:
         image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
@@ -189,7 +189,7 @@ jobs:
     needs:
       - build-docker
       - build-linux
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     services:
       dphp:
         image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
@@ -215,7 +215,7 @@ jobs:
     needs:
       - build-docker
       - build-linux
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     services:
       dphp:
         image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
