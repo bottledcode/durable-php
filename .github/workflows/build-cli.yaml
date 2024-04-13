@@ -158,8 +158,8 @@ jobs:
         with:
           name: dphp-${{ runner.os }}-${{ matrix.platform }}
           path: cli/dist/dphp
-  performance-tests:
-    name: Performance Tests
+  performance-test:
+    name: Performance Test
     needs:
       - build-docker
       - build-linux
@@ -183,3 +183,53 @@ jobs:
       - run: |
           dphp/dphp composer install
           dphp/dphp exec tests/PerformanceTests/PerformanceClient.php
+  sequence-test:
+    name: Sequence Test
+    needs:
+      - build-docker
+      - build-linux
+    runs-on: self-hosted
+    services:
+      dphp:
+        image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
+        ports:
+          - 8080
+        volumes:
+          - ${{ github.workspace }}:/app
+    env:
+      DPHP_HOST: http://dphp:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dphp-Linux-amd64
+          path: dphp
+      - run: chmod +x dphp/dphp
+      - run: |
+          dphp/dphp composer install
+          dphp/dphp exec tests/PerformanceTests/SequenceClient.php
+  fanout-tests:
+    name: Fan Out/In Test
+    needs:
+      - build-docker
+      - build-linux
+    runs-on: self-hosted
+    services:
+      dphp:
+        image: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
+        ports:
+          - 8080
+        volumes:
+          - ${{ github.workspace }}:/app
+    env:
+      DPHP_HOST: http://dphp:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dphp-Linux-amd64
+          path: dphp
+      - run: chmod +x dphp/dphp
+      - run: |
+          dphp/dphp composer install
+          dphp/dphp exec tests/PerformanceTests/FanOutFanInClient.php
