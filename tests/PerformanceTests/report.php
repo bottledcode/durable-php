@@ -21,26 +21,18 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Tests\PerformanceTests;
+function export_report(string $test, float $seconds)
+{
+    $reportFile = __DIR__ . '/../../report.md';
+    if (! file_exists($reportFile)) {
+        $report = "## Performance Metrics\n\n";
+        $report .= "| test | time (s) |\n";
+        $report .= "| ---- | -------- |\n";
+    } else {
+        $report = file_get_contents($reportFile);
+    }
 
-use Bottledcode\DurablePhp\DurableClient;
-use Bottledcode\DurablePhp\DurableLogger;
-use Bottledcode\DurablePhp\Tests\StopWatch;
+    $report .= sprintf("| %s | %s |\n", $test, number_format($seconds, 2));
 
-require_once __DIR__ . '/../../vendor/autoload.php';
-require_once __DIR__ . '/report.php';
-
-$client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
-$logger = new DurableLogger();
-
-$watch = new StopWatch();
-$watch->start();
-$instance = $client->startNew(FanOutFanIn::class, ['count' => getenv('ACTIVITY_COUNT') ?: 5000]);
-$client->waitForCompletion($instance);
-$watch->stop();
-
-var_dump($client->getStatus($instance));
-var_dump($instance);
-
-$logger->alert(sprintf('Completed in %s seconds', number_format($watch->getSeconds(), 2)));
-export_report('Fan out/in', $watch->getSeconds());
+    file_put_contents($reportFile, $report);
+}

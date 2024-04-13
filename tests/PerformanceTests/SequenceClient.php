@@ -28,6 +28,7 @@ use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Tests\StopWatch;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/report.php';
 
 $client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
 $logger = new DurableLogger();
@@ -43,3 +44,4 @@ $client->waitForCompletion($instance);
 $watch->stop();
 
 $logger->alert(sprintf('Completed in %s seconds', number_format($watch->getSeconds(), 2)));
+export_report('seq', $watch->getSeconds());
