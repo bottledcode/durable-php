@@ -175,6 +175,7 @@ jobs:
     env:
       DPHP_HOST: http://dphp:8080
     steps:
+      - uses: actions/checkout@v4
       - run: |
           dphp composer install
       - run: |
