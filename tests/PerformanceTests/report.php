@@ -26,13 +26,15 @@ function export_report(string $test, float $seconds)
     $reportFile = __DIR__ . '/../../report.md';
     if (! file_exists($reportFile)) {
         $report = "## Performance Metrics\n\n";
-        $report .= "| test | time (s) |\n";
-        $report .= "| ---- | -------- |\n";
+        $report .= "| test | time (s) | memory usage |\n";
+        $report .= "| ---- | -------- | ------------ |\n";
     } else {
         $report = file_get_contents($reportFile);
     }
 
-    $report .= sprintf("| %s | %s |\n", $test, number_format($seconds, 2));
+    $usage = memory_get_peak_usage(true) / 1024 / 1024;
+
+    $report .= sprintf("| %s | %s | %s |\n", $test, number_format($seconds, 2), number_format($usage));
 
     file_put_contents($reportFile, $report);
 }

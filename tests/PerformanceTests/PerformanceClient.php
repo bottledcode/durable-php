@@ -39,6 +39,8 @@ use function Amp\Future\await;
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/report.php';
 
+ini_set('memory_limit', '-1');
+
 $client = DurableClient::get(getenv('DPHP_HOST') ?: 'http://localhost:8080');
 //$client->withAuth("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MTEwNTg2NjAsImlhdCI6MTcxMDc5OTE2MCwicm9sZXMiOlsidXNlciJdLCJzdWIiOiJyb2IifQ.pxnULi-osLhrmb9XypwmzcTpQCYmZuzwW0rPE_Tvv_I");
 $logger = new DurableLogger();
