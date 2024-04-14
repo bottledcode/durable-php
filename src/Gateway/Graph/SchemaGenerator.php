@@ -90,7 +90,7 @@ EOF;
 
 {$name}(id: ID!): {$name}Snapshot
 EOF;
-            $this->handlers['queries'][] = ['op' => 'entity', 'op-name' => $name, 'realName' => $realName];
+            $this->handlers['queries'][] = ['op' => 'entity', 'op-name' => $name, 'realName' => $rootName];
 
         }
         $scalars = array_map(fn($x) => 'scalar ' . $x, array_unique($this->scalars));
