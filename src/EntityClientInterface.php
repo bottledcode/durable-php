@@ -74,7 +74,7 @@ interface EntityClientInterface
      * @param  class-string<T>  $type
      * @return T|null
      */
-    public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState;
+    public function getEntitySnapshot(EntityId $entityId): ?EntityState;
 
     /**
      * Deletes an entity

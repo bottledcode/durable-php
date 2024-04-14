@@ -39,7 +39,8 @@ final readonly class DurableClient implements DurableClientInterface
     public function __construct(
         private EntityClientInterface $entityClient,
         private OrchestrationClientInterface $orchestrationClient
-    ) {}
+    ) {
+    }
 
     public static function get(string $apiHost = 'http://localhost:8080'): self
     {
@@ -120,9 +121,9 @@ final readonly class DurableClient implements DurableClientInterface
         $this->orchestrationClient->waitForCompletion($instance);
     }
 
-    public function getEntitySnapshot(EntityId $entityId, string $type): ?EntityState
+    public function getEntitySnapshot(EntityId $entityId): ?EntityState
     {
-        return $this->entityClient->getEntitySnapshot($entityId, $type);
+        return $this->entityClient->getEntitySnapshot($entityId);
     }
 
     public function signal(EntityId|string $entityId, Closure $signal): void

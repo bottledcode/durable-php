@@ -35,7 +35,7 @@ use GraphQL\Server\StandardServer;
 use GraphQL\Type\Definition\ResolveInfo;
 use GraphQL\Utils\BuildSchema;
 
-require_once __DIR__ . '/../../Glue/autoload.php';
+require_once __DIR__.'/../../Glue/autoload.php';
 
 header('Content-Type: text/plain');
 
@@ -113,10 +113,10 @@ input Input {
 {$schemaParts['scalars']}
 
 SCHEMA;
-if($_SERVER['REQUEST_METHOD'] === 'GET') {
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     header('Content-Type: text/plain');
     echo $schema;
-    die();
+    exit();
 }
 
 $client = DurableClient::get();
@@ -125,7 +125,7 @@ $client->withAuth(str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']));
 function getOrchestrationStatus(array $args, DurableClient $context): array
 {
     $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
-    if($args['waitForCompletion'] ?? false) {
+    if ($args['waitForCompletion'] ?? false) {
         $context->waitForCompletion($id);
     }
 
@@ -138,12 +138,14 @@ function getOrchestrationStatus(array $args, DurableClient $context): array
 function getEntitySnapshot(array $args, DurableClient $context): array
 {
     $id = new EntityId($args['id']['name'], $args['id']['id']);
+
     return Serializer::serialize($context->getEntitySnapshot($id));
 }
 
 function startOrchestration(array $args, DurableClient $context): array
 {
     $id = $context->startNew($args['name'], $args['input'], $args['id'] ?? null);
+
     return [
         'instance' => $id->instanceId,
         'execution' => $id->executionId,
@@ -153,47 +155,51 @@ function startOrchestration(array $args, DurableClient $context): array
 function raiseEvent(array $args, DurableClient $context): array
 {
     $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
-    $arguments = array_map(static fn($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
+    $arguments = array_map(static fn ($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
     $arguments = array_column($arguments, 'value', 'key');
     $context->raiseEvent($id, $args['signal'], $arguments);
+
     return [];
 }
 
 function signal(array $args, DurableClient $context): array
 {
     $id = new EntityId($args['id']['name'], $args['id']['id']);
-    $arguments = array_map(static fn($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
+    $arguments = array_map(static fn ($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
     $arguments = array_column($arguments, 'value', 'key');
     $context->signalEntity($id, $args['signal'], $arguments);
+
     return [];
 }
 
 $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode) use ($generator): array {
     $name = $typeConfig['name'];
 
-    switch($name) {
+    switch ($name) {
         case 'Query':
             $queries = [];
-            foreach($generator->handlers['queries'] as $handler) {
+            foreach ($generator->handlers['queries'] as $handler) {
                 $queries[$handler['op-name']] = $handler;
             }
             $typeConfig['resolveField'] = function ($value, array $args, DurableClient $context, ResolveInfo $resolveInfo) use ($queries): mixed {
-                switch($resolveInfo->fieldName) {
+                switch ($resolveInfo->fieldName) {
                     case 'orchestration':
                         return getOrchestrationStatus($args, $context);
                         // no break
                     case 'entity':
                         return getEntitySnapshot($args, $context);
                     default:
-                        if($handler = $queries[$resolveInfo->fieldName]) {
-                            switch($handler['op']) {
+                        if ($handler = $queries[$resolveInfo->fieldName]) {
+                            switch ($handler['op']) {
                                 case 'entity':
                                     $oargs = $args;
                                     unset($args['id']);
+
                                     return getEntitySnapshot(['id' => ['id' => $oargs['id'], 'name' => $resolveInfo->fieldName], ...$args], $context);
                                 case 'OrchestrationStatus':
                                     $oargs = $args;
                                     unset($args['id']);
+
                                     return getOrchestrationStatus(['id' => ['execution' => $oargs['execution'], 'instance' => $handler['name']], ...$args], $context);
                             }
                         }
@@ -204,11 +210,11 @@ $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode
             break;
         case 'Mutation':
             $queries = [];
-            foreach($generator->handlers['mutations'] as $handler) {
+            foreach ($generator->handlers['mutations'] as $handler) {
                 $queries[$handler['op-name']] = $handler;
             }
             $typeConfig['resolveField'] = function ($value, array $args, DurableClient $context, ResolveInfo $resolveInfo) use ($queries): mixed {
-                switch($resolveInfo->fieldName) {
+                switch ($resolveInfo->fieldName) {
                     case 'StartOrchestration':
                         return startOrchestration($args, $context);
                         // no break
@@ -217,17 +223,19 @@ $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode
                     case 'SendEntitySignal':
                         return signal($args, $context);
                     default:
-                        if($handler = $queries[$resolveInfo->fieldName]) {
-                            switch($handler['op']) {
+                        if ($handler = $queries[$resolveInfo->fieldName]) {
+                            switch ($handler['op']) {
                                 case 'StartOrchestration':
                                     return startOrchestration(['name' => $handler['name'], ...$args], $context);
                                 case 'RaiseOrchestrationEvent':
                                     $originalArgs = $args;
                                     unset($args['execution']);
+
                                     return raiseEvent(['signal' => $handler['event'], 'id' => ['execution' => $originalArgs['execution'], 'instance' => $handler['name']], ...$args], $context);
                                 case 'SendEntitySignal':
                                     $originalArgs = $args;
                                     unset($args['id']);
+
                                     return signal(['id' => ['name' => $handler['realName'], 'id' => $originalArgs['id']], 'signal' => $handler['method'], ...$args], $context);
                             }
                         }
