@@ -54,6 +54,7 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\AbstractHistory;
@@ -171,7 +172,7 @@ function getEntityHistory(?EntityState $withState = null): EntityHistory
     static $id = 0;
     $withState ??= new class () extends EntityState {};
     $entityId = new EntityId('test', $id++);
-    $history = new EntityHistory(StateId::fromEntityId($entityId), new DurableLogger());
+    $history = new EntityHistory(StateId::fromEntityId($entityId), new DurableLogger(), new Provenance('', []));
     $reflector = new ReflectionClass($history);
     $reflector->getProperty('state')->setValue($history, $withState);
     $history->setContainer(new Container(['test' => $withState, SpyProxy::class => new SpyProxy()]));
@@ -199,7 +200,7 @@ function getOrchestration(
             $instance => $orchestration,
         ]
     );
-    $history = new OrchestrationHistory(StateId::fromInstance(new OrchestrationInstance($instance, $id)), new DurableLogger());
+    $history = new OrchestrationHistory(StateId::fromInstance(new OrchestrationInstance($instance, $id)), new DurableLogger(), new Provenance('', []));
     $history->setContainer($container);
     $startupEvent ??= StartExecution::asParent($input, []);
     $startupEvent = WithOrchestration::forInstance($history->id, $startupEvent);
