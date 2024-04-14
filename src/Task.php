@@ -28,6 +28,7 @@ use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\PoisonPill;
 use Bottledcode\DurablePhp\Glue\Glue;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\State\AbstractHistory;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
@@ -61,24 +62,26 @@ class Task
         $state = $this->loadState();
         $this->logger->debug('Got state', ['state' => $state]);
 
+        $user = $this->glue->provenance ?? new Provenance('', []);
+
         switch ($stateId->getStateType()) {
             case ActivityHistory::class:
                 if (! $stateId->isActivityId()) {
                     $this->emitError(400, 'Invalid activity id');
                 }
-                $state ??= new ActivityHistory($stateId, $this->logger, $this->glue->provenance);
+                $state ??= new ActivityHistory($stateId, $this->logger, $user);
                 break;
             case OrchestrationHistory::class:
                 if (! $stateId->isOrchestrationId()) {
                     $this->emitError(400, 'Invalid orchestration id');
                 }
-                $state ??= new OrchestrationHistory($stateId, $this->logger, $this->glue->provenance);
+                $state ??= new OrchestrationHistory($stateId, $this->logger, $user);
                 break;
             case EntityHistory::class:
                 if (! $stateId->isEntityId()) {
                     $this->emitError(400, 'Invalid entity id');
                 }
-                $state ??= new EntityHistory($stateId, $this->logger, $this->glue->provenance);
+                $state ??= new EntityHistory($stateId, $this->logger, $user);
                 break;
             default:
                 $this->emitError(404, "ERROR: unknown route type \"{$stateId->getStateType()}\"\n");
