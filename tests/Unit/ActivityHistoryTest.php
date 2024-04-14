@@ -29,6 +29,7 @@ use Bottledcode\DurablePhp\Events\ScheduleTask;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithActivity;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -47,7 +48,7 @@ test('exampleaa', function () {
 });
 
 it('real: fails on an exception', function () {
-    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()));
+    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
         WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [true]))
@@ -62,7 +63,7 @@ it('real: fails on an exception', function () {
 });
 
 it('succeeds on no exception', function () {
-    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()));
+    $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
     $container = new Container([__NAMESPACE__ . '\activity' => activity(...)]);
     $history->setContainer($container);
     $event = AwaitResult::forEvent(

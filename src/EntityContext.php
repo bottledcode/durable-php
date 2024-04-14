@@ -31,18 +31,27 @@ use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Closure;
 use Crell\Serde\Attributes\ClassSettings;
+use DateTimeImmutable;
+use DateTimeInterface;
+use Exception;
 use Ramsey\Uuid\Uuid;
+use ReflectionClass;
+use ReflectionFunction;
+use RuntimeException;
+use Throwable;
 
 #[ClassSettings(includeFieldsByDefault: false)]
 class EntityContext implements EntityContextInterface
 {
-    private static EntityContextInterface|null $current = null;
+    private static ?EntityContextInterface $current = null;
 
     public function __construct(
         private readonly EntityId $id,
@@ -54,13 +63,14 @@ class EntityContext implements EntityContextInterface
         private readonly array $caller,
         private readonly string $requestingId,
         private readonly SpyProxy $spyProxy,
+        private readonly Provenance $user,
     ) {
         self::$current = $this;
     }
 
     public static function current(): static
     {
-        return self::$current ?? throw new \RuntimeException('Not in an entity context');
+        return self::$current ?? throw new RuntimeException('Not in an entity context');
     }
 
     public function delete(): never
@@ -94,7 +104,7 @@ class EntityContext implements EntityContextInterface
         EntityId $entityId,
         string $operation,
         array $input = [],
-        ?\DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null
     ): void {
         $event = WithEntity::forInstance(
             StateId::fromEntityId($entityId),
@@ -116,7 +126,7 @@ class EntityContext implements EntityContextInterface
         return $this->operation;
     }
 
-    public function startNewOrchestration(string $orchestration, array $input = [], string|null $id = null): void
+    public function startNewOrchestration(string $orchestration, array $input = [], ?string $id = null): void
     {
         if ($id === null) {
             $id = Uuid::uuid7()->toString();
@@ -131,17 +141,17 @@ class EntityContext implements EntityContextInterface
         );
     }
 
-    public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void
+    public function delay(Closure $self, DateTimeInterface $until = new DateTimeImmutable()): void
     {
-        $classReflector = new \ReflectionClass($this->history->getState());
+        $classReflector = new ReflectionClass($this->history->getState());
         $interfaces = $classReflector->getInterfaceNames();
-        if(count($interfaces) > 1) {
-            throw new \Exception('Cannot delay an entity with more than one interface');
+        if (count($interfaces) > 1) {
+            throw new Exception('Cannot delay an entity with more than one interface');
         }
 
-        $fnReflector = new \ReflectionFunction($self);
-        if($fnReflector->getNumberOfParameters() > 0) {
-            throw new \Exception('Cannot delay a function with parameters');
+        $fnReflector = new ReflectionFunction($self);
+        if ($fnReflector->getNumberOfParameters() > 0) {
+            throw new Exception('Cannot delay a function with parameters');
         }
 
         // create the spy proxy
@@ -151,7 +161,7 @@ class EntityContext implements EntityContextInterface
 
         try {
             $self();
-        } catch(\Throwable) {
+        } catch (Throwable) {
         }
 
         $this->delayUntil($operationName, $arguments, $until);
@@ -165,7 +175,7 @@ class EntityContext implements EntityContextInterface
     public function delayUntil(
         string $operation,
         array $args = [],
-        \DateTimeInterface $until = new \DateTimeImmutable()
+        DateTimeInterface $until = new DateTimeImmutable()
     ): void {
         $this->eventDispatcher->fire(
             WithDelay::forEvent(
@@ -173,5 +183,10 @@ class EntityContext implements EntityContextInterface
                 WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args))
             )
         );
+    }
+
+    public function currentUserId(): string
+    {
+        return $this->user->userId;
     }
 }

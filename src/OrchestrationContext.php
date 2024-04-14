@@ -38,6 +38,7 @@ use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
@@ -47,11 +48,21 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
+use Closure;
+use DateInterval;
+use DateTimeImmutable;
+use Exception;
 use LogicException;
 use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\Guid\Guid;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
+use ReflectionClass;
+use ReflectionFunction;
+use ReflectionIntersectionType;
+use ReflectionUnionType;
+use Stringable;
+use Throwable;
 
 final class OrchestrationContext implements OrchestrationContextInterface
 {
@@ -76,6 +87,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     $eventIdentity === $identity->toString()) {
                     return [$event, true];
                 }
+
                 return [null, false];
             },
             $identity->toString()
@@ -92,34 +104,37 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $this->history->version,
             $this->guidCounter++
         );
+
         return Uuid::uuid5($namespace, $hash);
     }
 
     private function createFuture(
-        \Closure $onSent,
-        \Closure $onReceived,
-        string $identity = null
+        Closure $onSent,
+        Closure $onReceived,
+        ?string $identity = null
     ): DurableFuture {
         $identity ??= $this->history->historicalTaskResults->getIdentity();
-        if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
-            $this->durableLogger->debug("Future requested for an unsent identity", [$identity]);
+        if (! $this->history->historicalTaskResults->hasSentIdentity($identity)) {
+            $this->durableLogger->debug('Future requested for an unsent identity', [$identity]);
             [$eventId] = $onSent();
             $deferred = new DeferredFuture();
             $this->history->historicalTaskResults->sentEvent($identity, $eventId);
             $future = new DurableFuture($deferred);
             $this->history->historicalTaskResults->trackFuture($onReceived, $future);
+
             return $future;
         }
 
-        $this->durableLogger->debug("Future requested for a sent identity, processing future", [$identity]);
+        $this->durableLogger->debug('Future requested for a sent identity, processing future', [$identity]);
 
         $deferred = new DeferredFuture();
         $future = new DurableFuture($deferred);
         $this->history->historicalTaskResults->trackFuture($onReceived, $future);
+
         return $future;
     }
 
-    public function callActivityInline(\Closure $activity): DurableFuture
+    public function callActivityInline(Closure $activity): DurableFuture
     {
         $identity = $this->newGuid();
 
@@ -127,8 +142,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
             try {
                 $result = $activity();
                 $this->taskController->fire(WithOrchestration::forInstance(StateId::fromInstance($this->id), TaskCompleted::forId($identity->toString(), $result)));
+
                 return [$identity];
-            } catch (\Throwable $exception) {
+            } catch (Throwable $exception) {
                 $this->taskController->fire(
                     WithOrchestration::forInstance(
                         StateId::fromInstance($this->id),
@@ -140,12 +156,14 @@ final class OrchestrationContext implements OrchestrationContextInterface
                         )
                     )
                 );
+
                 return [$identity];
             }
         }, function (Event $event, string $eventIdentity) use ($identity): array {
             if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
                 return [$event, true];
             }
+
             return [null, false];
         }, $identity->toString());
     }
@@ -176,14 +194,15 @@ final class OrchestrationContext implements OrchestrationContextInterface
         throw new Unwind();
     }
 
-    public function createTimer(\DateTimeImmutable|\DateInterval $fireAt): DurableFuture
+    public function createTimer(DateTimeImmutable|DateInterval $fireAt): DurableFuture
     {
-        if ($fireAt instanceof \DateInterval) {
+        if ($fireAt instanceof DateInterval) {
             $fireAt = $this->getCurrentTime()->add($fireAt);
         }
 
         $this->durableLogger->debug('Creating durable timer', ['fireAt' => $fireAt]);
         $identity = sha1($fireAt->format('c'));
+
         return $this->createFuture(
             fn() => $this->taskController->fire(
                 WithOrchestration::forInstance(
@@ -195,12 +214,13 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 if ($event instanceof RaiseEvent && $event->eventName === $identity) {
                     return [$event, true];
                 }
+
                 return [null, false];
             }
         );
     }
 
-    public function getCurrentTime(): \DateTimeImmutable
+    public function getCurrentTime(): DateTimeImmutable
     {
         return $this->history->historicalTaskResults->getCurrentTime();
     }
@@ -219,6 +239,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
             return [$result, $found];
         }, $future);
+
         return $future;
     }
 
@@ -259,7 +280,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return $this->id;
     }
 
-    public function getParentId(): OrchestrationInstance|null
+    public function getParentId(): ?OrchestrationInstance
     {
         return $this->history->parentInstance ?? null;
     }
@@ -270,15 +291,15 @@ final class OrchestrationContext implements OrchestrationContextInterface
     }
 
     public function createInterval(
-        int $years = null,
-        int $months = null,
-        int $weeks = null,
-        int $days = null,
-        int $hours = null,
-        int $minutes = null,
-        int $seconds = null,
-        int $microseconds = null
-    ): \DateInterval {
+        ?int $years = null,
+        ?int $months = null,
+        ?int $weeks = null,
+        ?int $days = null,
+        ?int $hours = null,
+        ?int $minutes = null,
+        ?int $seconds = null,
+        ?int $microseconds = null
+    ): DateInterval {
         if (
             empty(
                 array_filter(
@@ -309,8 +330,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $spec .= '0Y';
         }
 
-        $interval = new \DateInterval($spec);
+        $interval = new DateInterval($spec);
         $interval->f = ($microseconds ?? 0) / 1000000;
+
         return $interval;
     }
 
@@ -332,13 +354,14 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function isLockedOwned(EntityId $entityId): bool
     {
         $id = StateId::fromEntityId($entityId);
+
         return in_array($id->id, array_map(static fn($x) => $x->id, $this->history->locks ?? []), true);
     }
 
     public function lockEntity(EntityId ...$entityId): EntityLock
     {
         $this->durableLogger->debug('Locking entities', ['entityId' => $entityId]);
-        if (!empty($this->history->locks ?? []) && !$this->isReplaying()) {
+        if (! empty($this->history->locks ?? []) && ! $this->isReplaying()) {
             throw new LogicException('Cannot lock an entity while holding locks');
         }
 
@@ -405,6 +428,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 // rethrow any exceptions
                 $complete->getResult();
             }
+
             return array_map(static fn(DurableFuture $f) => $f->getResult(), $tasks);
         }
 
@@ -416,33 +440,37 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     /**
      * @template T
-     * @param class-string<T> $className
+     *
+     * @param  class-string<T>  $className
      * @return T
      */
-    public function createEntityProxy(string $className, EntityId|null $entityId = null): object
+    public function createEntityProxy(string $className, ?EntityId $entityId = null): object
     {
         if ($entityId === null) {
             $entityId = new EntityId($className, $this->newGuid());
         }
 
-        $class = new \ReflectionClass($className);
-        if (!$class->isInterface()) {
+        $class = new ReflectionClass($className);
+        if (! $class->isInterface()) {
             throw new LogicException('Only interfaces can be proxied');
         }
 
         $name = $this->proxyGenerator->define($className);
+
         return new $name($this, $entityId);
     }
 
     public function getRandomInt(int $min, int $max): int
     {
-        ++$this->randomKey;
+        $this->randomKey++;
+
         return $this->history->randoms[$this->randomKey] ??= random_int($min, $max);
     }
 
     public function getRandomBytes(int $length): string
     {
-        ++$this->randomKey;
+        $this->randomKey++;
+
         return $this->history->randoms[$this->randomKey] ??= random_bytes($length);
     }
 
@@ -454,7 +482,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::__construct($logger);
             }
 
-            public function debug(\Stringable|string $message, array $context = []): void
+            public function debug(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -463,7 +491,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::debug($message, $context);
             }
 
-            public function critical(\Stringable|string $message, array $context = []): void
+            public function critical(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -471,7 +499,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::critical($message, $context);
             }
 
-            public function warning(\Stringable|string $message, array $context = []): void
+            public function warning(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -480,7 +508,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::warning($message, $context);
             }
 
-            public function info(\Stringable|string $message, array $context = []): void
+            public function info(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -489,7 +517,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::info($message, $context);
             }
 
-            public function alert(\Stringable|string $message, array $context = []): void
+            public function alert(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -498,7 +526,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::alert($message, $context);
             }
 
-            public function emergency(\Stringable|string $message, array $context = []): void
+            public function emergency(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -507,7 +535,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::emergency($message, $context);
             }
 
-            public function notice(\Stringable|string $message, array $context = []): void
+            public function notice(Stringable|string $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -524,25 +552,26 @@ final class OrchestrationContext implements OrchestrationContextInterface
         private readonly Task $taskController,
         private readonly OrchestratorProxy $proxyGenerator,
         private readonly SpyProxy $spyProxy,
-        private readonly DurableLogger $durableLogger
+        private readonly DurableLogger $durableLogger,
+        private readonly Provenance $user,
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
     }
 
-    public function entityOp(string|EntityId $id, \Closure $operation): mixed
+    public function entityOp(string|EntityId $id, Closure $operation): mixed
     {
-        $func = new \ReflectionFunction($operation);
+        $func = new ReflectionFunction($operation);
         if ($func->getNumberOfParameters() !== 1) {
             throw new LogicException('Must only be a single parameter');
         }
         $arg = $func->getParameters()[0];
         $type = $arg->getType();
-        if ($type === null || $type instanceof \ReflectionIntersectionType || $type instanceof \ReflectionUnionType) {
+        if ($type === null || $type instanceof ReflectionIntersectionType || $type instanceof ReflectionUnionType) {
             throw new LogicException('Must be a single type');
         }
 
         $name = $type->getName();
-        if (!interface_exists($name)) {
+        if (! interface_exists($name)) {
             throw new LogicException('Unable to load interface: ' . $name);
         }
 
@@ -552,7 +581,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $returns = false;
         try {
             $operation($signal);
-        } catch (\Exception) {
+        } catch (Exception) {
             // there is a return
             $returns = true;
         }
@@ -611,5 +640,10 @@ final class OrchestrationContext implements OrchestrationContextInterface
         }
 
         $this->taskController->fire($event);
+    }
+
+    public function getCurrentUserId(): string
+    {
+        return $this->user->userId;
     }
 }
