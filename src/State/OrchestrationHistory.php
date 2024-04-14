@@ -37,6 +37,7 @@ use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
@@ -88,7 +89,7 @@ class OrchestrationHistory extends AbstractHistory
     #[Field(exclude: true)]
     private mixed $constructed = null;
 
-    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger = null)
+    public function __construct(public readonly StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger, private Provenance $user)
     {
         $this->instance = $id->toOrchestrationInstance();
         $this->historicalTaskResults = new HistoricalStateTracker();
@@ -178,7 +179,7 @@ class OrchestrationHistory extends AbstractHistory
             $taskScheduler = $task;
         };
 
-        $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $this->logger);
+        $context = new OrchestrationContext($this->instance, $this, $taskScheduler, $proxyGenerator, $spyGenerator, $this->logger, $this->user);
 
         if (method_exists($this->container, 'set')) {
             $this->container->set(OrchestrationContext::class, $context);

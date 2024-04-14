@@ -27,6 +27,9 @@ namespace Bottledcode\DurablePhp;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityLock;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
+use Closure;
+use DateInterval;
+use DateTimeImmutable;
 use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\UuidInterface;
 
@@ -36,84 +39,64 @@ interface OrchestrationContextInterface
      * Call an activity function and return a future that the context can await on.
      *
      * @template T
-     * @param string $name The name of the function to remotely invoke
-     * @param array $args The arguments to pass to the function
-     * @param RetryOptions|null $retryOptions How to retry on failure
+     *
+     * @param  string  $name  The name of the function to remotely invoke
+     * @param  array  $args  The arguments to pass to the function
+     * @param  RetryOptions|null  $retryOptions  How to retry on failure
      * @return DurableFuture<T>
      */
-    public function callActivity(string $name, array $args = [], RetryOptions|null $retryOptions = null): DurableFuture;
+    public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture;
 
     /**
      * Calls an activity inline. There are no retries and exceptions will cause an immediate failure.
-     *
-     * @param \Closure $activity
-     * @return DurableFuture
      */
-    public function callActivityInline(\Closure $activity): DurableFuture;
+    public function callActivityInline(Closure $activity): DurableFuture;
 
     /**
      * Call an entity and get the response
      *
      * @template T
-     * @param EntityId $entityId
-     * @param string $operation
-     * @param array $args
+     *
      * @return DurableFuture<T>
      */
     public function callEntity(EntityId $entityId, string $operation, array $args = []): DurableFuture;
 
     /**
      * Get a logger that only logs when not replaying
-     * @return LoggerInterface
      */
     public function getReplayAwareLogger(): LoggerInterface;
 
-    /**
-     * @param EntityId $entityId
-     * @param string $operation
-     * @param array $args
-     * @return void
-     */
     public function signalEntity(EntityId $entityId, string $operation, array $args = []): void;
 
     /**
      * @template T
      * @template V
-     * @param string|EntityId $id
-     * @param \Closure(T): V $operation
+     *
+     * @param  Closure(T): V  $operation
      * @return V
      */
-    public function entityOp(string|EntityId $id, \Closure $operation): mixed;
+    public function entityOp(string|EntityId $id, Closure $operation): mixed;
 
     /**
      * Determines if an entity is locked. Returns true if the entity is locked.
-     *
-     * @param EntityId $entityId
-     * @return bool
      */
     public function isLocked(EntityId $entityId): bool;
 
     /**
      * Determines if the current lock is owned by the current instance.
-     *
-     * @param EntityId $entityId
-     * @return bool
      */
     public function isLockedOwned(EntityId $entityId): bool;
 
     /**
      * Attempts to lock an entity. Returns once the lock is acquired.
-     *
-     * @param EntityId ...$entityId
-     * @return EntityLock
      */
     public function lockEntity(EntityId ...$entityId): EntityLock;
 
     public function callSubOrchestrator(
         string $name,
         array $args = [],
-        string|null $instanceId = null,
-        RetryOptions|null $retryOptions = null
+        ?string $instanceId = null,
+        ?RetryOptions $retryOptions = null
     ): DurableFuture;
 
     public function continueAsNew(array $args = []): never;
@@ -121,10 +104,10 @@ interface OrchestrationContextInterface
     /**
      * Creates a durable timer that resolves at the specified time.
      *
-     * @param \DateTimeImmutable $fireAt The time to resolve the future.
+     * @param  DateTimeImmutable  $fireAt  The time to resolve the future.
      * @return DurableFuture<true>
      */
-    public function createTimer(\DateTimeImmutable $fireAt): DurableFuture;
+    public function createTimer(DateTimeImmutable $fireAt): DurableFuture;
 
     /**
      * The input to the orchestrator function.
@@ -135,16 +118,13 @@ interface OrchestrationContextInterface
 
     /**
      * Constructs a db-friendly GUID.
-     *
-     * @return UuidInterface
      */
     public function newGuid(): UuidInterface;
 
     /**
      * Set the custom status of the orchestration.
      *
-     * @param string $customStatus The new status.
-     * @return void
+     * @param  string  $customStatus  The new status.
      */
     public function setCustomStatus(string $customStatus): void;
 
@@ -152,29 +132,23 @@ interface OrchestrationContextInterface
      * Waits for an external event to be raised. May resolve immediately if the event has already been raised.
      *
      * @template T
-     * @param string $name
+     *
      * @return DurableFuture<T>
      */
     public function waitForExternalEvent(string $name): DurableFuture;
 
     /**
      * Gets the current time in a deterministic way. (always the time the execution started)
-     *
-     * @return \DateTimeImmutable
      */
-    public function getCurrentTime(): \DateTimeImmutable;
+    public function getCurrentTime(): DateTimeImmutable;
 
     /**
      * Retrieve the current custom status or null if none has been set.
-     *
-     * @return string|null
      */
-    public function getCustomStatus(): string|null;
+    public function getCustomStatus(): ?string;
 
     /**
      * Retrieve the current orchestration instance id.
-     *
-     * @return OrchestrationInstance
      */
     public function getCurrentId(): OrchestrationInstance;
 
@@ -182,70 +156,45 @@ interface OrchestrationContextInterface
      * Whether we're replaying an orchestration on this particular line of code.
      *
      * Warning: do not use this for i/o or other side effects.
-     *
-     * @return bool
      */
     public function isReplaying(): bool;
 
     /**
      * Retrieve a parent orchestration if there is one.
-     *
-     * @return OrchestrationInstance|null
      */
-    public function getParentId(): OrchestrationInstance|null;
+    public function getParentId(): ?OrchestrationInstance;
 
     /**
      * Whether the orchestration will restart as a new orchestration.
-     *
-     * @return bool
      */
     public function willContinueAsNew(): bool;
 
     /**
      * A helper method for creating a DateInterval.
-     *
-     * @param int|null $years
-     * @param int|null $months
-     * @param int|null $weeks
-     * @param int|null $days
-     * @param int|null $hours
-     * @param int|null $minutes
-     * @param int|null $seconds
-     * @param int|null $microseconds
-     * @return \DateInterval
      */
     public function createInterval(
-        int $years = null,
-        int $months = null,
-        int $weeks = null,
-        int $days = null,
-        int $hours = null,
-        int $minutes = null,
-        int $seconds = null,
-        int $microseconds = null
-    ): \DateInterval;
+        ?int $years = null,
+        ?int $months = null,
+        ?int $weeks = null,
+        ?int $days = null,
+        ?int $hours = null,
+        ?int $minutes = null,
+        ?int $seconds = null,
+        ?int $microseconds = null
+    ): DateInterval;
 
     /**
      * Returns the first successful future to complete.
-     *
-     * @param DurableFuture ...$tasks
-     * @return DurableFuture
      */
     public function waitAny(DurableFuture ...$tasks): DurableFuture;
 
     /**
      * Returns once all futures have completed.
-     *
-     * @param DurableFuture ...$tasks
-     * @return array
      */
     public function waitAll(DurableFuture ...$tasks): array;
 
     /**
      * Returns the result (or throws on failure) once a single future has completed.
-     *
-     * @param DurableFuture $task
-     * @return mixed
      */
     public function waitOne(DurableFuture $task): mixed;
 
@@ -253,25 +202,21 @@ interface OrchestrationContextInterface
      * Creates a simple proxy for the given class
      *
      * @template T
-     * @param class-string<T> $className
+     *
+     * @param  class-string<T>  $className
      * @return T
      */
-    public function createEntityProxy(string $className, EntityId|null $entityId = null): object;
+    public function createEntityProxy(string $className, ?EntityId $entityId = null): object;
 
     /**
      * Cryptographic random ints
-     *
-     * @param int $min
-     * @param int $max
-     * @return int
      */
     public function getRandomInt(int $min, int $max): int;
 
     /**
      * Cryptographic random bytes
-     *
-     * @param int $length
-     * @return string
      */
     public function getRandomBytes(int $length): string;
+
+    public function getCurrentUserId(): string;
 }

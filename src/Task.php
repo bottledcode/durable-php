@@ -66,19 +66,19 @@ class Task
                 if (! $stateId->isActivityId()) {
                     $this->emitError(400, 'Invalid activity id');
                 }
-                $state ??= new ActivityHistory($stateId, $this->logger);
+                $state ??= new ActivityHistory($stateId, $this->logger, $this->glue->provenance);
                 break;
             case OrchestrationHistory::class:
                 if (! $stateId->isOrchestrationId()) {
                     $this->emitError(400, 'Invalid orchestration id');
                 }
-                $state ??= new OrchestrationHistory($stateId, $this->logger);
+                $state ??= new OrchestrationHistory($stateId, $this->logger, $this->glue->provenance);
                 break;
             case EntityHistory::class:
                 if (! $stateId->isEntityId()) {
                     $this->emitError(400, 'Invalid entity id');
                 }
-                $state ??= new EntityHistory($stateId, $this->logger);
+                $state ??= new EntityHistory($stateId, $this->logger, $this->glue->provenance);
                 break;
             default:
                 $this->emitError(404, "ERROR: unknown route type \"{$stateId->getStateType()}\"\n");

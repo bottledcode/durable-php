@@ -25,7 +25,10 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\State\EntityId;
+use Closure;
 use Crell\Serde\Attributes\ClassNameTypeMap;
+use DateTimeImmutable;
+use DateTimeInterface;
 
 #[ClassNameTypeMap('__entity_type')]
 interface EntityContextInterface
@@ -34,8 +37,6 @@ interface EntityContextInterface
 
     /**
      * Delete the current entity.
-     *
-     * @return never
      */
     public function delete(): never;
 
@@ -43,6 +44,7 @@ interface EntityContextInterface
      * Get the input to the current operation.
      *
      * @template T
+     *
      * @return T
      */
     public function getInput(): mixed;
@@ -51,6 +53,7 @@ interface EntityContextInterface
      * Get the current entity's state.
      *
      * @template T
+     *
      * @return T
      */
     public function getState(): mixed;
@@ -59,8 +62,8 @@ interface EntityContextInterface
      * Return the given value from the current operation.
      *
      * @template T
-     * @param T $value
-     * @return never
+     *
+     * @param  T  $value
      */
     public function return(mixed $value): never;
 
@@ -68,8 +71,8 @@ interface EntityContextInterface
      * Set the current state of the entity.
      *
      * @template T
-     * @param T $value
-     * @return void
+     *
+     * @param  T  $value
      */
     public function setState(mixed $value): void;
 
@@ -77,40 +80,36 @@ interface EntityContextInterface
      * Signal another entity.
      *
      * @template T
-     * @param EntityId<T> $entityId
-     * @param non-empty-string $operation
-     * @param array $input
-     * @param \DateTimeImmutable|null $scheduledTime
-     * @return void
+     *
+     * @param  EntityId<T>  $entityId
+     * @param  non-empty-string  $operation
      */
     public function signalEntity(
         EntityId $entityId,
         string $operation,
         array $input = [],
-        \DateTimeImmutable|null $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null
     ): void;
 
     /**
      * Get the current entity id.
-     *
-     * @return EntityId
      */
     public function getId(): EntityId;
 
     /**
      * Get the current operation.
-     *
-     * @return string
      */
     public function getOperation(): string;
 
-    public function startNewOrchestration(string $orchestration, array $input = [], string|null $id = null): void;
+    public function startNewOrchestration(string $orchestration, array $input = [], ?string $id = null): void;
 
     public function delayUntil(
         string $operation,
         array $args = [],
-        \DateTimeInterface $until = new \DateTimeImmutable()
+        DateTimeInterface $until = new DateTimeImmutable()
     ): void;
 
-    public function delay(\Closure $self, \DateTimeInterface $until = new \DateTimeImmutable()): void;
+    public function delay(Closure $self, DateTimeInterface $until = new DateTimeImmutable()): void;
+
+    public function currentUserId(): string;
 }

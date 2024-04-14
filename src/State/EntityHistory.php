@@ -37,6 +37,7 @@ use Bottledcode\DurablePhp\Events\With;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\SerializedArray;
@@ -67,7 +68,7 @@ class EntityHistory extends AbstractHistory
 
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger = null)
+    public function __construct(public StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger, private Provenance $user)
     {
         $this->entityId = $id->toEntityId();
     }
@@ -182,7 +183,8 @@ class EntityHistory extends AbstractHistory
             $taskDispatcher,
             $replyTo,
             $original->eventId,
-            $this->container->get(SpyProxy::class)
+            $this->container->get(SpyProxy::class),
+            $this->user,
         );
 
         if (is_object($this->state)) {

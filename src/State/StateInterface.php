@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\Event;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\ClassNameTypeMap;
 use Psr\Container\ContainerInterface;
@@ -33,7 +34,7 @@ use Psr\Container\ContainerInterface;
 #[ClassNameTypeMap('_state_type')]
 interface StateInterface
 {
-    public function __construct(StateId $id, DurableLogger $logger = null);
+    public function __construct(StateId $id, ?DurableLogger $logger, Provenance $user);
 
     public function setLogger(DurableLogger $logger): void;
 

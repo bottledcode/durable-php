@@ -32,10 +32,18 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Events\WithPriority;
 use Bottledcode\DurablePhp\Exceptions\ExternalException;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
+use Generator;
+use LogicException;
+use Override;
+use ReflectionClass;
+use ReflectionFunction;
+use RuntimeException;
+use Throwable;
 
 class ActivityHistory extends AbstractHistory
 {
@@ -44,7 +52,7 @@ class ActivityHistory extends AbstractHistory
 
     public string $activityId;
 
-    public function __construct(private StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger = null)
+    public function __construct(private StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger, private Provenance $user)
     {
         $this->activityId = $id->toActivityId();
     }
@@ -54,7 +62,7 @@ class ActivityHistory extends AbstractHistory
         return false;
     }
 
-    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
+    public function applyScheduleTask(ScheduleTask $event, Event $original): Generator
     {
         $task = $event->name;
         $replyTo = $this->getReplyTo($original);
@@ -77,14 +85,14 @@ class ActivityHistory extends AbstractHistory
 
         try {
             if (is_callable($task)) {
-                $arguments = $this->fillParameters($event->input, new \ReflectionFunction($task));
+                $arguments = $this->fillParameters($event->input, new ReflectionFunction($task));
             } elseif (! is_object($task)) {
                 $task = $this->container->get($task);
-                $reflection = new \ReflectionClass($task);
-                $entrypoint = $this->locateEntrypoint($reflection) ?? throw new \RuntimeException("Unable to locate entrypoint for $event->name");
+                $reflection = new ReflectionClass($task);
+                $entrypoint = $this->locateEntrypoint($reflection) ?? throw new RuntimeException("Unable to locate entrypoint for $event->name");
                 $arguments = $this->fillParameters($event->input, $entrypoint);
             } else {
-                throw new \LogicException('Activity must be callable or a class');
+                throw new LogicException('Activity must be callable or a class');
             }
 
             $result = $task(...$arguments);
@@ -104,7 +112,7 @@ class ActivityHistory extends AbstractHistory
                     TaskCompleted::forId($original->eventId, $result)
                 ));
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $now = MonotonicClock::current()->now();
             $this->status = new Status(
                 $now,
@@ -133,7 +141,8 @@ class ActivityHistory extends AbstractHistory
 
     public function ackedEvent(Event $event): void {}
 
-    #[\Override] public function setLogger(DurableLogger $logger): void
+    #[Override]
+    public function setLogger(DurableLogger $logger): void
     {
         $this->logger = $logger;
     }
