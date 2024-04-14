@@ -196,7 +196,7 @@ $decorator = function (array $typeConfig, TypeDefinitionNode $typeDefinitionNode
                                     $oargs = $args;
                                     unset($args['id']);
 
-                                    return getEntitySnapshot(['id' => ['id' => $oargs['id'], 'name' => $resolveInfo->fieldName], ...$args], $context);
+                                    return getEntitySnapshot(['id' => ['id' => $oargs['id'], 'name' => $handler['realName']], ...$args], $context);
                                 case 'OrchestrationStatus':
                                     $oargs = $args;
                                     unset($args['id']);

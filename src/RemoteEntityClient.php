@@ -51,16 +51,14 @@ class RemoteEntityClient implements EntityClientInterface
     }
 
     #[Override]
-    public function cleanEntityStorage(): void
-    {
-    }
+    public function cleanEntityStorage(): void {}
 
     #[Override]
     public function listEntities(EntityFilter $filter, int $page): Generator
     {
-        $req = new Request($this->apiHost.'/entities/filter/'.$page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
+        $req = new Request($this->apiHost . '/entities/filter/' . $page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
         if ($this->userToken) {
-            $req->setHeader('Authorization', 'Bearer '.$this->userToken);
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
@@ -107,20 +105,20 @@ class RemoteEntityClient implements EntityClientInterface
             $req->setHeader('At', $scheduledTime->format(DATE_ATOM));
         }
         if ($this->userToken) {
-            $req->setHeader('Authorization', 'Bearer '.$this->userToken);
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
-            throw new Exception('error calling '.$req->getUri()->getPath()."\n".$result->getBody()->read());
+            throw new Exception('error calling ' . $req->getUri()->getPath() . "\n" . $result->getBody()->read());
         }
     }
 
     #[Override]
     public function getEntitySnapshot(EntityId $entityId): ?EntityState
     {
-        $req = new Request($this->apiHost.'/entity/'.$entityId->name.'/'.$entityId->id);
+        $req = new Request($this->apiHost . '/entity/' . $entityId->name . '/' . $entityId->id);
         if ($this->userToken) {
-            $req->setHeader('Authorization', 'Bearer '.$this->userToken);
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
         $result = json_decode($result->getBody()->read() ?: 'null', true, 512, JSON_THROW_ON_ERROR);
@@ -143,7 +141,7 @@ class RemoteEntityClient implements EntityClientInterface
     {
         $req = new Request("$this->apiHost/entity/{$entityId->name}/{$entityId->id}", 'DELETE');
         if ($this->userToken) {
-            $req->setHeader('Authorization', 'Bearer '.$this->userToken);
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
 

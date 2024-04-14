@@ -39,8 +39,7 @@ final readonly class DurableClient implements DurableClientInterface
     public function __construct(
         private EntityClientInterface $entityClient,
         private OrchestrationClientInterface $orchestrationClient
-    ) {
-    }
+    ) {}
 
     public static function get(string $apiHost = 'http://localhost:8080'): self
     {

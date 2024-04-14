@@ -629,6 +629,7 @@ func authorize(
 		return ctx, false
 	}
 	if user, ok := auth.ExtractUser(request, config); ok {
+		logger.Info("Authenticating with user", zap.Any("user", user))
 		ctx = auth.DecorateContextWithUser(ctx, user)
 	}
 	resource, err := rm.DiscoverResource(ctx, id, logger, preventCreation)
