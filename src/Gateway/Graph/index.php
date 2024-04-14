@@ -165,9 +165,10 @@ function raiseEvent(array $args, DurableClient $context): array
 function signal(array $args, DurableClient $context): array
 {
     $id = new EntityId($args['id']['name'], $args['id']['id']);
-    $arguments = array_map(static fn ($x, $i) => ['key' => $i, ...$x], $args['arguments'], range(0, count($args['arguments']) - 1));
-    $arguments = array_column($arguments, 'value', 'key');
-    $context->signalEntity($id, $args['signal'], $arguments);
+    $signal = $args['signal'];
+    unset($args['id']);
+    unset($args['signal']);
+    $context->signalEntity($id, $signal, $args);
 
     return [];
 }
