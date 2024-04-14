@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
-	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -108,38 +107,8 @@ func (r *Resource) ShareOwnership(newUser UserId, currentUser *User, keepPermiss
 	return nil
 }
 
-// ApplyPerms applies permissions to the Resource identified by the given StateId. It retrieves the permissions from the
-// cache if available, otherwise it retrieves them from the key
-func (r *Resource) getPermissions(id *glue.StateId, ctx context.Context, logger *zap.Logger) (CreatePermissions, error) {
-	if cached, found := cache.Load(id.Name()); found {
-		return cached.(CreatePermissions), nil
-	}
-
-	result, err := os.CreateTemp("", "")
-	if err != nil {
-		return CreatePermissions{}, err
-	}
-
-	env := map[string]string{"STATE_ID": id.String()}
-	glu := glue.NewGlue("", glue.GetPermissions, make([]any, 0), result.Name())
-	glu.Execute(ctx, make(http.Header), logger, env, nil, id)
-
-	data, err := io.ReadAll(result)
-	if err != nil {
-		return CreatePermissions{}, err
-	}
-
-	var perms CreatePermissions
-	if err := json.Unmarshal(data, &perms); err != nil {
-		return CreatePermissions{}, err
-	}
-
-	cache.Store(id.Name(), perms)
-	return perms, nil
-}
-
 func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
-	perms, err := r.getPermissions(id, ctx, logger)
+	perms, err := r.getOrCreatePermissions(id, ctx, logger)
 	if err != nil {
 		logger.Error("failed to get permissions", zap.Error(err))
 		return false

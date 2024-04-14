@@ -271,50 +271,52 @@ func execute(args []string, options map[string]string) int {
 				}
 			}
 
-			outputBillingStatus := func() {
-				costC := func(num interface{}, basis int) float64 {
-					return float64(num.(int)) * float64(basis) / 10_000_000
+			/*
+				outputBillingStatus := func() {
+					costC := func(num interface{}, basis int) float64 {
+						return float64(num.(int)) * float64(basis) / 10_000_000
+					}
+
+					costA := func(dur interface{}, basis int) float64 {
+						duration := dur.(time.Duration)
+						seconds := duration.Seconds()
+						return float64(basis) * seconds / 100_000
+					}
+
+					avg := func(dur interface{}, count interface{}) time.Duration {
+						seconds := dur.(time.Duration).Seconds()
+						return time.Duration(seconds/float64(count.(int))) * time.Second
+					}
+
+					e, _ := billings.Load("e")
+					o, _ := billings.Load("o")
+					ac, _ := billings.Load("ac")
+					a, _ := billings.Load("a")
+
+					ecost := costC(e, cfg.Extensions.Billing.Costs.Entities.Cost)
+					ocost := costC(o, cfg.Extensions.Billing.Costs.Orchestrations.Cost)
+					acost := costA(a, cfg.Extensions.Billing.Costs.Activities.Cost)
+
+					logger.Warn("Billing estimate",
+						zap.Any("launched entities", e),
+						zap.String("entity cost", fmt.Sprintf("$%.2f", ecost)),
+						zap.Any("launched orchestrations", o),
+						zap.String("orchestration cost", fmt.Sprintf("$%.2f", ocost)),
+						zap.Any("activity time", a),
+						zap.Any("activities launced", ac),
+						zap.Any("average activity time", avg(a, ac)),
+						zap.String("activity cost", fmt.Sprintf("$%.2f", acost)),
+						zap.String("total estimate", fmt.Sprintf("$%.2f", ecost+ocost+acost)),
+					)
 				}
 
-				costA := func(dur interface{}, basis int) float64 {
-					duration := dur.(time.Duration)
-					seconds := duration.Seconds()
-					return float64(basis) * seconds / 100_000
-				}
-
-				avg := func(dur interface{}, count interface{}) time.Duration {
-					seconds := dur.(time.Duration).Seconds()
-					return time.Duration(seconds/float64(count.(int))) * time.Second
-				}
-
-				e, _ := billings.Load("e")
-				o, _ := billings.Load("o")
-				ac, _ := billings.Load("ac")
-				a, _ := billings.Load("a")
-
-				ecost := costC(e, cfg.Extensions.Billing.Costs.Entities.Cost)
-				ocost := costC(o, cfg.Extensions.Billing.Costs.Orchestrations.Cost)
-				acost := costA(a, cfg.Extensions.Billing.Costs.Activities.Cost)
-
-				logger.Warn("Billing estimate",
-					zap.Any("launched entities", e),
-					zap.String("entity cost", fmt.Sprintf("$%.2f", ecost)),
-					zap.Any("launched orchestrations", o),
-					zap.String("orchestration cost", fmt.Sprintf("$%.2f", ocost)),
-					zap.Any("activity time", a),
-					zap.Any("activities launced", ac),
-					zap.Any("average activity time", avg(a, ac)),
-					zap.String("activity cost", fmt.Sprintf("$%.2f", acost)),
-					zap.String("total estimate", fmt.Sprintf("$%.2f", ecost+ocost+acost)),
-				)
-			}
-
-			go func() {
-				ticker := time.NewTicker(3 * time.Second)
-				for range ticker.C {
-					outputBillingStatus()
-				}
-			}()
+				go func() {
+					ticker := time.NewTicker(3 * time.Second)
+					for range ticker.C {
+						outputBillingStatus()
+					}
+				}()
+			*/
 
 			billingStream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 				Name: "billing",

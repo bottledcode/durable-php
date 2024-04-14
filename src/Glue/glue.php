@@ -321,6 +321,7 @@ class Glue
 
         $permissions = json_encode($permissions, JSON_THROW_ON_ERROR);
         header("Permissions: $permissions");
+        echo $permissions;
     }
 
     private function getFromDefinition(Definition $definition): ReflectionClass|ReflectionFunction|null
