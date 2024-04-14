@@ -66,6 +66,8 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     private array $events;
 
+    private string $currentUserId = '';
+
     public function __construct(public mixed $orchestration, private array $input)
     {
         $this->status = new Status(new DateTimeImmutable(), '', SerializedArray::fromArray($input), StateId::fromInstance(new OrchestrationInstance('test', 'test')), new DateTimeImmutable(), null, RuntimeStatus::Running);
@@ -84,6 +86,11 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     public function handleEvent(string $name, mixed $value): void
     {
         $this->events[$name] = $value;
+    }
+
+    public function asUser(string $userId): void
+    {
+        $this->currentUserId = $userId;
     }
 
     public function callActivity(
@@ -382,5 +389,10 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     public function getRandomBytes(int $length): string
     {
         return random_bytes($length);
+    }
+
+    public function getCurrentUserId(): string
+    {
+        return $this->currentUserId;
     }
 }
