@@ -28,6 +28,7 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 
 /**
  * @template T
+ *
  * @mixin T
  */
 #[ClassNameTypeMap('_entity_state_type')]

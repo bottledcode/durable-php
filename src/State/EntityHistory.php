@@ -249,6 +249,7 @@ class EntityHistory extends AbstractHistory
     public function delete(): void
     {
         $this->state = null;
+        $this->status = $this->status->with(runtimeStatus: RuntimeStatus::Terminated);
     }
 
     private function finalize(Event $event): Generator
