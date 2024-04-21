@@ -23,8 +23,9 @@
 
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
-use Bottledcode\DurablePhp\State\Attributes\Name;
+use const T_STRING;
 
+use Bottledcode\DurablePhp\State\Attributes\Name;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use DateTime;
@@ -32,8 +33,6 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DI\Definition\Helper\AutowireDefinitionHelper;
 use DI\Definition\Helper\CreateDefinitionHelper;
-
-use const T_STRING;
 
 class SchemaGenerator
 {
@@ -50,6 +49,18 @@ class SchemaGenerator
         'Date',
     ];
 
+    private array $inputScalars = [
+        'Any',
+        'Void',
+        'State',
+        'Date',
+    ];
+
+    /**
+     * @var array<MetaParser>
+     */
+    private array $types = [];
+
     private array $states = [];
 
     private array $searchedStates = [];
@@ -61,11 +72,41 @@ class SchemaGenerator
 
     public function generateSchema(): array
     {
-        $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
+        $projectRoot = $this->findComposerJson(__DIR__.'/../../../..');
         $this->root = $projectRoot;
         $types = '';
 
         ['mutation' => $mutations, 'query' => $queries] = $this->findPhpFiles($projectRoot);
+
+        foreach ($this->inputScalars as $idx => $scalarName) {
+            if (is_numeric($idx)) {
+                continue;
+            }
+            $toConstruct = $this->types[$scalarName] ?? null;
+            if ($toConstruct === null) {
+                continue;
+            }
+            unset($this->inputScalars[$idx]);
+
+            [$moreTypes, $scalars] = $this->createProperties('input', $idx, $toConstruct);
+            $this->inputScalars += $scalars;
+            $types .= $moreTypes;
+        }
+
+        foreach ($this->scalars as $idx => $scalarName) {
+            if (is_numeric($idx)) {
+                continue;
+            }
+            $toConstruct = $this->types[$scalarName] ?? null;
+            if ($toConstruct === null) {
+                continue;
+            }
+            unset($this->scalars[$idx]);
+
+            [$moreTypes, $scalars] = $this->createProperties('type', $idx, $toConstruct);
+            $this->scalars += $scalars;
+            $types .= $moreTypes;
+        }
 
         $flipped = array_flip($this->searchedStates);
         foreach ($this->states as $realName => $properties) {
@@ -82,7 +123,7 @@ class SchemaGenerator
             $types .= <<<EOF
 
 type {$name}Snapshot {
-$properties
+    $properties
 }
 EOF;
 
@@ -93,7 +134,7 @@ EOF;
             $this->handlers['queries'][] = ['op' => 'entity', 'op-name' => $name, 'realName' => $rootName];
 
         }
-        $scalars = array_map(fn($x) => 'scalar ' . $x, array_unique($this->scalars));
+        $scalars = array_map(fn ($x) => 'scalar '.$x, array_unique($this->scalars + $this->inputScalars));
         $scalars = implode("\n", $scalars);
 
         return compact('queries', 'types', 'mutations', 'scalars');
@@ -104,7 +145,7 @@ EOF;
         $dir = realpath($startDirectory);
 
         while ($dir !== '/' && $dir !== null) {
-            $path = $dir . '/composer.json';
+            $path = $dir.'/composer.json';
 
             if (file_exists($path)) {
                 return dirname($path);
@@ -121,7 +162,7 @@ EOF;
         $mutation = '';
         $query = '';
 
-        $items = glob($dir . '/*');
+        $items = glob($dir.'/*');
 
         foreach ($items as $item) {
             if (is_dir($item) && ! str_ends_with($item, 'vendor')) {
@@ -142,7 +183,7 @@ EOF;
     {
         $content = file_get_contents($file);
 
-        if (str_contains($content, 'OrchestrationContext')) {
+        if (str_contains($content, 'OrchestrationContext') || str_contains($content, 'OrchestrationContextInterface')) {
             return $this->defineOrchestration($file, $content);
         }
 
@@ -153,18 +194,56 @@ EOF;
     {
         $name = basename($filename, '.php');
         $parsed = MetaParser::parseFile($contents);
-        $realName = $parsed->namespace . '\\' . $name;
+
+        $m = null;
+        foreach ($parsed->methods as $method) {
+            if ($method['name'] === '__invoke') {
+                $m = $method;
+            }
+            foreach ($method['attributes'] as $attribute) {
+                if ($attribute['name'] === 'EntryPoint') {
+                    $m = $method;
+                }
+            }
+        }
+
+        if ($m === null) {
+            return ['mutation' => '', 'query' => ''];
+        }
+
+        $arguments = [];
+        foreach ($m['args'] as ['type' => $type, 'name' => $argName, 'full_type' => $fullType]) {
+            if ($argName === '$context' || in_array($type, ['OrchestrationContextInterface', 'OrchestrationContext'])) {
+                $arguments[] = 'input: [Input!]!';
+                break;
+            }
+
+            [$type, $scalar] = $this->extractScalars($type, true);
+
+            if ($scalar) {
+                $this->inputScalars[$type] = $fullType;
+            }
+            $argName = trim($argName, '$');
+
+            $arguments[] = "$argName: {$type}";
+        }
+        if (empty($arguments)) {
+            $arguments = '';
+        } else {
+            $arguments = '('.implode(', ', $arguments).')';
+        }
+
+        $realName = $parsed->namespace.'\\'.$name;
         $name = ucfirst($name);
 
         $mutation = <<<GRAPHQL
-
-StartNew{$name}Orchestration(input: [Input!]!, execution: ID): Orchestration
+    StartNew{$name}Orchestration{$arguments}: Orchestration
 
 GRAPHQL;
 
         $query = <<<GRAPHQL
 
-{$name}Status(execution: ID!): Status!
+    {$name}Status(execution: ID!): Status!
 
 GRAPHQL;
 
@@ -188,84 +267,14 @@ GRAPHQL;
         foreach (array_unique($waitForExternalEventCalls) as $event) {
             $originalEvent = $event;
             $event = str_replace(' ', '', ucwords($event));
-            $mutation .= "Send{$event}To{$name}Orchestration(execution: ID!, arguments: [Input!]!): Void\n";
+            $mutation .= "    Send{$event}To{$name}Orchestration(execution: ID!, arguments: [Input!]!): Void\n";
             $this->handlers['mutations'][] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $originalEvent, 'name' => $realName];
         }
 
         return compact('mutation', 'query');
     }
 
-    public function defineEntity(string $filename, string $contents): string
-    {
-        $parsed = MetaParser::parseFile($contents);
-
-        $realName = basename($filename, '.php');
-        $realName = $parsed->namespace . '\\' . $realName;
-
-        foreach ($parsed->attributes as $attribute) {
-            if ($attribute['name'] === 'Name' || $attribute['name'] === Name::class) {
-                $className = ucfirst(trim($attribute['args'][0]['type'], '"\''));
-                goto found;
-            }
-        }
-
-        if (str_contains($contents, 'EntityState')) {
-            $properties = [];
-            foreach ($parsed->properties as ['type' => $type, 'name' => $name]) {
-                [$type, $scalar] = $this->extractScalars($type);
-                if ($scalar) {
-                    $this->scalars[] = $scalar;
-                }
-                $name = trim($name, '$');
-                $properties[] = "$name: $type";
-            }
-
-            $properties = implode("\n", $properties);
-            $this->states[$realName] = $properties;
-
-            return '';
-        }
-
-        return '';
-
-        found:
-
-        $methods = [];
-
-        foreach ($parsed->methods as $method) {
-            $originalMethodName = $method['name'];
-            $method['name'] = ucfirst($method['name']);
-
-            $arguments = ['id: ID!'];
-            $method['args'] = array_map(fn(array $args) => ['type' => 'mixed', ...$args], $method['args']);
-
-            foreach ($method['args'] as ['type' => $type, 'name' => $name]) {
-                [$type, $scalar] = $this->extractScalars($type);
-                if ($scalar) {
-                    $this->scalars[] = $scalar;
-                }
-                $name = trim($name, '$');
-
-                $arguments[] = "$name: $type";
-            }
-            $arguments = implode(', ', $arguments);
-
-            /*
-            [$returnType, $scalar] = $this->extractScalars($method['return']);
-            if($scalar) {
-                $this->scalars[] = $scalar;
-            }*/
-            $returnType = 'Void!';
-
-            $methods[] = "Signal{$className}With{$method['name']}($arguments): $returnType";
-            $this->handlers['mutations'][] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
-            $this->searchedStates[$className] = $realName;
-        }
-
-        return implode("\n", $methods) . "\n";
-    }
-
-    private function extractScalars(string $type): array
+    private function extractScalars(string $type, bool $input = false, $innerType = 'Any!'): array
     {
         $scalar = null;
         $nullable = false;
@@ -312,18 +321,135 @@ GRAPHQL;
                 $scalar = 'Any';
                 break;
             case 'array':
-                // todo: read doc block
-                $type = '[Any!]';
+                $type = "[$innerType]";
                 break;
             default:
                 $scalar = explode('\\', $type);
                 $scalar = array_pop($scalar);
                 $scalar = ucfirst($scalar);
-                $type = $scalar;
+                $type = $scalar.($input ? 'Input' : '');
                 break;
         }
 
         return [$nullable ? $type : "$type!", $scalar];
+    }
+
+    public function defineEntity(string $filename, string $contents): string
+    {
+        $parsed = MetaParser::parseFile($contents);
+
+        $realName = basename($filename, '.php');
+        $originalName = $realName;
+        $realName = $parsed->namespace.'\\'.$realName;
+
+        foreach ($parsed->attributes as $attribute) {
+            if ($attribute['name'] === 'Name' || $attribute['name'] === Name::class) {
+                $className = ucfirst(trim($attribute['args'][0]['type'], '"\''));
+                goto found;
+            }
+        }
+
+        if (str_contains($contents, 'EntityState')) {
+            $properties = [];
+            foreach ($parsed->properties as ['type' => $type, 'name' => $name, 'full_type' => $fullType]) {
+                [$type, $scalar] = $this->extractScalars($type);
+                if ($scalar) {
+                    $this->scalars[$type] = $fullType;
+                }
+                $name = trim($name, '$');
+                $properties[] = "$name: $type";
+            }
+
+            $properties = implode("\n", $properties);
+            $this->states[$realName] = $properties;
+
+            return '';
+        }
+
+        // maybe define type
+        $this->types[$realName] = $parsed;
+
+        return '';
+
+        found:
+
+        $methods = [];
+
+        foreach ($parsed->methods as $method) {
+            $originalMethodName = $method['name'];
+            $method['name'] = ucfirst($method['name']);
+
+            $arguments = ['id: ID!'];
+            $method['args'] = array_map(fn (array $args) => ['type' => 'mixed', ...$args], $method['args']);
+
+            foreach ($method['args'] as ['type' => $type, 'name' => $name, 'full_type' => $fullType]) {
+                [$type, $scalar] = $this->extractScalars($type, true);
+                if ($scalar) {
+                    $this->inputScalars[$type] = $fullType;
+                }
+                $name = trim($name, '$');
+
+                $arguments[] = "$name: $type";
+            }
+            $arguments = implode(', ', $arguments);
+
+            /*
+            [$returnType, $scalar] = $this->extractScalars($method['return']);
+            if($scalar) {
+                $this->scalars[] = $scalar;
+            }*/
+            $returnType = 'Void!';
+
+            $methods[] = "    Signal{$className}With{$method['name']}($arguments): $returnType";
+            $this->handlers['mutations'][] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
+            $this->searchedStates[$className] = $realName;
+        }
+
+        return implode("\n", $methods)."\n";
+    }
+
+    private function createProperties(string $kind, string $name, MetaParser $parser): array
+    {
+        $innerTypes = '';
+        $finalTypes = '';
+
+        $showName = trim($name, '!');
+
+        $finalTypes = "\n$kind $showName {\n";
+        $newScalars = [];
+
+        foreach ($parser->properties as $property) {
+            $innerFullType = MetaParser::getSequenceType($property['attributes']);
+            [$innerType, $scalar] = $this->extractScalars($innerFullType, $kind === 'input');
+            if ($scalar) {
+                $newScalars[$innerType] = $innerFullType;
+            }
+
+            [$type, $scalar] = $this->extractScalars($property['type'], $kind === 'input', $innerType);
+            if ($scalar) {
+                $newScalars[$type] = $property['full_type'] ?? $type;
+            }
+            $property['name'] = trim($property['name'], '$');
+            $finalTypes .= "    {$property['name']}: $type\n";
+        }
+        $finalTypes .= "}$innerTypes";
+
+        foreach ($newScalars as $name => $type) {
+            if (is_numeric($name)) {
+                continue;
+            }
+            $toConstruct = $this->types[$type] ?? null;
+            if ($toConstruct === null) {
+                continue;
+            }
+            unset($newScalars[$name]);
+
+            [$moreTypes, $moreScalars] = $this->createProperties($kind, $name, $toConstruct);
+            $finalTypes .= $moreTypes;
+            $newScalars += $moreScalars;
+        }
+
+        return [$finalTypes, $newScalars];
     }
 
     private function findRootName(string $parsedName, array $matches): string
