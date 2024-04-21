@@ -61,7 +61,7 @@ class RemoteEntityClient implements EntityClientInterface
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
-        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
+        $result = json_decode($result->getBody()->buffer(), true, 512, JSON_THROW_ON_ERROR);
         yield from $result;
     }
 
@@ -109,7 +109,7 @@ class RemoteEntityClient implements EntityClientInterface
         }
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
-            throw new Exception('error calling ' . $req->getUri()->getPath() . "\n" . $result->getBody()->read());
+            throw new Exception('error calling ' . $req->getUri()->getPath() . "\n" . $result->getBody()->buffer());
         }
     }
 
@@ -121,7 +121,7 @@ class RemoteEntityClient implements EntityClientInterface
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
-        $result = json_decode($result->getBody()->read() ?: 'null', true, 512, JSON_THROW_ON_ERROR);
+        $result = json_decode($result->getBody()->buffer() ?: 'null', true, 512, JSON_THROW_ON_ERROR);
 
         if ($result === null) {
             return null;
