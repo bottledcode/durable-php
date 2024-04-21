@@ -23,9 +23,8 @@
 
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
-use const T_STRING;
-
 use Bottledcode\DurablePhp\State\Attributes\Name;
+
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use DateTime;
@@ -33,6 +32,8 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DI\Definition\Helper\AutowireDefinitionHelper;
 use DI\Definition\Helper\CreateDefinitionHelper;
+
+use const T_STRING;
 
 class SchemaGenerator
 {
@@ -72,7 +73,7 @@ class SchemaGenerator
 
     public function generateSchema(): array
     {
-        $projectRoot = $this->findComposerJson(__DIR__.'/../../../..');
+        $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
         $this->root = $projectRoot;
         $types = '';
 
@@ -134,7 +135,7 @@ EOF;
             $this->handlers['queries'][] = ['op' => 'entity', 'op-name' => $name, 'realName' => $rootName];
 
         }
-        $scalars = array_map(fn ($x) => 'scalar '.$x, array_unique($this->scalars + $this->inputScalars));
+        $scalars = array_map(fn($x) => 'scalar ' . $x, array_unique($this->scalars + $this->inputScalars));
         $scalars = implode("\n", $scalars);
 
         return compact('queries', 'types', 'mutations', 'scalars');
@@ -145,7 +146,7 @@ EOF;
         $dir = realpath($startDirectory);
 
         while ($dir !== '/' && $dir !== null) {
-            $path = $dir.'/composer.json';
+            $path = $dir . '/composer.json';
 
             if (file_exists($path)) {
                 return dirname($path);
@@ -162,7 +163,7 @@ EOF;
         $mutation = '';
         $query = '';
 
-        $items = glob($dir.'/*');
+        $items = glob($dir . '/*');
 
         foreach ($items as $item) {
             if (is_dir($item) && ! str_ends_with($item, 'vendor')) {
@@ -230,10 +231,10 @@ EOF;
         if (empty($arguments)) {
             $arguments = '';
         } else {
-            $arguments = '('.implode(', ', $arguments).')';
+            $arguments = '(' . implode(', ', $arguments) . ')';
         }
 
-        $realName = $parsed->namespace.'\\'.$name;
+        $realName = $parsed->namespace . '\\' . $name;
         $name = ucfirst($name);
 
         $mutation = <<<GRAPHQL
@@ -327,7 +328,7 @@ GRAPHQL;
                 $scalar = explode('\\', $type);
                 $scalar = array_pop($scalar);
                 $scalar = ucfirst($scalar);
-                $type = $scalar.($input ? 'Input' : '');
+                $type = $scalar . ($input ? 'Input' : '');
                 break;
         }
 
@@ -340,7 +341,7 @@ GRAPHQL;
 
         $realName = basename($filename, '.php');
         $originalName = $realName;
-        $realName = $parsed->namespace.'\\'.$realName;
+        $realName = $parsed->namespace . '\\' . $realName;
 
         foreach ($parsed->attributes as $attribute) {
             if ($attribute['name'] === 'Name' || $attribute['name'] === Name::class) {
@@ -380,7 +381,7 @@ GRAPHQL;
             $method['name'] = ucfirst($method['name']);
 
             $arguments = ['id: ID!'];
-            $method['args'] = array_map(fn (array $args) => ['type' => 'mixed', ...$args], $method['args']);
+            $method['args'] = array_map(fn(array $args) => ['type' => 'mixed', ...$args], $method['args']);
 
             foreach ($method['args'] as ['type' => $type, 'name' => $name, 'full_type' => $fullType]) {
                 [$type, $scalar] = $this->extractScalars($type, true);
@@ -405,7 +406,7 @@ GRAPHQL;
             $this->searchedStates[$className] = $realName;
         }
 
-        return implode("\n", $methods)."\n";
+        return implode("\n", $methods) . "\n";
     }
 
     private function createProperties(string $kind, string $name, MetaParser $parser): array

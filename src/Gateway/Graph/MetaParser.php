@@ -25,9 +25,7 @@ namespace Bottledcode\DurablePhp\Gateway\Graph;
 
 class MetaParser
 {
-    public function __construct(public string $namespace, public array $uses, public array $methods, public array $implements, public array $attributes, public array $properties)
-    {
-    }
+    public function __construct(public string $namespace, public array $uses, public array $methods, public array $implements, public array $attributes, public array $properties) {}
 
     public static function getSequenceType(array $attributes): string
     {
@@ -159,7 +157,7 @@ class MetaParser
                             if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'])) {
                                 $currentArgument['full_type'] .= $uses[$token[1]] ?? $token[1];
                                 if (! str_contains($currentArgument['full_type'], '\\')) {
-                                    $currentArgument['full_type'] = $namespace.'\\'.$currentArgument['full_type'];
+                                    $currentArgument['full_type'] = $namespace . '\\' . $currentArgument['full_type'];
                                 }
                             }
                             break;
@@ -170,7 +168,7 @@ class MetaParser
                             if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'])) {
                                 $currentMethod['full_return'] .= $uses[$token[1]] ?? $token[1];
                                 if (! str_contains($currentMethod['full_return'], '\\')) {
-                                    $currentMethod['full_return'] = $namespace.'\\'.$currentMethod['full_return'];
+                                    $currentMethod['full_return'] = $namespace . '\\' . $currentMethod['full_return'];
                                 }
                             }
                             break;
@@ -186,7 +184,7 @@ class MetaParser
                             if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'])) {
                                 $currentProperty['full_type'] .= $uses[$token[1]] ?? $token[1];
                                 if (! str_contains($currentProperty['full_type'], '\\')) {
-                                    $currentProperty['full_type'] = $namespace.'\\'.$currentProperty['full_type'];
+                                    $currentProperty['full_type'] = $namespace . '\\' . $currentProperty['full_type'];
                                 }
                             }
                             $mode = Mode::CapturingProperty;
