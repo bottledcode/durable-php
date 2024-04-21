@@ -57,7 +57,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
-        $result = json_decode($result->getBody()->read(), true, 512, JSON_THROW_ON_ERROR);
+        $result = json_decode($result->getBody()->buffer(), true, 512, JSON_THROW_ON_ERROR);
         yield from $result;
     }
 
@@ -88,7 +88,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $result = $this->client->request($req);
         $body = '';
         while ($result->getBody()->isReadable()) {
-            $body .= $result->getBody()->read();
+            $body .= $result->getBody()->buffer();
         }
         $result = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
 
@@ -108,7 +108,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         }
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
-            throw new Exception($result->getBody()->read());
+            throw new Exception($result->getBody()->buffer());
         }
     }
 
@@ -137,7 +137,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         }
         $result = $this->client->request($req);
         if ($result->getStatus() >= 300) {
-            throw new Exception($result->getBody()->read());
+            throw new Exception($result->getBody()->buffer());
         }
 
         return (new StateId($result->getHeader('X-Id')))->toOrchestrationInstance();
@@ -168,7 +168,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
-        $result = $result->getBody()->read();
+        $result = $result->getBody()->buffer();
 
     }
 

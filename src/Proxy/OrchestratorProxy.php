@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -23,19 +23,23 @@
 
 namespace Bottledcode\DurablePhp\Proxy;
 
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionParameter;
+
 class OrchestratorProxy extends Generator
 {
-    protected function pureMethod(\ReflectionMethod $method): string
+    protected function pureMethod(ReflectionMethod $method): string
     {
         return $this->impureCall($method);
     }
 
-    protected function impureCall(\ReflectionMethod $method): string
+    protected function impureCall(ReflectionMethod $method): string
     {
         $name = $method->getName();
         $params = $method->getParameters();
         $params = array_map(
-            function (\ReflectionParameter $param) {
+            function (ReflectionParameter $param) {
                 $type = $param->getType();
                 if ($type !== null) {
                     $type = $this->getTypes($type);
@@ -51,22 +55,22 @@ class OrchestratorProxy extends Generator
 
         return <<<EOT
 public function $name($params)$return {
-    return \$this->context->waitOne(\$this->context->callEntity(\$this->id, __METHOD__, func_get_args()));
+    return \$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$method->getName()}", func_get_args()));
 }
 EOT;
     }
 
-    protected function getName(\ReflectionClass $class): string
+    protected function getName(ReflectionClass $class): string
     {
         return "__OrchestratorProxy_{$class->getShortName()}";
     }
 
-    protected function impureSignal(\ReflectionMethod $method): string
+    protected function impureSignal(ReflectionMethod $method): string
     {
         $name = $method->getName();
         $params = $method->getParameters();
         $params = array_map(
-            function (\ReflectionParameter $param) {
+            function (ReflectionParameter $param) {
                 $type = $param->getType();
                 if ($type !== null) {
                     $type = $this->getTypes($type);
@@ -82,15 +86,15 @@ EOT;
 
         return <<<EOT
 public function $name($params)$return {
-    \$this->context->signalEntity(\$this->id, __METHOD__, func_get_args());
+    \$this->context->signalEntity(\$this->id, "{$method->getName()}", func_get_args());
 }
 EOT;
     }
 
-    protected function preamble(\ReflectionClass $class): string
+    protected function preamble(ReflectionClass $class): string
     {
         return <<<EOT
-public function __construct(private Bottledcode\DurablePhp\OrchestrationContextInterface \$context, private Bottledcode\DurablePhp\State\EntityId \$id) {}
+public function __construct(private \Bottledcode\DurablePhp\OrchestrationContextInterface \$context, private \Bottledcode\DurablePhp\State\EntityId \$id) {}
 EOT;
     }
 }

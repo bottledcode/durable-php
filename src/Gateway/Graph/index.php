@@ -144,7 +144,15 @@ function getEntitySnapshot(array $args, DurableClient $context): array
 
 function startOrchestration(array $args, DurableClient $context): array
 {
-    $id = $context->startNew($args['name'], $args['input'], $args['id'] ?? null);
+    $input = [];
+    if ($args['input'] ?? null) {
+        $input = $args['input'];
+    }
+    $name = $args['name'];
+    unset($args['name']);
+    $input = $args;
+
+    $id = $context->startNew($name, $input, null);
 
     return [
         'instance' => $id->instanceId,

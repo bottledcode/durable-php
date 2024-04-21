@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2023 Robert Landers
+ * Copyright ©2024 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -21,10 +21,13 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+use Amp\DeferredFuture;
+use Bottledcode\DurablePhp\DurableFuture;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\Pure;
+use Bottledcode\DurablePhp\State\EntityId;
 
-if (!interface_exists(orchProxy::class)) {
+if (! interface_exists(orchProxy::class)) {
     interface orchProxy
     {
         public function callExample(): string;
@@ -44,15 +47,15 @@ it('generates a proxy correctly', function () {
 
 
 class __OrchestratorProxy_orchProxy implements orchProxy {
-  public function __construct(private Bottledcode\DurablePhp\OrchestrationContextInterface $context, private Bottledcode\DurablePhp\State\EntityId $id) {}
+  public function __construct(private \Bottledcode\DurablePhp\OrchestrationContextInterface $context, private \Bottledcode\DurablePhp\State\EntityId $id) {}
   public function callExample(): string {
-    return $this->context->waitOne($this->context->callEntity($this->id, __METHOD__, func_get_args()));
+    return $this->context->waitOne($this->context->callEntity($this->id, "callExample", func_get_args()));
 }
 public function signalExample(int $a): void {
-    $this->context->signalEntity($this->id, __METHOD__, func_get_args());
+    $this->context->signalEntity($this->id, "signalExample", func_get_args());
 }
 public function pureExample(int|float $number): string {
-    return $this->context->waitOne($this->context->callEntity($this->id, __METHOD__, func_get_args()));
+    return $this->context->waitOne($this->context->callEntity($this->id, "pureExample", func_get_args()));
 }
 }
 EOT
@@ -65,10 +68,10 @@ it('actually works', function () {
     $context = Mockery::mock(Bottledcode\DurablePhp\OrchestrationContextInterface::class);
     $context->shouldReceive('waitOne')->andReturn('waited');
     $context->shouldReceive('callEntity')->andReturn(
-        new \Bottledcode\DurablePhp\DurableFuture(new \Amp\DeferredFuture())
+        new DurableFuture(new DeferredFuture())
     );
     $context->shouldReceive('signalEntity')->andReturn('signal');
-    $proxy = new __OrchestratorProxy_orchProxy($context, new \Bottledcode\DurablePhp\State\EntityId('test', 'test'));
+    $proxy = new __OrchestratorProxy_orchProxy($context, new EntityId('test', 'test'));
 
     expect($proxy->callExample())->toBe('waited')
         ->and($proxy->pureExample(1))->toBe('waited')

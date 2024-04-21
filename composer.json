@@ -27,8 +27,8 @@
   "name": "bottledcode/durable-php",
   "require": {
     "adhocore/cli": "^1.7.1",
-    "amphp/file": "^3.0.2",
-    "amphp/http-client": "^v5.0.1",
+    "amphp/file": "^3.1.0",
+    "amphp/http-client": "^5.1.0",
     "amphp/log": "^v2.0.0",
     "amphp/parallel": "^2.2.9",
     "crell/serde": "^1.1.0",
