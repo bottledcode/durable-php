@@ -36,8 +36,8 @@ github.com/deepmap/oapi-codegen v1.16.2 h1:xGHx0dNqYfy9gE8a7AVgVM8Sd5oF9SEgePzP+
 github.com/deepmap/oapi-codegen v1.16.2/go.mod h1:rdYoEA2GE+riuZ91DvpmBX9hJbQpuY9wchXpfQ3n+ho=
 github.com/dolthub/maphash v0.1.0 h1:bsQ7JsF4FkkWyrP3oCnFJgrCUAFbFf3kOl4L/QxPDyQ=
 github.com/dolthub/maphash v0.1.0/go.mod h1:gkg4Ch4CdCDu5h6PMriVLawB7koZ+5ijb9puGMV50a4=
-github.com/dunglas/frankenphp v1.1.3 h1:lW9tKcyHpkGL7q/mgL7rVuekT4sGzBJk+jI9d1rHrxI=
-github.com/dunglas/frankenphp v1.1.3/go.mod h1:WvUMGanh9MQhkaikyO4ttNY9i93AAG5gvaesrzXul0A=
+github.com/dunglas/frankenphp v1.1.4 h1:JiuUzRVnm1GjiRl3Fjd7Ojqm5vXnIQ44bxNuv3CthEs=
+github.com/dunglas/frankenphp v1.1.4/go.mod h1:WvUMGanh9MQhkaikyO4ttNY9i93AAG5gvaesrzXul0A=
 github.com/fatih/color v1.15.0 h1:kOqh6YHBtK8aywxGerMG2Eq3H6Qgoqeo13Bk2Mv/nBs=
 github.com/fatih/color v1.15.0/go.mod h1:0h5ZqXfHYED7Bhv2ZJamyIOUej9KtShiJESRwBDUSsw=
 github.com/fatih/structs v1.1.0 h1:Q7juDM0QtcnhCpeyLGQKyg4TOIghuNXrkL32pHAUMxo=
