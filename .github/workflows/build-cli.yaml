@@ -169,7 +169,6 @@ jobs:
     name: Performance Test
     needs:
       - build-docker
-      - build-linux
     runs-on: self-hosted
     container: ghcr.io/${{ github.repository_owner }}/durable-php/runtime-tests:${{ github.sha }}
     services:
