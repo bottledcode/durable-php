@@ -48,13 +48,13 @@ RUN apk update; \
 	ln -sf /usr/bin/php83 /usr/bin/php
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
-ENV PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,gmp,gd,iconv,igbinary,mbregex,mbstring,opcache,openssl,pcntl,phar,posix,readline,simplexml,sockets,sodium,sysvsem,tokenizer,uv,xml,xmlreader,xmlwriter,zip,zlib"
+ENV PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,exif,fileinfo,filter,ftp,gd,gmp,gettext,iconv,igbinary,imagick,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,parallel,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,ssh2,sysvmsg,sysvsem,sysvshm,tidy,tokenizer,xlswriter,xml,xmlreader,xmlwriter,zip,zlib,yaml,zstd"
 ENV PHP_EXTENSION_LIBS="bzip2,freetype,libavif,libjpeg,libwebp,libzip"
 
 WORKDIR /go/src/app
 COPY cli/build-php.sh .
-RUN BUILD=no ./build-php.sh
-RUN ./build-php.sh
+RUN --mount=type=secret,id=github-token GITHUB_TOKEN=$(cat /run/secrets/github-token) BUILD=no ./build-php.sh
+RUN --mount=type=secret,id=github-token GITHUB_TOKEN=$(cat /run/secrets/github-token) ./build-php.sh
 
 #RUN mkdir -p cli && mv dist cli/
 
@@ -64,7 +64,7 @@ RUN cd cli && go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
 COPY .git/ ./.git/
 COPY cli/ ./cli/
 WORKDIR /go/src/app/cli
-RUN ./build.sh
+RUN --mount=type=secret,id=github-token GITHUB_TOKEN=$(cat /run/secrets/github-token) ./build.sh
 
 FROM php:8-zts AS common
 
