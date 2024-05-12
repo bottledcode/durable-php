@@ -57,12 +57,12 @@ it('processes signals', function () {
             {
                 ($this->outerCall)();
             }
-        }
+        },
     );
 
     processEvent(
         new RaiseEvent('id', '__signal', ['operation' => 'signal', 'input' => []]),
-        $history->applyRaiseEvent(...)
+        $history->applyRaiseEvent(...),
     );
     expect($called)->toBe(1);
 });
@@ -80,7 +80,7 @@ it('only processes locked events', function () {
             {
                 ($this->outerCall)();
             }
-        }
+        },
     );
 
     $owner = StateId::fromInstance(new OrchestrationInstance('owner', 'owner'));
@@ -89,20 +89,20 @@ it('only processes locked events', function () {
     $lockResult = processEvent(
         AwaitResult::forEvent(
             $owner,
-            WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), $history->id)
+            WithLock::onEntity($owner, RaiseEvent::forLockNotification($owner), $history->id),
         ),
-        $history->applyRaiseEvent(...)
+        $history->applyRaiseEvent(...),
     );
     expect($lockResult)->toHaveCount(2);
 
     $result = processEvent(
         WithLock::onEntity($owner, AwaitResult::forEvent($owner, RaiseEvent::forOperation('signal', [])), $history->id),
-        $history->applyRaiseEvent(...)
+        $history->applyRaiseEvent(...),
     );
 
     $otherResult = processEvent(
         $waiting = AwaitResult::forEvent($other, RaiseEvent::forOperation('signal', [])),
-        $history->applyRaiseEvent(...)
+        $history->applyRaiseEvent(...),
     );
     expect($called)->toBe(1);
 
@@ -110,9 +110,9 @@ it('only processes locked events', function () {
         WithLock::onEntity(
             $owner,
             AwaitResult::forEvent($owner, RaiseEvent::forUnlock($owner->id, null, null)),
-            $history->id
+            $history->id,
         ),
-        $history->applyRaiseEvent(...)
+        $history->applyRaiseEvent(...),
     );
 
     expect($unlockResult)->toContain($waiting)
@@ -132,7 +132,7 @@ it('properly locks in a chain', function () {
             {
                 ($this->outerCall)();
             }
-        }
+        },
     );
 
     $owner = StateId::fromInstance(new OrchestrationInstance('owner', 'owner'));
@@ -149,8 +149,8 @@ it('properly locks in a chain', function () {
                 RaiseEvent::forLockNotification($owner),
                 $otherEntity->id,
                 $history->id,
-            )
-        )
+            ),
+        ),
     );
 
     $actualEvent = WithEntity::forInstance(
@@ -162,8 +162,8 @@ it('properly locks in a chain', function () {
                 RaiseEvent::forOperation('signal', []),
                 $otherEntity->id,
                 $history->id,
-            )
-        )
+            ),
+        ),
     );
 
     // send the first lock notification in the chain

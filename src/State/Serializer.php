@@ -66,7 +66,7 @@ abstract class Serializer
     {
         if (
             array_key_exists('value', $value) && count($value) === 1 && (is_scalar(
-                $value['value']
+                $value['value'],
             ) || $value['value'] === null)
         ) {
             return $value['value'];

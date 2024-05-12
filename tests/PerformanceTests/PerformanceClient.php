@@ -53,7 +53,7 @@ for ($i = 0; $i < $numberLaunchers; $i++) {
     async(fn() => $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),
         'launch',
-        ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch]
+        ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch],
     ));
 }
 

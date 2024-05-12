@@ -88,7 +88,7 @@ interface EntityContextInterface
         EntityId $entityId,
         string $operation,
         array $input = [],
-        ?DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null,
     ): void;
 
     /**
@@ -106,7 +106,7 @@ interface EntityContextInterface
     public function delayUntil(
         string $operation,
         array $args = [],
-        DateTimeInterface $until = new DateTimeImmutable()
+        DateTimeInterface $until = new DateTimeImmutable(),
     ): void;
 
     public function delay(Closure $self, DateTimeInterface $until = new DateTimeImmutable()): void;

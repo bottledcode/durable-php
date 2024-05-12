@@ -86,7 +86,7 @@ readonly class StateId implements \Stringable
             ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to orchestration instance"),
             ['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
             ['entity', $parts[1], $parts[2]] => throw new Exception(
-                "Cannot convert entity state to orchestration instance"
+                "Cannot convert entity state to orchestration instance",
             ),
         };
     }
@@ -97,7 +97,7 @@ readonly class StateId implements \Stringable
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to entity id"),
             ['orchestration', $parts[1], $parts[2]] => throw new Exception(
-                "Cannot convert orchestration state to entity id"
+                "Cannot convert orchestration state to entity id",
             ),
             ['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
         };

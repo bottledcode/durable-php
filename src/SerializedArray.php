@@ -66,7 +66,7 @@ final readonly class SerializedArray
                 }
 
                 return is_array($source) ? Serializer::deserialize($source, $type) : $source;
-            }, $this->source, $this->types)
+            }, $this->source, $this->types),
         );
     }
 

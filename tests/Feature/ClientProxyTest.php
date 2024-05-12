@@ -55,7 +55,7 @@ public function pureExample(int|float $number): string {
     return $this->source->pureExample(...func_get_args());
 }
 }
-EOT
+EOT,
     );
 });
 

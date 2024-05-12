@@ -25,6 +25,7 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
+use Amp\Http\Client\SocketException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -167,9 +168,17 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
-        $result = $this->client->request($req);
-        $result = $result->getBody()->buffer();
-
+        $retries = 3;
+        retry:
+        try {
+            $result = $this->client->request($req);
+            $result->getBody()->buffer();
+        } catch (SocketException $exception) {
+            if ($retries-- > 0) {
+                goto retry;
+            }
+            throw $exception;
+        }
     }
 
     #[Override]

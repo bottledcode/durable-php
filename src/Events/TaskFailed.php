@@ -45,7 +45,7 @@ class TaskFailed extends Event
         string $scheduledId,
         string $reason,
         string $details = null,
-        string $previous = null
+        string $previous = null,
     ): self {
         return new self(Uuid::uuid7(), $scheduledId, $reason, $details, $previous);
     }

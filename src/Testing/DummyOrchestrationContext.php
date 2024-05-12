@@ -96,7 +96,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     public function callActivity(
         string $name,
         array $args = [],
-        ?RetryOptions $retryOptions = null
+        ?RetryOptions $retryOptions = null,
     ): DurableFuture {
         $future = new DeferredFuture();
         if ($this->activities[$name] ?? false) {
@@ -175,7 +175,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     public function callEntity(
         EntityId $entityId,
         string $operation,
-        array $args = []
+        array $args = [],
     ): DurableFuture {
         return ($this->entities[$entityId->name] ?? throw new LogicException('Failed to find registered entity: ' . $entityId->name))
             ->mock->{$operation}(...$args);
@@ -184,7 +184,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     public function signalEntity(
         EntityId $entityId,
         string $operation,
-        array $args = []
+        array $args = [],
     ): void {
         ($this->entities[$entityId->name] ?? throw new LogicException('Failed to find registered entity: ' . $entityId->name))
             ->mock->{$operation}(...$args);
@@ -217,7 +217,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         string $name,
         array $args = [],
         ?string $instanceId = null,
-        ?RetryOptions $retryOptions = null
+        ?RetryOptions $retryOptions = null,
     ): DurableFuture {
         throw new LogicException('Not implemented');
     }
@@ -292,12 +292,12 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         ?int $hours = null,
         ?int $minutes = null,
         ?int $seconds = null,
-        ?int $microseconds = null
+        ?int $microseconds = null,
     ): DateInterval {
         if (
             empty(
                 array_filter(
-                    compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds')
+                    compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds'),
                 )
             )
         ) {
@@ -356,7 +356,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     public function createEntityProxy(
         string $className,
-        ?EntityId $entityId = null
+        ?EntityId $entityId = null,
     ): object {
         if ($entityId === null) {
             $entityId = new EntityId($className, $this->newGuid());

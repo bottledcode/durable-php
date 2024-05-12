@@ -51,7 +51,7 @@ it('real: fails on an exception', function () {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
-        WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [true]))
+        WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [true])),
     );
     $result1 = processEvent($event, $history->applyScheduleTask(...));
     expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent())->toBeInstanceOf(TaskFailed::class);
@@ -68,7 +68,7 @@ it('succeeds on no exception', function () {
     $history->setContainer($container);
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
-        WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [false]))
+        WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [false])),
     );
     $result1 = processEvent($event, $history->applyScheduleTask(...));
     expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent()->getInnerEvent())->toBeInstanceOf(TaskCompleted::class);

@@ -104,12 +104,12 @@ class ActivityHistory extends AbstractHistory
                 $this->id,
                 $now,
                 SerializedArray::fromArray([$result]),
-                RuntimeStatus::Completed
+                RuntimeStatus::Completed,
             );
             foreach ($replyTo as $id) {
                 yield WithPriority::high(WithOrchestration::forInstance(
                     $id,
-                    TaskCompleted::forId($original->eventId, $result)
+                    TaskCompleted::forId($original->eventId, $result),
                 ));
             }
         } catch (Throwable $e) {
@@ -121,7 +121,7 @@ class ActivityHistory extends AbstractHistory
                 $this->id,
                 $now,
                 SerializedArray::fromArray([ExternalException::fromException($e)]),
-                RuntimeStatus::Failed
+                RuntimeStatus::Failed,
             );
             foreach ($replyTo as $id) {
                 yield WithOrchestration::forInstance(
@@ -130,8 +130,8 @@ class ActivityHistory extends AbstractHistory
                         $original->eventId,
                         $e->getMessage(),
                         $e->getTraceAsString(),
-                        $e::class
-                    )
+                        $e::class,
+                    ),
                 );
             }
         }

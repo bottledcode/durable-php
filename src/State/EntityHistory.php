@@ -120,7 +120,7 @@ class EntityHistory extends AbstractHistory
                 foreach ($reply as $nextEvent) {
                     yield WithPriority::high(With::id(
                         $nextEvent,
-                        RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target'])
+                        RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target']),
                     ));
                 }
                 break;
@@ -260,7 +260,7 @@ class EntityHistory extends AbstractHistory
         $this->history =
             array_filter(
                 $this->history,
-                static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value
+                static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value,
             );
         $this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 

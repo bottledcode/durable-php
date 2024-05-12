@@ -96,7 +96,7 @@ interface OrchestrationContextInterface
         string $name,
         array $args = [],
         ?string $instanceId = null,
-        ?RetryOptions $retryOptions = null
+        ?RetryOptions $retryOptions = null,
     ): DurableFuture;
 
     public function continueAsNew(array $args = []): never;
@@ -180,7 +180,7 @@ interface OrchestrationContextInterface
         ?int $hours = null,
         ?int $minutes = null,
         ?int $seconds = null,
-        ?int $microseconds = null
+        ?int $microseconds = null,
     ): DateInterval;
 
     /**

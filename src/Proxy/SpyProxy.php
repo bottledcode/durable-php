@@ -43,7 +43,7 @@ class SpyProxy extends Generator
 
                 return "$type \${$param->getName()}";
             },
-            $params
+            $params,
         );
         $params = implode(', ', $params);
         $return = $method->getReturnType();

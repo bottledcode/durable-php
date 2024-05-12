@@ -115,9 +115,9 @@ class LockStateMachine
                                 WithLock::onEntity(
                                     $owner,
                                     RaiseEvent::forLockNotification($owner),
-                                    ...$lock->participants
-                                )
-                            )
+                                    ...$lock->participants,
+                                ),
+                            ),
                         );
                     }
                     $this->lockQueue[$owner->id]['sent'] = true;
@@ -145,8 +145,8 @@ class LockStateMachine
                             $this->myId,
                             WithLock::onEntity(
                                 $owner,
-                                With::id($this->lockQueue[$owner->id]['previous'], RaiseEvent::forLockNotification($owner))
-                            )
+                                With::id($this->lockQueue[$owner->id]['previous'], RaiseEvent::forLockNotification($owner)),
+                            ),
                         );
                     }
 

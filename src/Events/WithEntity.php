@@ -38,7 +38,7 @@ class WithEntity extends Event implements HasInnerEventInterface, StateTargetInt
         return new static(
             $innerEvent->eventId,
             $target,
-            $innerEvent
+            $innerEvent,
         );
     }
 

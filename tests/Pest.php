@@ -139,7 +139,7 @@ function processEvent(Event $event, Closure $processor): array
 
     $eventDispatcher = new class ($fire) extends Task {
         public function __construct(
-            private Closure $fire
+            private Closure $fire,
         ) {}
 
         public function fire(Event ...$events): array
@@ -185,7 +185,7 @@ function getOrchestration(
     callable|object $orchestration,
     array $input,
     ?StartOrchestration &$nextEvent = null,
-    ?Event $startupEvent = null
+    ?Event $startupEvent = null,
 ): OrchestrationHistory {
     $instance = base64_encode(random_bytes(5));
 
@@ -198,7 +198,7 @@ function getOrchestration(
             OrchestratorProxy::class => new OrchestratorProxy(),
             SpyProxy::class => new SpyProxy(),
             $instance => $orchestration,
-        ]
+        ],
     );
     $history = new OrchestrationHistory(StateId::fromInstance(new OrchestrationInstance($instance, $id)), new DurableLogger(), new Provenance('', []));
     $history->setContainer($container);

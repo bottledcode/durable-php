@@ -28,52 +28,68 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 	if err != nil {
 		panic(err)
 	}
-	sem := make(chan struct{}, runtime.NumCPU())
-	for {
-		sem <- struct{}{}
-		go func() {
-			defer func() {
-				<-sem
-			}()
+	// create backpressure only when we get too many messages at once
+	messages := make(chan jetstream.Msg, runtime.NumCPU()*2)
+	sem := make(chan struct{}, runtime.NumCPU()*2)
 
+	// spawn a thread responsible for handling messages
+	go func() {
+		for {
+			select {
+			case msg := <-messages:
+				meta, _ := msg.Metadata()
+				headers := msg.Headers()
+
+				if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
+					logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
+					schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
+					if err != nil {
+						panic(err)
+					}
+
+					delay := time.Until(schedule)
+					if err := msg.NakWithDelay(delay); err != nil {
+						panic(err)
+					}
+					return
+				}
+
+				if strings.HasSuffix(msg.Subject(), ".delete") {
+					id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+					err := glue.DeleteState(ctx, js, logger, id)
+					if err != nil {
+						panic(err)
+					}
+					return
+				}
+
+				ctx := getCorrelationId(ctx, nil, &headers)
+
+				// spawn a thread to process the message, but rate limit
+				go func() {
+					sem <- struct{}{}
+					defer func() {
+						<-sem
+					}()
+					if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
+						panic(err)
+					}
+				}()
+			}
+		}
+	}()
+
+	// a single threaded reader
+	go func() {
+		for {
 			msg, err := iter.Next()
 			if err != nil {
 				panic(err)
 			}
 
-			meta, _ := msg.Metadata()
-			headers := msg.Headers()
-
-			if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
-				logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
-				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
-				if err != nil {
-					panic(err)
-				}
-
-				delay := time.Until(schedule)
-				if err := msg.NakWithDelay(delay); err != nil {
-					panic(err)
-				}
-				return
-			}
-
-			if strings.HasSuffix(msg.Subject(), ".delete") {
-				id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
-				err := glue.DeleteState(ctx, js, logger, id)
-				if err != nil {
-					panic(err)
-				}
-				return
-			}
-
-			ctx := getCorrelationId(ctx, nil, &headers)
-
-			if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
-				panic(err)
-			}
-		}()
-	}
+			messages <- msg
+		}
+	}()
 }
 
 // processMsg is responsible for processing a message received from JetStream.
@@ -114,6 +130,12 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		// retrieve the source
 		sourceId := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
 		if sourceR, err := rm.DiscoverResource(ctx, sourceId, logger, true); err != nil {
+			if sourceR == nil {
+				logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
+				msg.Ack()
+				return nil
+			}
+
 			for _, op := range sourceOps {
 				if !sourceR.WantTo(auth.Operation(op), ctx) {
 					// user isn't allowed to do this, so warn
@@ -143,6 +165,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		resource, err := rm.DiscoverResource(ctx, id, logger, !shouldCreate)
 		if err != nil {
 			logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "create"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+			msg.Ack()
+			return nil
+		}
+		if resource == nil {
+			logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
 			msg.Ack()
 			return nil
 		}
@@ -297,6 +324,10 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		if err != nil {
 			return err
 		}
+		if resource == nil {
+			return nil
+		}
+
 		rm.Delete(ctx, resource)
 	}
 

@@ -141,7 +141,7 @@ class OrchestrationHistory extends AbstractHistory
             $this->id,
             MonotonicClock::current()->now(),
             SerializedArray::fromArray([]),
-            RuntimeStatus::Unknown
+            RuntimeStatus::Unknown,
         );
 
         yield null;
@@ -223,7 +223,7 @@ class OrchestrationHistory extends AbstractHistory
                 StateId::fromInstance($this->instance),
                 $e->getMessage(),
                 $e->getTraceAsString(),
-                $e::class
+                $e::class,
             );
         } finally {
             if (! $this->isRunning()) {
@@ -248,7 +248,7 @@ class OrchestrationHistory extends AbstractHistory
         foreach ($this->locks as $lock) {
             yield WithLock::onEntity(
                 $this->id,
-                WithEntity::forInstance($lock, RaiseEvent::forUnlock($this->id->id, null, null))
+                WithEntity::forInstance($lock, RaiseEvent::forUnlock($this->id->id, null, null)),
             );
         }
     }

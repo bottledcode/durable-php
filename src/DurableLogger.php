@@ -54,7 +54,7 @@ class DurableLogger implements LoggerInterface
                 new class (new ConsoleFormatter(
                     format: $this->name ? "%channel%.%level_name%: %message% %context% %extra%" : "[%datetime%] %level_name%: %message% %context% %extra%",
                     allowInlineLineBreaks: true,
-                    ignoreEmptyContextAndExtra: true
+                    ignoreEmptyContextAndExtra: true,
                 ), $this->name) implements FormatterInterface {
                     private Color $colorize;
 
@@ -71,7 +71,7 @@ class DurableLogger implements LoggerInterface
                             Level::Info => fn(string $text) => $this->colorize->info($text),
                             Level::Warning, Level::Alert => fn(string $text) => $this->colorize->warn($text),
                             Level::Critical, Level::Error, Level::Emergency => fn(
-                                string $text
+                                string $text,
                             ) => $this->colorize->error($text),
                         };
 
@@ -83,7 +83,7 @@ class DurableLogger implements LoggerInterface
                     {
                         return implode("", array_map($this->format(...), $records));
                     }
-                }
+                },
             );
             $handler->pushProcessor(new MemoryPeakUsageProcessor(true, true));
             $handler->pushProcessor(new ProcessIdProcessor());
