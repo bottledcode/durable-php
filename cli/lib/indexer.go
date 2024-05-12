@@ -16,7 +16,7 @@ import (
 )
 
 func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind, js jetstream.JetStream, logger *zap.Logger) error {
-	logger.Info("Starting indexer extension", zap.String("for", string(kind)), zap.Any("config", config.Extensions.Search))
+	//logger.Info("Starting indexer extension", zap.String("for", string(kind)), zap.Any("config", config.Extensions.Search))
 
 	client := typesense.NewClient(typesense.WithServer(config.Extensions.Search.Url), typesense.WithAPIKey(config.Extensions.Search.Key))
 
