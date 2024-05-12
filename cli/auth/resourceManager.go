@@ -69,7 +69,8 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 		}
 		return nil, fmtError("user cannot create resource")
 	} else if (err != nil || data == nil) && preventCreation {
-		return nil, fmtError("resource not found")
+		return nil, nil
+		//return nil, fmtError("resource not found")
 	}
 	resource, err := FromBytes(data.Value())
 	if err != nil {

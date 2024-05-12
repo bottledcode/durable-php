@@ -306,6 +306,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
+			if resource == nil {
+				http.Error(writer, "Not Found", http.StatusNotFound)
+				return
+			}
+
 			rm.Delete(ctx, resource)
 		}
 	}
@@ -373,6 +378,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 				http.Error(writer, "Not Found", http.StatusNotFound)
 				return
 			}
+			if rs == nil {
+				http.Error(writer, "Not Found", http.StatusNotFound)
+				return
+			}
+
 			rm.Delete(ctx, rs)
 			http.Error(writer, "Deleted", http.StatusNoContent)
 			return
@@ -485,6 +495,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), logger, true)
 			if err != nil {
 				logger.Error("Failed to discover a resource for deletion", zap.Error(err))
+				http.Error(writer, "Not Found", http.StatusNotFound)
+				return
+			}
+			if rs == nil {
 				http.Error(writer, "Not Found", http.StatusNotFound)
 				return
 			}
@@ -638,6 +652,11 @@ func authorize(
 		http.Error(writer, "Not Authorized", http.StatusForbidden)
 		return nil, true
 	}
+	if resource == nil {
+		http.Error(writer, "Not Found", http.StatusNotFound)
+		return nil, true
+	}
+
 	if !resource.WantTo(operation, ctx) {
 		logger.Warn("User attempted to access resource they are not allowed to access", zap.Any("id", id.String()), zap.Error(err))
 		http.Error(writer, "Not Authorized", http.StatusForbidden)

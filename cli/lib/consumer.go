@@ -114,6 +114,12 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		// retrieve the source
 		sourceId := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
 		if sourceR, err := rm.DiscoverResource(ctx, sourceId, logger, true); err != nil {
+			if sourceR == nil {
+				logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
+				msg.Ack()
+				return nil
+			}
+
 			for _, op := range sourceOps {
 				if !sourceR.WantTo(auth.Operation(op), ctx) {
 					// user isn't allowed to do this, so warn
@@ -143,6 +149,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		resource, err := rm.DiscoverResource(ctx, id, logger, !shouldCreate)
 		if err != nil {
 			logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "create"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+			msg.Ack()
+			return nil
+		}
+		if resource == nil {
+			logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
 			msg.Ack()
 			return nil
 		}
@@ -297,6 +308,10 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		if err != nil {
 			return err
 		}
+		if resource == nil {
+			return nil
+		}
+
 		rm.Delete(ctx, resource)
 	}
 
