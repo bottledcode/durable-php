@@ -36,7 +36,8 @@ jobs:
         uses: crazy-max/ghaction-github-runtime@v3
       - name: Build sources
         run: |
-          docker buildx build --cache-to type=gha,mode=max,scope=${{ matrix.platform }} --cache-from type=gha,scope=${{ matrix.platform }} --pull --load --platform linux/${{ matrix.platform }} --target cli-base-alpine -t builder .
+          echo "${{ secrets.GITHUB_TOKEN }}" > TOKEN
+          docker buildx build --secret id=github-token,src=./TOKEN --cache-to type=gha,mode=max,scope=${{ matrix.platform }} --cache-from type=gha,scope=${{ matrix.platform }} --pull --load --platform linux/${{ matrix.platform }} --target cli-base-alpine -t builder .
       - name: Copy build
         run: |
           docker create --name builder builder
