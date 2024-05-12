@@ -28,8 +28,8 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 	if err != nil {
 		panic(err)
 	}
-	messages := make(chan jetstream.Msg)
-	sem := make(chan struct{}, runtime.NumCPU()*2)
+	// create backpressure only when we get too many messages at once
+	messages := make(chan jetstream.Msg, runtime.NumCPU()*2)
 
 	// spawn a thread responsible for handling messages
 	go func() {
@@ -65,15 +65,15 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 				ctx := getCorrelationId(ctx, nil, &headers)
 
 				// spawn a thread to process the message, but rate limit
-				go func() {
-					sem <- struct{}{}
-					defer func() {
-						<-sem
-					}()
-					if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
-						panic(err)
-					}
-				}()
+				//go func() {
+				//	sem <- struct{}{}
+				//	defer func() {
+				//		<-sem
+				//	}()
+				if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
+					panic(err)
+				}
+				//}()
 			}
 		}
 	}()
