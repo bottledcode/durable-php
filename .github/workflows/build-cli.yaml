@@ -147,11 +147,17 @@ jobs:
           path: dist
           key: ${{ matrix.platform }}-${{ hashFiles('cli/*.mod') }}
       - name: Run doctor
-        run: BUILD=no cli/build-php.sh
+        run: |
+          export GITHUB_TOKEN "${{ secrets.GITHUB_TOKEN }}"
+          BUILD=no cli/build-php.sh
       - name: Build php
-        run: cli/build-php.sh
+        run: |
+          export GITHUB_TOKEN "${{ secrets.GITHUB_TOKEN }}"
+          cli/build-php.sh
       - name: Build cli
-        run: cd cli && ./build.sh
+        run: |
+          export GITHUB_TOKEN "${{ secrets.GITHUB_TOKEN }}"
+          cd cli && ./build.sh
       - run: ls -lah cli/dist/
       - run: ls -lah dist/ || true
       - name: Archive artifacts
