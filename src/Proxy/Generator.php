@@ -85,7 +85,7 @@ abstract class Generator
 
                 return $this->impureCall($method);
             },
-            $methods
+            $methods,
         );
         $methods = implode("\n", $methods);
         $namespace = $namespace ? "namespace $namespace;" : '';

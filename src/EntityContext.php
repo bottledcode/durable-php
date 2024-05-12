@@ -88,7 +88,7 @@ class EntityContext implements EntityContextInterface
     {
         foreach ($this->caller as $caller) {
             $this->eventDispatcher->fire(
-                WithOrchestration::forInstance($caller, TaskCompleted::forId($this->requestingId, $value))
+                WithOrchestration::forInstance($caller, TaskCompleted::forId($this->requestingId, $value)),
             );
         }
         throw new Unwind('return');
@@ -104,11 +104,11 @@ class EntityContext implements EntityContextInterface
         EntityId $entityId,
         string $operation,
         array $input = [],
-        ?DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null,
     ): void {
         $event = WithEntity::forInstance(
             StateId::fromEntityId($entityId),
-            RaiseEvent::forOperation($operation, $input)
+            RaiseEvent::forOperation($operation, $input),
         );
         if ($scheduledTime) {
             $event = WithDelay::forEvent($scheduledTime, $event);
@@ -136,8 +136,8 @@ class EntityContext implements EntityContextInterface
         $this->eventDispatcher->fire(
             WithOrchestration::forInstance(
                 $instance,
-                StartExecution::asParent($input, [])
-            )
+                StartExecution::asParent($input, []),
+            ),
         );
     }
 
@@ -175,13 +175,13 @@ class EntityContext implements EntityContextInterface
     public function delayUntil(
         string $operation,
         array $args = [],
-        DateTimeInterface $until = new DateTimeImmutable()
+        DateTimeInterface $until = new DateTimeImmutable(),
     ): void {
         $this->eventDispatcher->fire(
             WithDelay::forEvent(
                 $until,
-                WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args))
-            )
+                WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args)),
+            ),
         );
     }
 

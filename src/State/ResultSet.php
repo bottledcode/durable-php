@@ -31,6 +31,6 @@ class ResultSet
     public function __construct(
         #[DictionaryField(arrayType: Event::class)]
         public array $match = [],
-        public array $order = []
+        public array $order = [],
     ) {}
 }

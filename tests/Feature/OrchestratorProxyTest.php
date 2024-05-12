@@ -58,7 +58,7 @@ public function pureExample(int|float $number): string {
     return $this->context->waitOne($this->context->callEntity($this->id, "pureExample", func_get_args()));
 }
 }
-EOT
+EOT,
     );
 });
 
@@ -68,7 +68,7 @@ it('actually works', function () {
     $context = Mockery::mock(Bottledcode\DurablePhp\OrchestrationContextInterface::class);
     $context->shouldReceive('waitOne')->andReturn('waited');
     $context->shouldReceive('callEntity')->andReturn(
-        new DurableFuture(new DeferredFuture())
+        new DurableFuture(new DeferredFuture()),
     );
     $context->shouldReceive('signalEntity')->andReturn('signal');
     $proxy = new __OrchestratorProxy_orchProxy($context, new EntityId('test', 'test'));

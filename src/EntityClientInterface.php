@@ -54,7 +54,7 @@ interface EntityClientInterface
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        ?DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null,
     ): void;
 
     /**

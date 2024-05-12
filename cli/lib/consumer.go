@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -28,6 +29,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 		panic(err)
 	}
 	messages := make(chan jetstream.Msg)
+	sem := make(chan struct{}, runtime.NumCPU()*2)
 
 	// spawn a thread responsible for handling messages
 	go func() {
@@ -64,12 +66,10 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 
 				// spawn a thread to process the message, but rate limit
 				go func() {
-					//logger.Info("Waiting")
-					//sem <- struct{}{}
-					//defer func() {
-					//<-sem
-					//logger.Info("Finished")
-					//}()
+					sem <- struct{}{}
+					defer func() {
+						<-sem
+					}()
 					if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
 						panic(err)
 					}

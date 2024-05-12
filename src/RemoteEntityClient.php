@@ -90,7 +90,7 @@ class RemoteEntityClient implements EntityClientInterface
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        ?DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null,
     ): void {
         $name = rawurlencode($entityId->name);
         $id = rawurlencode($entityId->id);

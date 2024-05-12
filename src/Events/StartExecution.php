@@ -48,7 +48,7 @@ class StartExecution extends Event
     public static function asParent(
         array $input,
         array $tags,
-        \DateTimeImmutable $at = new \DateTimeImmutable()
+        \DateTimeImmutable $at = new \DateTimeImmutable(),
     ): self {
         return new self(null, 0, $input, $tags, '', $at, 0, '');
     }
@@ -57,7 +57,7 @@ class StartExecution extends Event
         OrchestrationInstance $parent,
         array $input,
         array $tags,
-        \DateTimeImmutable $at = new \DateTimeImmutable()
+        \DateTimeImmutable $at = new \DateTimeImmutable(),
     ) {
         return new self($parent, 0, $input, $tags, '', $at, 0, '');
     }

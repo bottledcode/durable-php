@@ -38,7 +38,7 @@ class WithDelay extends Event implements HasInnerEventInterface
         return new static(
             $innerEvent->eventId,
             $fireAt,
-            $innerEvent
+            $innerEvent,
         );
     }
 

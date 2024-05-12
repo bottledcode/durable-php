@@ -47,7 +47,7 @@ class OrchestratorProxy extends Generator
 
                 return "$type \${$param->getName()}";
             },
-            $params
+            $params,
         );
         $params = implode(', ', $params);
         $return = $method->getReturnType();
@@ -78,7 +78,7 @@ EOT;
 
                 return "$type \${$param->getName()}";
             },
-            $params
+            $params,
         );
         $params = implode(', ', $params);
         $return = $method->getReturnType();

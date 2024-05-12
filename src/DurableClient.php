@@ -38,7 +38,7 @@ final readonly class DurableClient implements DurableClientInterface
 {
     public function __construct(
         private EntityClientInterface $entityClient,
-        private OrchestrationClientInterface $orchestrationClient
+        private OrchestrationClientInterface $orchestrationClient,
     ) {}
 
     public static function get(string $apiHost = 'http://localhost:8080'): self
@@ -65,7 +65,7 @@ final readonly class DurableClient implements DurableClientInterface
         EntityId $entityId,
         string $operationName,
         array $input = [],
-        ?DateTimeImmutable $scheduledTime = null
+        ?DateTimeImmutable $scheduledTime = null,
     ): void {
         $this->entityClient->signalEntity($entityId, $operationName, $input, $scheduledTime);
     }

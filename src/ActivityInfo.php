@@ -33,6 +33,6 @@ class ActivityInfo
         public UuidInterface|null $originWorkItemId,
         public DateTimeInterface $issueTime,
         public int $dequeueCount,
-        public string $eventId
+        public string $eventId,
     ) {}
 }

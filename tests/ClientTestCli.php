@@ -33,7 +33,7 @@ $client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory
 $orchestrationInstance = $client->startNew(
     \Bottledcode\DurablePhp\HelloSequence::class,
     ['name' => 'World'],
-    \Ramsey\Uuid\Uuid::uuid7()->toString()
+    \Ramsey\Uuid\Uuid::uuid7()->toString(),
 );
 $client->raiseEvent($orchestrationInstance, 'event', ['data']);
 $client->waitForCompletion($orchestrationInstance, new \Amp\TimeoutCancellation(hours(2)->inSeconds()));

@@ -32,7 +32,7 @@ class WithOrchestration extends Event implements HasInnerEventInterface, StateTa
     public function __construct(
         string $eventId,
         public StateId $target,
-        private readonly Event $innerEvent
+        private readonly Event $innerEvent,
     ) {
         parent::__construct($this->innerEvent->eventId ?: Uuid::uuid7());
     }

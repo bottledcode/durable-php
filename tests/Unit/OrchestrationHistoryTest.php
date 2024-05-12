@@ -90,7 +90,7 @@ it('returns a result to the parent', function () {
         fn() => true,
         [],
         $nextEvent,
-        StartExecution::asChild(new OrchestrationInstance('parent', 'parent'), [], [])
+        StartExecution::asChild(new OrchestrationInstance('parent', 'parent'), [], []),
     );
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     expect($result)->toHaveCount(1)
@@ -146,21 +146,21 @@ it('can wait for a signal after starting', function () {
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
         WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', SerializedArray::fromArray([])->toArray())),
-        $instance->applyRaiseEvent(...)
+        $instance->applyRaiseEvent(...),
     );
     $instance->resetState();
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
         WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])),
-        $instance->applyRaiseEvent(...)
+        $instance->applyRaiseEvent(...),
     );
     $instance->resetState();
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Running);
     $result = processEvent(
         WithOrchestration::forInstance($instance->id, new RaiseEvent('', 'test', [])),
-        $instance->applyRaiseEvent(...)
+        $instance->applyRaiseEvent(...),
     );
     $instance->resetState();
     expect($result)->toBeEmpty()
@@ -195,7 +195,7 @@ it('can call an activity with a successful result', function () {
     expect($result)->toHaveCount(1);
     $result = processEvent(
         WithOrchestration::forInstance($instance->id, TaskCompleted::forId($result[0]->eventId, 'pretty colors')),
-        $instance->applyTaskCompleted(...)
+        $instance->applyTaskCompleted(...),
     );
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveOutput('pretty colors')
@@ -230,7 +230,7 @@ it('can call an activity with a failed result', function () {
     expect($result)->toHaveCount(1);
     $result = processEvent(
         WithOrchestration::forInstance($instance->id, TaskFailed::forTask($result[0]->eventId, 'pretty colors')),
-        $instance->applyTaskFailed(...)
+        $instance->applyTaskFailed(...),
     );
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Failed);

@@ -30,7 +30,7 @@ class ImpureException extends \DomainException
     public function __construct(
         string $message = "Attempted to call an impure snapshot method. Mark the method Pure.",
         int $code = 0,
-        ?Throwable $previous = null
+        ?Throwable $previous = null,
     ) {
         parent::__construct($message, $code, $previous);
     }

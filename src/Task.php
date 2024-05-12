@@ -113,7 +113,7 @@ class Task
             $this->emitError(
                 500,
                 'Failed to process',
-                ['event' => $event, 'exception' => $exception]
+                ['event' => $event, 'exception' => $exception],
             );
         }
 
