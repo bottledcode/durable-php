@@ -11,7 +11,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"net/http"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -28,52 +27,68 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 	if err != nil {
 		panic(err)
 	}
-	sem := make(chan struct{}, runtime.NumCPU())
-	for {
-		sem <- struct{}{}
-		go func() {
-			defer func() {
-				<-sem
-			}()
+	messages := make(chan jetstream.Msg)
 
+	// spawn a thread responsible for handling messages
+	go func() {
+		for {
+			select {
+			case msg := <-messages:
+				meta, _ := msg.Metadata()
+				headers := msg.Headers()
+
+				if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
+					logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
+					schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
+					if err != nil {
+						panic(err)
+					}
+
+					delay := time.Until(schedule)
+					if err := msg.NakWithDelay(delay); err != nil {
+						panic(err)
+					}
+					return
+				}
+
+				if strings.HasSuffix(msg.Subject(), ".delete") {
+					id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+					err := glue.DeleteState(ctx, js, logger, id)
+					if err != nil {
+						panic(err)
+					}
+					return
+				}
+
+				ctx := getCorrelationId(ctx, nil, &headers)
+
+				// spawn a thread to process the message, but rate limit
+				go func() {
+					//logger.Info("Waiting")
+					//sem <- struct{}{}
+					//defer func() {
+					//<-sem
+					//logger.Info("Finished")
+					//}()
+					if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
+						panic(err)
+					}
+				}()
+			}
+		}
+	}()
+
+	// a single threaded reader
+	go func() {
+		for {
 			msg, err := iter.Next()
 			if err != nil {
 				panic(err)
 			}
 
-			meta, _ := msg.Metadata()
-			headers := msg.Headers()
-
-			if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
-				logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
-				schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
-				if err != nil {
-					panic(err)
-				}
-
-				delay := time.Until(schedule)
-				if err := msg.NakWithDelay(delay); err != nil {
-					panic(err)
-				}
-				return
-			}
-
-			if strings.HasSuffix(msg.Subject(), ".delete") {
-				id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
-				err := glue.DeleteState(ctx, js, logger, id)
-				if err != nil {
-					panic(err)
-				}
-				return
-			}
-
-			ctx := getCorrelationId(ctx, nil, &headers)
-
-			if err := processMsg(ctx, logger, msg, js, config, rm); err != nil {
-				panic(err)
-			}
-		}()
-	}
+			messages <- msg
+		}
+	}()
 }
 
 // processMsg is responsible for processing a message received from JetStream.
