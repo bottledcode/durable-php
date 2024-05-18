@@ -30,12 +30,12 @@ use Bottledcode\DurablePhp\Tests\Common\SayHello;
 #[AllowCreateAll]
 class FanOutFanIn
 {
-    public function __invoke(OrchestrationContextInterface $context)
+    public function __invoke(OrchestrationContextInterface $context): void
     {
         $count = $context->getInput()['count'];
         $tasks = [];
         for ($i = 0; $i < $count; $i++) {
-            $tasks[] = $context->callActivity(SayHello::class, [str_pad((string) $i, 4, '0', STR_PAD_LEFT)]);
+            $tasks[] = $context->callActivity(SayHello::class, [mb_str_pad((string) $i, 4, '0', STR_PAD_LEFT)]);
         }
         $context->waitAll(...$tasks);
         foreach ($tasks as $i => $task) {

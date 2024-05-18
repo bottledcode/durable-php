@@ -25,12 +25,12 @@ namespace Bottledcode\DurablePhp\Events\Shares;
 
 enum Operation: string
 {
-    case Signal = "signal";
-    case Completion = "completion";
-    case Output = "output";
-    case Call = "call";
-    case Lock = "lock";
-    case SharePlus = "share+";
-    case ShareMinus = "share-";
-    case Owner = "owner";
+    case Signal = 'signal';
+    case Completion = 'completion';
+    case Output = 'output';
+    case Call = 'call';
+    case Lock = 'lock';
+    case SharePlus = 'share+';
+    case ShareMinus = 'share-';
+    case Owner = 'owner';
 }

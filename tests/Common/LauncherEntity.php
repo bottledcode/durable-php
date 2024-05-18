@@ -32,7 +32,7 @@ class LauncherEntity extends EntityState
 {
     public function __construct(private bool $launched = false) {}
 
-    public function launch(string $orchestration, int $number, int $offset)
+    public function launch(string $orchestration, int $number, int $offset): void
     {
         $context = EntityContext::current();
         for($i = 0; $i < $number; $i++) {

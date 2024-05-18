@@ -50,6 +50,6 @@ class WithDelay extends Event implements HasInnerEventInterface
 
     public function __toString(): string
     {
-        return sprintf("WithDelay(%s, %s)", $this->fireAt->format('Y-m-d H:i:s'), $this->innerEvent);
+        return sprintf('WithDelay(%s, %s)', $this->fireAt->format('Y-m-d H:i:s'), $this->innerEvent);
     }
 }

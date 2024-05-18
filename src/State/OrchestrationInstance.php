@@ -30,6 +30,6 @@ readonly class OrchestrationInstance implements \Stringable
 
     public function __toString(): string
     {
-        return "$this->instanceId:$this->executionId";
+        return "{$this->instanceId}:{$this->executionId}";
     }
 }

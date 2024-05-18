@@ -21,7 +21,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-function export_report(string $test, float $seconds)
+function export_report(string $test, float $seconds): void
 {
     $reportFile = __DIR__ . '/../../report.md';
     if (! file_exists($reportFile)) {

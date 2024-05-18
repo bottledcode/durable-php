@@ -28,7 +28,7 @@ use Throwable;
 class ImpureException extends \DomainException
 {
     public function __construct(
-        string $message = "Attempted to call an impure snapshot method. Mark the method Pure.",
+        string $message = 'Attempted to call an impure snapshot method. Mark the method Pure.',
         int $code = 0,
         ?Throwable $previous = null,
     ) {

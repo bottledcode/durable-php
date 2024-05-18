@@ -52,7 +52,7 @@ class DurableLogger implements LoggerInterface
             //$handler->setFormatter(new ConsoleFormatter(allowInlineLineBreaks: true));
             $handler->setFormatter(
                 new class (new ConsoleFormatter(
-                    format: $this->name ? "%channel%.%level_name%: %message% %context% %extra%" : "[%datetime%] %level_name%: %message% %context% %extra%",
+                    format: $this->name ? '%channel%.%level_name%: %message% %context% %extra%' : '[%datetime%] %level_name%: %message% %context% %extra%',
                     allowInlineLineBreaks: true,
                     ignoreEmptyContextAndExtra: true,
                 ), $this->name) implements FormatterInterface {
@@ -81,7 +81,7 @@ class DurableLogger implements LoggerInterface
                     #[\Override]
                     public function formatBatch(array $records): string
                     {
-                        return implode("", array_map($this->format(...), $records));
+                        return implode('', array_map($this->format(...), $records));
                     }
                 },
             );

@@ -43,6 +43,6 @@ class RevokeUser extends Event implements External
 
     public function __toString()
     {
-        return sprintf("Revoke(user: %s)", $this->userId);
+        return sprintf('Revoke(user: %s)', $this->userId);
     }
 }
