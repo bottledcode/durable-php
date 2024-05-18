@@ -41,7 +41,7 @@
   },
   "require-dev": {
     "laravel/pint": "^1.15.3",
-    "mockery/mockery": "^1.6.11",
+    "mockery/mockery": "^1.6.12",
     "pestphp/pest": "^2.34.7"
   },
   "scripts": {
