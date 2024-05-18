@@ -6,6 +6,8 @@ require github.com/dunglas/frankenphp v1.1.5
 
 require github.com/nats-io/nats.go v1.35.0
 
+replace github.com/nats-io/nats.go => github.com/withinboredom/nats.go v1.34.2-0.20240517073919-f7520e13f38e
+
 require github.com/nats-io/nats-server/v2 v2.10.16
 
 require github.com/teris-io/cli v1.0.1
@@ -84,7 +86,7 @@ require (
 	github.com/schollz/closestmatch v2.1.0+incompatible // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
-	github.com/tdewolff/minify/v2 v2.20.20 // indirect
+	github.com/tdewolff/minify/v2 v2.20.24 // indirect
 	github.com/tdewolff/parse/v2 v2.7.14 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect

@@ -2,6 +2,11 @@
   <code_scheme name="Project" version="173">
     <option name="LINE_SEPARATOR" value="&#10;" />
     <PHPCodeStyleSettings>
+      <option name="COMMA_AFTER_LAST_ARRAY_ELEMENT" value="true" />
+      <option name="COMMA_AFTER_LAST_PARAMETER" value="true" />
+      <option name="COMMA_AFTER_LAST_CLOSURE_USE_VAR" value="true" />
+      <option name="COMMA_AFTER_LAST_ARGUMENT" value="true" />
+      <option name="COMMA_AFTER_LAST_MATCH_ARM" value="true" />
       <option name="BLANK_LINES_BETWEEN_IMPORTS" value="1" />
       <option name="GROUP_USE_WRAP" value="1" />
       <option name="LOWER_CASE_BOOLEAN_CONST" value="true" />
@@ -10,6 +15,7 @@
       <option name="KEEP_RPAREN_AND_LBRACE_ON_ONE_LINE" value="true" />
       <option name="BLANK_LINES_AFTER_OPENING_TAG" value="1" />
       <option name="KEEP_BLANK_LINES_AFTER_LBRACE" value="0" />
+      <option name="FORCE_SHORT_DECLARATION_ARRAY_STYLE" value="true" />
       <option name="NEW_LINE_AFTER_PHP_OPENING_TAG" value="true" />
       <option name="PARAMETERS_ATTRIBUTES_WRAP" value="1" />
     </PHPCodeStyleSettings>
@@ -32,6 +38,8 @@
       <option name="BINARY_OPERATION_WRAP" value="1" />
       <option name="TERNARY_OPERATION_WRAP" value="1" />
       <option name="TERNARY_OPERATION_SIGNS_ON_NEXT_LINE" value="true" />
+      <option name="KEEP_SIMPLE_METHODS_IN_ONE_LINE" value="true" />
+      <option name="KEEP_SIMPLE_CLASSES_IN_ONE_LINE" value="true" />
       <option name="FOR_STATEMENT_WRAP" value="1" />
       <option name="FOR_STATEMENT_LPAREN_ON_NEXT_LINE" value="true" />
       <option name="FOR_STATEMENT_RPAREN_ON_NEXT_LINE" value="true" />
