@@ -43,6 +43,6 @@ class ShareWithRole extends Event implements External
 
     public function __toString()
     {
-        return sprintf('Share(role: %s, %s)', $this->role, implode(', ', $this->allowedOperations));
+        return sprintf("Share(role: %s, %s)", $this->role, implode(', ', $this->allowedOperations));
     }
 }

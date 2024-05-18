@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright ©2024 Robert Landers
+ * Copyright ©2023 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -21,28 +21,9 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State;
 
-use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
-use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Ramsey\Uuid\Uuid;
-
-#[NeedsTarget(Operation::ShareMinus)]
-class RevokeUser extends Event implements External
-{
-    private function __construct(public string $userId, public Operation|null $operation)
-    {
-        parent::__construct(Uuid::uuid7());
-    }
-
-    public function Completely(StateId $target, string $userId): self
-    {
-        return new self($userId, null);
-    }
-
-    public function __toString()
-    {
-        return sprintf("Revoke(user: %s)", $this->userId);
-    }
-}
+/**
+ * Keeps track of an instance session.
+ */
+class Session {}

@@ -25,7 +25,7 @@ namespace Bottledcode\DurablePhp\Events\Shares;
 
 enum Mode: string
 {
-    case Explicit = 'explicit';
-    case Authenticated = 'auth';
-    case Anonymous = 'anonymous';
+    case Explicit = "explicit";
+    case Authenticated = "auth";
+    case Anonymous = "anonymous";
 }

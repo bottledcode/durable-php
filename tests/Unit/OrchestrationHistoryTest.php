@@ -39,8 +39,8 @@ use Bottledcode\DurablePhp\Testing\ActivityMock;
 use Bottledcode\DurablePhp\Testing\DummyOrchestrationContext;
 use Exception;
 
-it('can be started', static function (): void {
-    $instance = getOrchestration('test', static fn() => true, [], $nextEvent);
+it('can be started', function () {
+    $instance = getOrchestration('test', fn() => true, [], $nextEvent);
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     expect($result)->toBeEmpty()
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
@@ -51,7 +51,7 @@ class SerializedType
     public function __construct(private string $data) {}
 }
 
-it('real: can handle oop orchestration', static function (): void {
+it('real: can handle oop orchestration', function () {
     $orchestration = new class (null) {
         public function __construct(private ?OrchestrationContextInterface $orchestrationContext) {}
 
@@ -68,7 +68,7 @@ it('real: can handle oop orchestration', static function (): void {
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
-it('example: can handle oop orchestration', static function (): void {
+it('example: can handle oop orchestration', function () {
     $context = new DummyOrchestrationContext(null, []);
     $orchestration = new class ($context) {
         public function __construct(private ?OrchestrationContextInterface $orchestrationContext) {}
@@ -84,10 +84,10 @@ it('example: can handle oop orchestration', static function (): void {
     expect($result)->toBe('test');
 });
 
-it('returns a result to the parent', static function (): void {
+it('returns a result to the parent', function () {
     $instance = getOrchestration(
         'test',
-        static fn() => true,
+        fn() => true,
         [],
         $nextEvent,
         StartExecution::asChild(new OrchestrationInstance('parent', 'parent'), [], []),
@@ -97,8 +97,8 @@ it('returns a result to the parent', static function (): void {
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
-it('properly delays when using timers', static function (): void {
-    $instance = getOrchestration('test', static function (OrchestrationContextInterface $context) {
+it('properly delays when using timers', function () {
+    $instance = getOrchestration('test', function (OrchestrationContextInterface $context) {
         $start = $context->getCurrentTime();
         $interval = $context->createInterval(hours: 1);
         $timeout = $context->createTimer($start->add($interval));
@@ -115,8 +115,8 @@ it('properly delays when using timers', static function (): void {
         ->and(getStatusOutput($instance))->toBeTrue();
 });
 
-it('properly delays when using timers (example)', static function (): void {
-    $instance = static function (OrchestrationContextInterface $context) {
+it('properly delays when using timers (example)', function () {
+    $instance = function (OrchestrationContextInterface $context) {
         $start = $context->getCurrentTime();
         $interval = $context->createInterval(hours: 1);
         $timeout = $context->createTimer($start->add($interval));
@@ -130,8 +130,8 @@ it('properly delays when using timers (example)', static function (): void {
     expect($result)->toBeTrue();
 });
 
-it('can wait for a signal after starting', static function (): void {
-    $instance = getOrchestration('test', static function (OrchestrationContextInterface $context) {
+it('can wait for a signal after starting', function () {
+    $instance = getOrchestration('test', function (OrchestrationContextInterface $context) {
         $waiter = [];
         for ($i = 0; $i < 3; $i++) {
             $waiter[] = $context->waitForExternalEvent('test');
@@ -168,8 +168,8 @@ it('can wait for a signal after starting', static function (): void {
         ->and(getStatusOutput($instance))->toBeTrue();
 });
 
-it('can wait for a signal after starting (example)', static function (): void {
-    $instance = static function (OrchestrationContextInterface $context) {
+it('can wait for a signal after starting (example)', function () {
+    $instance = function (OrchestrationContextInterface $context) {
         $waiter = [];
         for ($i = 0; $i < 3; $i++) {
             $waiter[] = $context->waitForExternalEvent('test');
@@ -185,8 +185,10 @@ it('can wait for a signal after starting (example)', static function (): void {
     expect($result)->toBeTrue();
 });
 
-it('can call an activity with a successful result', static function (): void {
-    $instance = getOrchestration('test', static fn(OrchestrationContext $context) => $context->waitOne($context->callActivity('test', ['hello world'])), [], $nextEvent);
+it('can call an activity with a successful result', function () {
+    $instance = getOrchestration('test', function (OrchestrationContext $context) {
+        return $context->waitOne($context->callActivity('test', ['hello world']));
+    }, [], $nextEvent);
 
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     $instance->resetState();
@@ -200,22 +202,28 @@ it('can call an activity with a successful result', static function (): void {
         ->and($instance)->toHaveStatus(RuntimeStatus::Completed);
 });
 
-it('can call an activity with a successful result (example)', static function (): void {
-    $instance = static fn(OrchestrationContextInterface $context) => $context->waitOne($context->callActivity('test', ['hello world']));
+it('can call an activity with a successful result (example)', function () {
+    $instance = function (OrchestrationContextInterface $context) {
+        return $context->waitOne($context->callActivity('test', ['hello world']));
+    };
     $context = new DummyOrchestrationContext($instance, []);
     $context->handleActivities(new ActivityMock('test', 'pretty colors'));
     expect($instance($context))->toBe(['pretty colors']);
 });
 
-it('can call an activity with a failed result (example)', static function (): void {
-    $instance = static fn(OrchestrationContextInterface $context) => $context->waitOne($context->callActivity('test', ['hello world']));
+it('can call an activity with a failed result (example)', function () {
+    $instance = function (OrchestrationContextInterface $context) {
+        return $context->waitOne($context->callActivity('test', ['hello world']));
+    };
     $context = new DummyOrchestrationContext($instance, []);
     $context->handleActivities(new ActivityMock('test', new Exception('hello world')));
-    expect(static fn() => $instance($context))->toThrow(Exception::class, 'hello world');
+    expect(fn() => $instance($context))->toThrow(Exception::class, 'hello world');
 });
 
-it('can call an activity with a failed result', static function (): void {
-    $instance = getOrchestration('test', static fn(OrchestrationContext $context) => $context->waitOne($context->callActivity('test', ['hello world'])), [], $nextEvent);
+it('can call an activity with a failed result', function () {
+    $instance = getOrchestration('test', function (OrchestrationContext $context) {
+        return $context->waitOne($context->callActivity('test', ['hello world']));
+    }, [], $nextEvent);
 
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     $instance->resetState();

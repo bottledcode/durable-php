@@ -142,7 +142,7 @@ readonly class EventDescription
 
     public static function fromStream(string $data): self
     {
-        $data = base64_decode($data, true);
+        $data = base64_decode($data);
         $data = function_exists('gzdecode') ? gzdecode($data) : $data;
         $data = function_exists('igbinary_unserialize') ? igbinary_unserialize($data) : unserialize($data);
 

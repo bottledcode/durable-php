@@ -27,6 +27,6 @@ class SayHello
 {
     public function __invoke(string $name): string
     {
-        return "Hello, {$name}!";
+        return "Hello, $name!";
     }
 }

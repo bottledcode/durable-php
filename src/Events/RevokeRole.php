@@ -42,6 +42,6 @@ class RevokeRole extends Event implements External
 
     public function __toString()
     {
-        return sprintf('Revoke(role: %s)', $this->role, );
+        return sprintf("Revoke(role: %s)", $this->role, );
     }
 }

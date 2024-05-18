@@ -28,7 +28,7 @@ use Throwable;
 
 class ActivityFailedException extends \RuntimeException
 {
-    public function __construct(string $message = '', public string $details = '', ?Throwable $previous = null)
+    public function __construct(string $message = "", public string $details = '', ?Throwable $previous = null)
     {
         parent::__construct($message, 0, $previous);
     }

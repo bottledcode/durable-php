@@ -37,13 +37,11 @@ use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
-use Generator;
 use Psr\Container\ContainerInterface;
 
-abstract class AbstractHistory implements ApplyStateInterface, StateInterface
+abstract class AbstractHistory implements StateInterface, ApplyStateInterface
 {
-    public ?Status $status = null;
-
+    public Status|null $status = null;
     #[Field(exclude: true)]
     protected ContainerInterface $container;
 
@@ -52,47 +50,47 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
         $this->container = $container;
     }
 
+    public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
+    {
+        yield null;
+    }
+
     public function getStatus(): Status
     {
         return $this->status;
     }
 
-    public function applyAwaitResult(AwaitResult $event, Event $original): Generator
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
     {
         yield null;
     }
 
-    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): Generator
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
     {
         yield null;
     }
 
-    public function applyRaiseEvent(RaiseEvent $event, Event $original): Generator
+    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
     {
         yield null;
     }
 
-    public function applyScheduleTask(ScheduleTask $event, Event $original): Generator
+    public function applyStartExecution(StartExecution $event, Event $original): \Generator
     {
         yield null;
     }
 
-    public function applyStartExecution(StartExecution $event, Event $original): Generator
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
     {
         yield null;
     }
 
-    public function applyStartOrchestration(StartOrchestration $event, Event $original): Generator
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
     {
         yield null;
     }
 
-    public function applyTaskCompleted(TaskCompleted $event, Event $original): Generator
-    {
-        yield null;
-    }
-
-    public function applyTaskFailed(TaskFailed $event, Event $original): Generator
+    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
     {
         yield null;
     }
@@ -114,6 +112,7 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
     }
 
     /**
+     * @param Event $event
      * @return array<StateId>
      */
     protected function getReplyTo(Event $event): array
@@ -125,7 +124,6 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
             }
             $event = $event->getInnerEvent();
         }
-
         return $reply;
     }
 }

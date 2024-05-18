@@ -82,7 +82,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     WithActivity::forEvent($identity, ScheduleTask::forName($name, $args)),
                 ),
             ),
-            static function (Event $event, string $eventIdentity) use ($identity): array {
+            function (Event $event, string $eventIdentity) use ($identity): array {
                 if (($event instanceof TaskCompleted || $event instanceof TaskFailed) &&
                     $eventIdentity === $identity->toString()) {
                     return [$event, true];
@@ -159,7 +159,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
                 return [$identity];
             }
-        }, static function (Event $event, string $eventIdentity) use ($identity): array {
+        }, function (Event $event, string $eventIdentity) use ($identity): array {
             if (($event instanceof TaskCompleted || $event instanceof TaskFailed) && $eventIdentity === $identity->toString()) {
                 return [$event, true];
             }
@@ -210,7 +210,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                     WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity)),
                 ),
             ),
-            static function (Event $event) use ($identity): array {
+            function (Event $event) use ($identity): array {
                 if ($event instanceof RaiseEvent && $event->eventName === $identity) {
                     return [$event, true];
                 }
@@ -229,7 +229,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     {
         $this->durableLogger->debug('Waiting for external event', ['name' => $name]);
         $future = new DurableFuture(new DeferredFuture());
-        $this->history->historicalTaskResults->trackFuture(static function (Event $event) use ($name): array {
+        $this->history->historicalTaskResults->trackFuture(function (Event $event) use ($name): array {
             $found = false;
             $result = null;
             if ($event instanceof RaiseEvent && $event->eventName === $name) {
@@ -378,14 +378,16 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $future =
             $this->createFuture(
                 fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)),
-                static fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
+                function (Event $event, string $eventIdentity) use ($identity) {
+                    return [$event, $identity === $eventIdentity];
+                },
                 $identity,
             );
         $this->waitOne($future);
 
         $this->history->locks = $entityId;
 
-        return new EntityLock(function () use ($owner): void {
+        return new EntityLock(function () use ($owner) {
             foreach ($this->history->locks as $lock) {
                 $this->taskController->fire(
                     WithLock::onEntity(
@@ -617,7 +619,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
         return $this->createFuture(
             fn() => $this->taskController->fire($event),
-            static fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
+            fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
             $identity,
         );
     }

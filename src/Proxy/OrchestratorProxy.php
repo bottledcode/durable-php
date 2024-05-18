@@ -45,7 +45,7 @@ class OrchestratorProxy extends Generator
                     $type = $this->getTypes($type);
                 }
 
-                return "{$type} \${$param->getName()}";
+                return "$type \${$param->getName()}";
             },
             $params,
         );
@@ -54,7 +54,7 @@ class OrchestratorProxy extends Generator
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
         return <<<EOT
-public function {$name}({$params}){$return} {
+public function $name($params)$return {
     return \$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$method->getName()}", func_get_args()));
 }
 EOT;
@@ -76,7 +76,7 @@ EOT;
                     $type = $this->getTypes($type);
                 }
 
-                return "{$type} \${$param->getName()}";
+                return "$type \${$param->getName()}";
             },
             $params,
         );
@@ -85,7 +85,7 @@ EOT;
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
         return <<<EOT
-public function {$name}({$params}){$return} {
+public function $name($params)$return {
     \$this->context->signalEntity(\$this->id, "{$method->getName()}", func_get_args());
 }
 EOT;

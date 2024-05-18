@@ -36,7 +36,7 @@ if (!interface_exists(orchProxy::class)) {
     }
 }
 
-it('generates a proxy correctly', static function (): void {
+it('generates a proxy correctly', function () {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
     expect($proxy)->toBe(
@@ -59,18 +59,18 @@ EOT,
     );
 });
 
-it('is actually callable', function (): void {
+it('is actually callable', function () {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
     eval($proxy);
     $instance = new class () {
         public function pureExample(int|float $number): string
         {
-            return "Hello {$number}";
+            return "Hello $number";
         }
     };
     $proxy = new __ClientProxy_orchProxy($instance);
     expect($proxy->pureExample(1))->toBe('Hello 1')
-        ->and(static fn() => $proxy->signalExample(1))->toThrow(\Bottledcode\DurablePhp\Proxy\ImpureException::class)
-        ->and(static fn() => $proxy->callExample())->toThrow(\Bottledcode\DurablePhp\Proxy\ImpureException::class);
+        ->and(fn() => $proxy->signalExample(1))->toThrow(\Bottledcode\DurablePhp\Proxy\ImpureException::class)
+        ->and(fn() => $proxy->callExample())->toThrow(\Bottledcode\DurablePhp\Proxy\ImpureException::class);
 });

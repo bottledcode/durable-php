@@ -43,6 +43,6 @@ class ShareWithUser extends Event implements External
 
     public function __toString()
     {
-        return sprintf('Share(user: %s, %s)', $this->userId, implode(', ', $this->allowedOperations));
+        return sprintf("Share(user: %s, %s)", $this->userId, implode(', ', $this->allowedOperations));
     }
 }

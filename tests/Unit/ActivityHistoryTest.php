@@ -36,18 +36,18 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use DI\Container;
 use Ramsey\Uuid\Uuid;
 
-function activity(bool $fail): void
+function activity(bool $fail)
 {
     if ($fail) {
         throw new Exception('test');
     }
 }
 
-test('exampleaa', static function (): void {
+test('exampleaa', function () {
     expect(true)->toBeTrue();
 });
 
-it('real: fails on an exception', static function (): void {
+it('real: fails on an exception', function () {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
     $event = AwaitResult::forEvent(
         StateId::fromEntityId(new EntityId('test', 'test')),
@@ -62,7 +62,7 @@ it('real: fails on an exception', static function (): void {
         ->and(current($result1))->toEqual(current($result2));
 });
 
-it('succeeds on no exception', static function (): void {
+it('succeeds on no exception', function () {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
     $container = new Container([__NAMESPACE__ . '\activity' => activity(...)]);
     $history->setContainer($container);

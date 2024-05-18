@@ -39,6 +39,6 @@ class GiveOwnership extends Event implements External
 
     public function __toString()
     {
-        return sprintf('GiveOwnership(user: %s)', $this->userId);
+        return sprintf("GiveOwnership(user: %s)", $this->userId);
     }
 }

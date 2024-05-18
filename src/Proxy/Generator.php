@@ -48,7 +48,7 @@ abstract class Generator
         if (!class_exists($fullname)) {
             eval($output = $this->generate($interface));
             if ($cacheFile) {
-                file_put_contents($cacheFile, "<?php\n{$output}");
+                file_put_contents($cacheFile, "<?php\n$output");
             }
         }
 
@@ -88,14 +88,14 @@ abstract class Generator
             $methods,
         );
         $methods = implode("\n", $methods);
-        $namespace = $namespace ? "namespace {$namespace};" : '';
+        $namespace = $namespace ? "namespace $namespace;" : '';
 
         return <<<EOT
 {$namespace}
 
 class {$this->getName($reflection)} implements {$className} {
   {$this->preamble($reflection)}
-  {$methods}
+  $methods
 }
 EOT;
     }

@@ -57,7 +57,7 @@ class Task
         $stateId = $this->glue->target;
 
         $event = EventDescription::fromStream($_SERVER['EVENT']);
-        $this->logger->debug("Invoking event {$event->innerEvent}");
+        $this->logger->debug("Invoking event $event->innerEvent");
 
         $state = $this->loadState();
         $this->logger->debug('Got state', ['state' => $state]);

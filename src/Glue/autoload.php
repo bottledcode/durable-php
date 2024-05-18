@@ -49,6 +49,6 @@ $logger = new DurableLogger(level: match (getenv('LOG_LEVEL')) {
 
 if(($_SERVER['SERVER_PROTOCOL'] ?? null) !== 'DPHP/1.0') {
     http_response_code(400);
-    $logger->critical('Invalid request protocol', [$_SERVER['SERVER_PROTOCOL'] ?? null]);
+    $logger->critical("Invalid request protocol", [$_SERVER['SERVER_PROTOCOL'] ?? null]);
     die();
 }

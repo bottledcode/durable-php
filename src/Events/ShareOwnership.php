@@ -39,6 +39,6 @@ class ShareOwnership extends Event implements External
 
     public function __toString()
     {
-        return sprintf('ShareOwnership(%s)', $this->userId);
+        return sprintf("ShareOwnership(%s)", $this->userId);
     }
 }

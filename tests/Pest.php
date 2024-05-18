@@ -71,7 +71,9 @@ use DI\Container;
 
 $_SERVER['SERVER_PROTOCOL'] = 'DPHP/1.0';
 
-expect()->extend('toBeOne', fn() => $this->toBe(1));
+expect()->extend('toBeOne', function () {
+    return $this->toBe(1);
+});
 
 expect()->extend('toHaveStatus', function (RuntimeStatus $status) {
     /** @var Status $otherStatus */
@@ -80,9 +82,11 @@ expect()->extend('toHaveStatus', function (RuntimeStatus $status) {
     return expect($otherStatus->runtimeStatus)->toBe($status, "Expected status {$status->name} but got {$otherStatus->runtimeStatus->name}");
 });
 
-expect()->extend('toHaveOutput', fn(mixed $output) => expect(getStatusOutput($this->value))->toBe($output));
+expect()->extend('toHaveOutput', function (mixed $output) {
+    return expect(getStatusOutput($this->value))->toBe($output);
+});
 
-expect()->intercept('toEqual', Event::class, function (Event $expected): void {
+expect()->intercept('toEqual', Event::class, function (Event $expected) {
     $now = new DateTimeImmutable();
     while ($expected instanceof HasInnerEventInterface) {
         $expected->eventId = 'same';
@@ -123,7 +127,7 @@ function processEvent(Event $event, Closure $processor): array
         $innerEvent = $innerEvent->getInnerEvent();
     }
 
-    $fire = static function (array $fired) use (&$events, &$fakeId) {
+    $fire = function (array $fired) use (&$events, &$fakeId) {
         $ids = [];
         foreach ($fired as $toFire) {
             $ids[] = $toFire->eventId = $fakeId++;

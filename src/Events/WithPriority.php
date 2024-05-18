@@ -54,7 +54,7 @@ class WithPriority extends Event implements HasInnerEventInterface
 
     public function __toString(): string
     {
-        return sprintf('WithPriority(%d, %s)', $this->priority, $this->innerEvent);
+        return sprintf("WithPriority(%d, %s)", $this->priority, $this->innerEvent);
     }
 
     #[\Override] public function getInnerEvent(): Event

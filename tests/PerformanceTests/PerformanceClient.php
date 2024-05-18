@@ -50,7 +50,7 @@ $watch->start();
 $numberToLaunch = (getenv('ACTIVITY_COUNT') ?: 1000) / 200;
 $numberLaunchers = 200;
 for ($i = 0; $i < $numberLaunchers; $i++) {
-    async(static fn() => $client->signalEntity(
+    async(fn() => $client->signalEntity(
         new EntityId(LauncherEntity::class, $i),
         'launch',
         ['orchestration' => HelloSequence::class, 'number' => $numberToLaunch, 'offset' => $i * $numberToLaunch],
@@ -63,7 +63,7 @@ $ids = array_keys(array_fill(0, $numberToLaunch * $numberLaunchers, true));
 $ids = array_chunk($ids, 50);
 
 foreach ($ids as $num => $chunk) {
-    $getters = array_map(static fn($id) => async(static fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
+    $getters = array_map(static fn($id) => async(fn() => $client->waitForCompletion(new OrchestrationInstance(HelloSequence::class, $id))), $chunk);
     $logger->alert(sprintf('Waiting for chunk %d of %d', $num, count($ids)));
     await($getters);
 }

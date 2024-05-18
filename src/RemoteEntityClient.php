@@ -71,7 +71,7 @@ class RemoteEntityClient implements EntityClientInterface
         $interfaceReflector = new ReflectionFunction($signal);
         $interfaceName = $interfaceReflector->getParameters()[0]->getType()?->getName();
         if (interface_exists($interfaceName) === false) {
-            throw new Exception("Interface {$interfaceName} does not exist");
+            throw new Exception("Interface $interfaceName does not exist");
         }
         $spy = $this->spyProxy->define($interfaceName);
         $operationName = '';
@@ -139,7 +139,7 @@ class RemoteEntityClient implements EntityClientInterface
     #[Override]
     public function deleteEntity(EntityId $entityId): void
     {
-        $req = new Request("{$this->apiHost}/entity/{$entityId->name}/{$entityId->id}", 'DELETE');
+        $req = new Request("$this->apiHost/entity/{$entityId->name}/{$entityId->id}", 'DELETE');
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }

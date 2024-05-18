@@ -53,7 +53,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     #[Override]
     public function listInstances(): Generator
     {
-        $req = new Request("{$this->apiHost}/orchestrations");
+        $req = new Request("$this->apiHost/orchestrations");
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -67,7 +67,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     {
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
-        $req = new Request("{$this->apiHost}/orchestrations/{$name}/{$id}", 'DELETE');
+        $req = new Request("$this->apiHost/orchestrations/$name/$id", 'DELETE');
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -82,7 +82,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     {
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
-        $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}");
+        $req = new Request("$this->apiHost/orchestration/$name/$id");
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -103,7 +103,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $id = rawurlencode($instance->executionId);
         $signal = rawurlencode($eventName);
         $eventData = SerializedArray::fromArray($eventData);
-        $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}/{$signal}", 'PUT', json_encode($eventData, JSON_THROW_ON_ERROR));
+        $req = new Request("$this->apiHost/orchestration/$name/$id/$signal", 'PUT', json_encode($eventData, JSON_THROW_ON_ERROR));
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -132,7 +132,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $data = json_encode($data, JSON_THROW_ON_ERROR);
         $name = rawurlencode($name);
         $id = $id ? '/' . rawurlencode($id) : '';
-        $req = new Request("{$this->apiHost}/orchestration/{$name}{$id}", 'PUT', $data);
+        $req = new Request("$this->apiHost/orchestration/$name$id", 'PUT', $data);
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -161,7 +161,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     {
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
-        $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}?wait=60");
+        $req = new Request("$this->apiHost/orchestration/$name/$id?wait=60");
         $req->setInactivityTimeout(Hours(1)->inSeconds());
         $req->setTcpConnectTimeout(Seconds(1)->inSeconds());
         $req->setTransferTimeout(Hours(1)->inSeconds());

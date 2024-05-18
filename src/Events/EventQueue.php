@@ -46,7 +46,7 @@ class EventQueue
         $this->keys = new SplQueue();
     }
 
-    public function setCancellation(DeferredCancellation $cancellation): void
+    public function setCancellation(DeferredCancellation $cancellation)
     {
         $this->cancellation = $cancellation;
     }
@@ -97,7 +97,7 @@ class EventQueue
     {
         $delay = $this->getDelay($event);
         if ($delay->inSeconds() > 0) {
-            EventLoop::delay($delay->inSeconds(), function () use ($key, $event): void {
+            EventLoop::delay($delay->inSeconds(), function () use ($key, $event) {
                 $this->enqueue($key, $event);
                 if ($this->cancellation !== null) {
                     $this->cancellation?->cancel();

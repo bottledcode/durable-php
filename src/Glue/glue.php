@@ -116,7 +116,7 @@ class Glue
         fclose($this->payloadHandle);
     }
 
-    public function process(): void
+    public function process()
     {
         $this->{$this->method}();
     }
@@ -128,7 +128,7 @@ class Glue
 
         while (true) {
             $result = fgets($this->streamHandle);
-            if (str_starts_with($result, "{$qid}://")) {
+            if (str_starts_with($result, "$qid://")) {
                 $file = explode('//', $result)[1];
 
                 return $this->readStateFile($file);
@@ -320,7 +320,7 @@ class Glue
         }
 
         $permissions = json_encode($permissions, JSON_THROW_ON_ERROR);
-        header("Permissions: {$permissions}");
+        header("Permissions: $permissions");
         echo $permissions;
     }
 
@@ -328,11 +328,9 @@ class Glue
     {
         if ($definition instanceof AutowireDefinition || $definition instanceof ObjectDefinition) {
             return new ReflectionClass($definition->getClassName());
-        }
-        if ($definition instanceof InstanceDefinition) {
+        } elseif ($definition instanceof InstanceDefinition) {
             return new ReflectionClass($definition->getInstance());
-        }
-        if ($definition instanceof FactoryDefinition) {
+        } elseif ($definition instanceof FactoryDefinition) {
             return new ReflectionFunction($definition->getCallable());
         }
 

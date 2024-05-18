@@ -41,7 +41,7 @@ class SpyProxy extends Generator
                     $type = $this->getTypes($type);
                 }
 
-                return "{$type} \${$param->getName()}";
+                return "$type \${$param->getName()}";
             },
             $params,
         );
@@ -50,8 +50,8 @@ class SpyProxy extends Generator
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
         return <<<EOT
-public function {$name}({$params}){$return} {
-    \$this->operation = "{$name}";
+public function $name($params)$return {
+    \$this->operation = "$name";
     \$this->arguments = func_get_args();
     throw new \Exception('Not implemented');
 }
