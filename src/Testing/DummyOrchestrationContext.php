@@ -206,7 +206,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
             $this->locks[$id->name . $id->id] = true;
         }
 
-        return new EntityLock(function () use ($entityId) {
+        return new EntityLock(function () use ($entityId): void {
             foreach ($entityId as $id) {
                 unset($this->locks[$id->name . $id->id]);
             }

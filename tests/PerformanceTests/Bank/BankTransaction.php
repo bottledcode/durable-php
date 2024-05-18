@@ -35,13 +35,13 @@ class BankTransaction
         [$target] = $context->getInput();
 
         // generate the source account
-        $sourceId = "src$target";
+        $sourceId = "src{$target}";
         $sourceEntity = new EntityId(Account::class, $sourceId);
 
         // generate the destination account
-        $destinationId = "dst$target";
+        $destinationId = "dst{$target}";
         $destinationEntity = new EntityId(Account::class, $destinationId);
-        $feeId = "fee$target";
+        $feeId = "fee{$target}";
         $feeEntity = new EntityId(Account::class, $feeId);
 
         // the amount to transfer

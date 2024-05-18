@@ -39,7 +39,7 @@ if (! interface_exists(orchProxy::class)) {
     }
 }
 
-it('generates a proxy correctly', function () {
+it('generates a proxy correctly', function (): void {
     $generator = new OrchestratorProxy();
     $proxy = $generator->generate(orchProxy::class);
     expect($proxy)->toBe(
@@ -62,7 +62,7 @@ EOT,
     );
 });
 
-it('actually works', function () {
+it('actually works', function (): void {
     $generator = new OrchestratorProxy();
     eval($generator->generate(orchProxy::class));
     $context = Mockery::mock(Bottledcode\DurablePhp\OrchestrationContextInterface::class);

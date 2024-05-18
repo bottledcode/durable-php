@@ -154,7 +154,7 @@ class MetaParser
                             $currentArgument['type'] ??= '';
                             $currentArgument['full_type'] ??= '';
                             $currentArgument['type'] .= $token[1];
-                            if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'])) {
+                            if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'], true)) {
                                 $currentArgument['full_type'] .= $uses[$token[1]] ?? $token[1];
                                 if (! str_contains($currentArgument['full_type'], '\\')) {
                                     $currentArgument['full_type'] = $namespace . '\\' . $currentArgument['full_type'];
@@ -165,7 +165,7 @@ class MetaParser
                             $currentMethod['return'] ??= '';
                             $currentMethod['full_return'] ??= '';
                             $currentMethod['return'] .= $token[1];
-                            if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'])) {
+                            if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'], true)) {
                                 $currentMethod['full_return'] .= $uses[$token[1]] ?? $token[1];
                                 if (! str_contains($currentMethod['full_return'], '\\')) {
                                     $currentMethod['full_return'] = $namespace . '\\' . $currentMethod['full_return'];
@@ -181,7 +181,7 @@ class MetaParser
                             $currentProperty['type'] ??= '';
                             $currentProperty['full_type'] ??= '';
                             $currentProperty['type'] .= $token[1];
-                            if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'])) {
+                            if (! in_array($token[1], ['int', 'float', 'string', 'bool', 'array', 'object', 'resource', 'null'], true)) {
                                 $currentProperty['full_type'] .= $uses[$token[1]] ?? $token[1];
                                 if (! str_contains($currentProperty['full_type'], '\\')) {
                                     $currentProperty['full_type'] = $namespace . '\\' . $currentProperty['full_type'];

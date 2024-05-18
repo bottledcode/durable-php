@@ -175,7 +175,7 @@ class OrchestrationHistory extends AbstractHistory
         $spyGenerator = $this->container->get(SpyProxy::class);
 
         $taskScheduler = null;
-        yield static function (Task $task) use (&$taskScheduler) {
+        yield static function (Task $task) use (&$taskScheduler): void {
             $taskScheduler = $task;
         };
 

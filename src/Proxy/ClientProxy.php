@@ -36,7 +36,7 @@ class ClientProxy extends Generator
                     $type = $this->getTypes($type);
                 }
 
-                return "$type \${$param->getName()}";
+                return "{$type} \${$param->getName()}";
             },
             $params,
         );
@@ -45,8 +45,8 @@ class ClientProxy extends Generator
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
         return <<<EOT
-public function $name($params)$return {
-    return \$this->source->$name(...func_get_args());
+public function {$name}({$params}){$return} {
+    return \$this->source->{$name}(...func_get_args());
 }
 EOT;
     }
@@ -72,7 +72,7 @@ EOT;
                     $type = $this->getTypes($type);
                 }
 
-                return "$type \${$param->getName()}";
+                return "{$type} \${$param->getName()}";
             },
             $params,
         );
@@ -81,7 +81,7 @@ EOT;
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
         return <<<EOT
-public function $name($params)$return {
+public function {$name}({$params}){$return} {
     throw new Bottledcode\DurablePhp\Proxy\ImpureException();
 }
 EOT;
@@ -89,8 +89,8 @@ EOT;
 
     protected function preamble(\ReflectionClass $class): string
     {
-        return <<<EOT
-public function __construct(private mixed \$source) {}
+        return <<<'EOT'
+public function __construct(private mixed $source) {}
 EOT;
     }
 }

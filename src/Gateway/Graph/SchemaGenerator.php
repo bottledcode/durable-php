@@ -27,7 +27,6 @@ use Bottledcode\DurablePhp\State\Attributes\Name;
 
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
-use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DI\Definition\Helper\AutowireDefinitionHelper;
@@ -124,7 +123,7 @@ class SchemaGenerator
             $types .= <<<EOF
 
 type {$name}Snapshot {
-    $properties
+    {$properties}
 }
 EOF;
 
@@ -214,7 +213,7 @@ EOF;
 
         $arguments = [];
         foreach ($m['args'] as ['type' => $type, 'name' => $argName, 'full_type' => $fullType]) {
-            if ($argName === '$context' || in_array($type, ['OrchestrationContextInterface', 'OrchestrationContext'])) {
+            if ($argName === '$context' || in_array($type, ['OrchestrationContextInterface', 'OrchestrationContext'], true)) {
                 $arguments[] = 'input: [Input!]!';
                 break;
             }
@@ -226,7 +225,7 @@ EOF;
             }
             $argName = trim($argName, '$');
 
-            $arguments[] = "$argName: {$type}";
+            $arguments[] = "{$argName}: {$type}";
         }
         if (empty($arguments)) {
             $arguments = '';
@@ -281,7 +280,7 @@ GRAPHQL;
         $nullable = false;
 
         if (str_contains($type, '|')) {
-            if (substr_count($type, '|') === 1 && (str_contains($type, '|null') || str_contains($type, 'null|'))) {
+            if (mb_substr_count($type, '|') === 1 && (str_contains($type, '|null') || str_contains($type, 'null|'))) {
                 $nullable = true;
                 $type = str_replace(['|null', 'null|'], '', $type);
             } else {
@@ -311,7 +310,7 @@ GRAPHQL;
             case OrchestrationInstance::class:
                 $type = 'OrchestrationId';
                 break;
-            case DateTime::class:
+            case \DateTimeImmutable::class:
             case DateTimeImmutable::class:
             case DateTimeInterface::class:
                 $type = 'Date';
@@ -322,7 +321,7 @@ GRAPHQL;
                 $scalar = 'Any';
                 break;
             case 'array':
-                $type = "[$innerType]";
+                $type = "[{$innerType}]";
                 break;
             default:
                 $scalar = explode('\\', $type);
@@ -332,7 +331,7 @@ GRAPHQL;
                 break;
         }
 
-        return [$nullable ? $type : "$type!", $scalar];
+        return [$nullable ? $type : "{$type}!", $scalar];
     }
 
     public function defineEntity(string $filename, string $contents): string
@@ -358,7 +357,7 @@ GRAPHQL;
                     $this->scalars[$type] = $fullType;
                 }
                 $name = trim($name, '$');
-                $properties[] = "$name: $type";
+                $properties[] = "{$name}: {$type}";
             }
 
             $properties = implode("\n", $properties);
@@ -390,7 +389,7 @@ GRAPHQL;
                 }
                 $name = trim($name, '$');
 
-                $arguments[] = "$name: $type";
+                $arguments[] = "{$name}: {$type}";
             }
             $arguments = implode(', ', $arguments);
 
@@ -401,7 +400,7 @@ GRAPHQL;
             }*/
             $returnType = 'Void!';
 
-            $methods[] = "    Signal{$className}With{$method['name']}($arguments): $returnType";
+            $methods[] = "    Signal{$className}With{$method['name']}({$arguments}): {$returnType}";
             $this->handlers['mutations'][] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
             $this->searchedStates[$className] = $realName;
         }
@@ -416,7 +415,7 @@ GRAPHQL;
 
         $showName = trim($name, '!');
 
-        $finalTypes = "\n$kind $showName {\n";
+        $finalTypes = "\n{$kind} {$showName} {\n";
         $newScalars = [];
 
         foreach ($parser->properties as $property) {
@@ -431,9 +430,9 @@ GRAPHQL;
                 $newScalars[$type] = $property['full_type'] ?? $type;
             }
             $property['name'] = trim($property['name'], '$');
-            $finalTypes .= "    {$property['name']}: $type\n";
+            $finalTypes .= "    {$property['name']}: {$type}\n";
         }
-        $finalTypes .= "}$innerTypes";
+        $finalTypes .= "}{$innerTypes}";
 
         foreach ($newScalars as $name => $type) {
             if (is_numeric($name)) {

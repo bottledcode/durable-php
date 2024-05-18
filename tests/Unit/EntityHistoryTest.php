@@ -31,29 +31,29 @@ use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
-it('knows if it has applied an event', function () {
+it('knows if it has applied an event', function (): void {
     $history = getEntityHistory();
     processEvent($event = new RaiseEvent('test', 'test', []), $history->applyRaiseEvent(...));
     expect($history->hasAppliedEvent($event))->toBeTrue();
 });
 
-test('acking an event removes it from history', function () {
+test('acking an event removes it from history', function (): void {
     $history = getEntityHistory();
     processEvent($event = new RaiseEvent('test', 'test', []), $history->applyRaiseEvent(...));
     $history->ackedEvent($event);
     expect($history->hasAppliedEvent($event))->toBeFalse();
 });
 
-it('processes signals', function () {
+it('processes signals', function (): void {
     $called = 0;
-    $outerCall = function () use (&$called) {
+    $outerCall = function () use (&$called): void {
         $called++;
     };
     $history = getEntityHistory(
         new class ($outerCall) extends EntityState {
             public function __construct(public $outerCall) {}
 
-            public function signal()
+            public function signal(): void
             {
                 ($this->outerCall)();
             }
@@ -67,16 +67,16 @@ it('processes signals', function () {
     expect($called)->toBe(1);
 });
 
-it('only processes locked events', function () {
+it('only processes locked events', function (): void {
     $called = 0;
-    $outerCall = function () use (&$called) {
+    $outerCall = function () use (&$called): void {
         $called++;
     };
     $history = getEntityHistory(
         new class ($outerCall) extends EntityState {
             public function __construct(public $outerCall) {}
 
-            public function signal()
+            public function signal(): void
             {
                 ($this->outerCall)();
             }
@@ -119,16 +119,16 @@ it('only processes locked events', function () {
         ->and($called)->toBe(1);
 });
 
-it('properly locks in a chain', function () {
+it('properly locks in a chain', function (): void {
     $called = 0;
-    $outerCall = function () use (&$called) {
+    $outerCall = function () use (&$called): void {
         $called++;
     };
     $history = getEntityHistory(
         new class ($outerCall) extends EntityState {
             public function __construct(public $outerCall) {}
 
-            public function signal()
+            public function signal(): void
             {
                 ($this->outerCall)();
             }
