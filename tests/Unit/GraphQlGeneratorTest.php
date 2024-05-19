@@ -1,5 +1,12 @@
 <?php
 
+use Bottledcode\DurablePhp\Gateway\Graph\GraphGenerator;
+use Bottledcode\DurablePhp\Gateway\Graph\MetaParser;
+
+it('can convert a php file', function (): void {
+    $this->markTestSkipped('manual verification');
+    $testFile = <<<'PHP'
+<?php
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,30 +29,45 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Contexts;
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
-use Amp\Cancellation;
-use Amp\Parallel\Context\Context;
-use Amp\Parallel\Context\ContextFactory;
-use Amp\Parallel\Context\ProcessContext;
+use Bottledcode\DurablePhp\EntityContextInterface;
+use Bottledcode\DurablePhp\State\EntityState;
 
-use function Amp\async;
-use function Amp\ByteStream\getStderr;
-use function Amp\ByteStream\getStdout;
-
-class LoggingContextFactory implements ContextFactory
+class Account extends EntityState implements AccountInterface
 {
-    public function __construct(private readonly ContextFactory $other) {}
+    public int $balance = 0;
 
-    public function start(array|string $script, ?Cancellation $cancellation = null): Context
+    public function __construct(private EntityContextInterface $context) {}
+
+    public function add(int $amount): void
     {
-        $process = $this->other->start($script, $cancellation);
+        $this->balance += $amount;
+    }
 
-        if ($process instanceof ProcessContext) {
-            async(pipe(...), $process->getStdout(), getStdout())->ignore();
-            async(pipe(...), $process->getStderr(), getStderr())->ignore();
-        }
+    public function reset(): void
+    {
+        $this->balance = 0;
+    }
 
-        return $process;
+    public function get(): int
+    {
+        return $this->balance;
+    }
+
+    public function delete(): void
+    {
+        $this->context->delete();
     }
 }
+
+PHP;
+
+    $meta = MetaParser::parseFile($testFile);
+    $new = GraphGenerator::parseFile($testFile);
+
+    $meta = json_encode($meta, JSON_PRETTY_PRINT);
+    $new = json_encode($new, JSON_PRETTY_PRINT);
+
+    expect($new)->toBe($meta);
+});

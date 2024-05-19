@@ -24,7 +24,6 @@
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
 use Bottledcode\DurablePhp\State\Attributes\Name;
-
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use DateTimeImmutable;
@@ -132,7 +131,6 @@ EOF;
 {$name}(id: ID!): {$name}Snapshot
 EOF;
             $this->handlers['queries'][] = ['op' => 'entity', 'op-name' => $name, 'realName' => $rootName];
-
         }
         $scalars = array_map(fn($x) => 'scalar ' . $x, array_unique($this->scalars + $this->inputScalars));
         $scalars = implode("\n", $scalars);
@@ -165,7 +163,7 @@ EOF;
         $items = glob($dir . '/*');
 
         foreach ($items as $item) {
-            if (is_dir($item) && ! str_ends_with($item, 'vendor')) {
+            if (is_dir($item) && !str_ends_with($item, 'vendor')) {
                 $results = $this->findPhpFiles($item);
                 $mutation .= $results['mutation'];
                 $query .= $results['query'];
@@ -193,7 +191,7 @@ EOF;
     public function defineOrchestration(string $filename, string $contents): array
     {
         $name = basename($filename, '.php');
-        $parsed = MetaParser::parseFile($contents);
+        $parsed = GraphGenerator::parseFile($contents);
 
         $m = null;
         foreach ($parsed->methods as $method) {
@@ -213,7 +211,8 @@ EOF;
 
         $arguments = [];
         foreach ($m['args'] as ['type' => $type, 'name' => $argName, 'full_type' => $fullType]) {
-            if ($argName === '$context' || in_array($type, ['OrchestrationContextInterface', 'OrchestrationContext'], true)) {
+            if ($argName === '$context' ||
+                in_array($type, ['OrchestrationContextInterface', 'OrchestrationContext'], true)) {
                 $arguments[] = 'input: [Input!]!';
                 break;
             }
@@ -247,8 +246,10 @@ GRAPHQL;
 
 GRAPHQL;
 
-        $this->handlers['mutations'][] = ['op' => 'StartOrchestration', 'op-name' => "StartNew{$name}Orchestration", 'name' => $realName];
-        $this->handlers['queries'][] = ['op' => 'OrchestrationStatus', 'op-name' => "{$name}Status", 'name' => $realName];
+        $this->handlers['mutations'][] =
+            ['op' => 'StartOrchestration', 'op-name' => "StartNew{$name}Orchestration", 'name' => $realName];
+        $this->handlers['queries'][] =
+            ['op' => 'OrchestrationStatus', 'op-name' => "{$name}Status", 'name' => $realName];
 
         $waitForExternalEventCalls = [];
         $tokens = token_get_all($contents);
@@ -268,7 +269,12 @@ GRAPHQL;
             $originalEvent = $event;
             $event = str_replace(' ', '', ucwords($event));
             $mutation .= "    Send{$event}To{$name}Orchestration(execution: ID!, arguments: [Input!]!): Void\n";
-            $this->handlers['mutations'][] = ['op' => 'RaiseOrchestrationEvent', 'op-name' => "Send{$event}To{$name}Orchestration",  'event' => $originalEvent, 'name' => $realName];
+            $this->handlers['mutations'][] = [
+                'op' => 'RaiseOrchestrationEvent',
+                'op-name' => "Send{$event}To{$name}Orchestration",
+                'event' => $originalEvent,
+                'name' => $realName,
+            ];
         }
 
         return compact('mutation', 'query');
@@ -310,7 +316,7 @@ GRAPHQL;
             case OrchestrationInstance::class:
                 $type = 'OrchestrationId';
                 break;
-            case \DateTimeImmutable::class:
+            case DateTimeImmutable::class:
             case DateTimeImmutable::class:
             case DateTimeInterface::class:
                 $type = 'Date';
@@ -336,7 +342,7 @@ GRAPHQL;
 
     public function defineEntity(string $filename, string $contents): string
     {
-        $parsed = MetaParser::parseFile($contents);
+        $parsed = GraphGenerator::parseFile($contents);
 
         $realName = basename($filename, '.php');
         $originalName = $realName;
@@ -401,7 +407,12 @@ GRAPHQL;
             $returnType = 'Void!';
 
             $methods[] = "    Signal{$className}With{$method['name']}({$arguments}): {$returnType}";
-            $this->handlers['mutations'][] = ['op' => 'SendEntitySignal', 'op-name' => "Signal{$className}With{$method['name']}", 'realName' => $realName, 'method' => $originalMethodName];
+            $this->handlers['mutations'][] = [
+                'op' => 'SendEntitySignal',
+                'op-name' => "Signal{$className}With{$method['name']}",
+                'realName' => $realName,
+                'method' => $originalMethodName,
+            ];
             $this->searchedStates[$className] = $realName;
         }
 
@@ -462,7 +473,7 @@ GRAPHQL;
             } elseif ($class instanceof CreateDefinitionHelper) {
                 $class = $class->getDefinition('none')->getClassName();
             }
-            if ($class === $parsedName && ! in_array($name, $matches, true)) {
+            if ($class === $parsedName && !in_array($name, $matches, true)) {
                 // we have an alias
                 return $this->findRootName($name, $matches);
             }
