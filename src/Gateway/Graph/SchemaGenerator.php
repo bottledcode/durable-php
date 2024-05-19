@@ -69,9 +69,9 @@ class SchemaGenerator
         $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
     }
 
-    public function generateSchema(): array
+    public function generateSchema(string|null $rootDirectory = null): array
     {
-        $projectRoot = $this->findComposerJson(__DIR__ . '/../../../..');
+        $projectRoot = $rootDirectory ?? $this->findComposerJson(__DIR__ . '/../../../..');
         $this->root = $projectRoot;
         $types = '';
 
@@ -190,8 +190,8 @@ EOF;
 
     public function defineOrchestration(string $filename, string $contents): array
     {
-        $name = basename($filename, '.php');
         $parsed = GraphGenerator::parseFile($contents);
+        $name = $parsed->name;
 
         $m = null;
         foreach ($parsed->methods as $method) {
@@ -329,6 +329,10 @@ GRAPHQL;
             case 'array':
                 $type = "[{$innerType}]";
                 break;
+            case 'void':
+                $type = 'Void';
+                $nullable = true;
+                break;
             default:
                 $scalar = explode('\\', $type);
                 $scalar = array_pop($scalar);
@@ -344,13 +348,12 @@ GRAPHQL;
     {
         $parsed = GraphGenerator::parseFile($contents);
 
-        $realName = basename($filename, '.php');
-        $originalName = $realName;
+        $realName = $parsed->name;
         $realName = $parsed->namespace . '\\' . $realName;
 
         foreach ($parsed->attributes as $attribute) {
             if ($attribute['name'] === 'Name' || $attribute['name'] === Name::class) {
-                $className = ucfirst(trim($attribute['args'][0]['type'], '"\''));
+                $className = ucfirst($attribute['args'][0]);
                 goto found;
             }
         }
@@ -404,7 +407,10 @@ GRAPHQL;
             if($scalar) {
                 $this->scalars[] = $scalar;
             }*/
-            $returnType = 'Void!';
+            [$returnType, $scalar] = $this->extractScalars($method['return'], false);
+            if ($scalar) {
+                $this->scalars[$method['return']] = $method['full_return'];
+            }
 
             $methods[] = "    Signal{$className}With{$method['name']}({$arguments}): {$returnType}";
             $this->handlers['mutations'][] = [
@@ -430,7 +436,7 @@ GRAPHQL;
         $newScalars = [];
 
         foreach ($parser->properties as $property) {
-            $innerFullType = MetaParser::getSequenceType($property['attributes']);
+            $innerFullType = GraphGenerator::getSequenceType($property['attributes']);
             [$innerType, $scalar] = $this->extractScalars($innerFullType, $kind === 'input');
             if ($scalar) {
                 $newScalars[$innerType] = $innerFullType;
@@ -463,7 +469,7 @@ GRAPHQL;
         return [$finalTypes, $newScalars];
     }
 
-    private function findRootName(string $parsedName, array $matches): string
+    protected function findRootName(string $parsedName, array $matches): string
     {
         $definitions = include $this->bootstrap;
 

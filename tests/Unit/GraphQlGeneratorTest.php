@@ -2,9 +2,10 @@
 
 use Bottledcode\DurablePhp\Gateway\Graph\GraphGenerator;
 use Bottledcode\DurablePhp\Gateway\Graph\MetaParser;
+use Bottledcode\DurablePhp\Gateway\Graph\SchemaGenerator;
 
 it('can convert a php file', function (): void {
-    $this->markTestSkipped('manual verification');
+    //$this->markTestSkipped('manual verification');
     $testFile = <<<'PHP'
 <?php
 /*
@@ -36,7 +37,7 @@ use Bottledcode\DurablePhp\State\EntityState;
 
 class Account extends EntityState implements AccountInterface
 {
-    public int $balance = 0;
+    public int|float $balance = 0;
 
     public function __construct(private EntityContextInterface $context) {}
 
@@ -70,4 +71,16 @@ PHP;
     $new = json_encode($new, JSON_PRETTY_PRINT);
 
     expect($new)->toBe($meta);
+});
+
+it('can generate a realistic schema', function (): void {
+    $_SERVER['HTTP_DPHP_BOOTSTRAP'] = __DIR__ . '/../../../swytch/src/bootstrap.php';
+    $generator = new class () extends SchemaGenerator {
+        protected function findRootName(string $parsedName, array $matches): string
+        {
+            return $parsedName;
+        }
+    };
+    $result = $generator->generateSchema(__DIR__ . '/../../../swytch');
+    expect($result)->toBe([]);
 });
