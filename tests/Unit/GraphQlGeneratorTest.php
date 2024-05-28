@@ -1,10 +1,10 @@
 <?php
 
-use Bottledcode\DurablePhp\Gateway\Graph\GraphGenerator;
-use Bottledcode\DurablePhp\Gateway\Graph\MetaParser;
-use Bottledcode\DurablePhp\Gateway\Graph\SchemaGenerator;
+use Bottledcode\DurablePhp\Gateway\Graph\SchemaExtractor;
+use Bottledcode\DurablePhp\Gateway\Graph\TypeManager;
+use Bottledcode\DurablePhp\Gateway\Graph\Union;
 
-it('can convert a php file', function (): void {
+it('can render an entity', function (): void {
     //$this->markTestSkipped('manual verification');
     $testFile = <<<'PHP'
 <?php
@@ -33,8 +33,9 @@ it('can convert a php file', function (): void {
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
 use Bottledcode\DurablePhp\EntityContextInterface;
-use Bottledcode\DurablePhp\State\EntityState;
+use Bottledcode\DurablePhp\State\Attributes\Entity;use Bottledcode\DurablePhp\State\EntityState;
 
+#[Entity(hidden: false, name: "AccountEntity")]
 class Account extends EntityState implements AccountInterface
 {
     public int|float $balance = 0;
@@ -64,23 +65,101 @@ class Account extends EntityState implements AccountInterface
 
 PHP;
 
-    $meta = MetaParser::parseFile($testFile);
-    $new = GraphGenerator::parseFile($testFile);
+    $newer = new SchemaExtractor(contents: $testFile);
+    $newer->parse();
 
-    $meta = json_encode($meta, JSON_PRETTY_PRINT);
-    $new = json_encode($new, JSON_PRETTY_PRINT);
+    expect($newer->getGraphQlName())->toBe('AccountEntity');
+    expect($newer->dependsOn())->toBe(['int', 'float', 'void']);
+    expect($newer->unions())->toEqual(['FloatOrInt' => new Union(['float', 'int'])]);
 
-    expect($new)->toBe($meta);
+    $tm = new TypeManager();
+    $tm->addType($newer->getPhpType(), $newer);
+
+    expect($tm->renderTypes())->toBe(
+        <<<'GQL'
+type AccountEntity {
+	balance: FloatOrInt
+}
+union FloatOrInt = Float | Int
+
+GQL,
+    );
 });
 
-it('can generate a realistic schema', function (): void {
-    $_SERVER['HTTP_DPHP_BOOTSTRAP'] = __DIR__ . '/../../../swytch/src/bootstrap.php';
-    $generator = new class () extends SchemaGenerator {
-        protected function findRootName(string $parsedName, array $matches): string
-        {
-            return $parsedName;
-        }
-    };
-    $result = $generator->generateSchema(__DIR__ . '/../../../swytch');
-    expect($result)->toBe([]);
+it('can render an orchestration', function (): void {
+    //$this->markTestSkipped('manual verification');
+    $testFile = <<<'PHP'
+<?php
+/*
+ * Copyright ©2024 Robert Landers
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the “Software”), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT
+ * OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+ * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+namespace Bottledcode\DurablePhp\Tests\PerformanceTests\HelloCities;
+
+use Bottledcode\DurablePhp\OrchestrationContextInterface;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
+use Bottledcode\DurablePhp\State\Attributes\Orchestration;
+use Bottledcode\DurablePhp\Tests\Common\SayHello;
+
+#[AllowCreateAll]
+#[Orchestration]
+class HelloSequence
+{
+    public int $executions = 0;
+
+    /**
+    * @param OrchestrationContextInterface $context
+    * @return array<string>
+    */
+    public function __invoke(OrchestrationContextInterface $context): array
+    {
+        $outputs = [
+            $context->callActivity(SayHello::class, ['Tokyo']),
+            $context->callActivity(SayHello::class, ['Seattle']),
+            $context->callActivity(SayHello::class, ['London']),
+            $context->callActivity(SayHello::class, ['Amsterdam']),
+            $context->callActivity(SayHello::class, ['Seoul']),
+        ];
+
+        return $context->waitAll(...$outputs);
+    }
+}
+
+PHP;
+
+    $newer = new SchemaExtractor(contents: $testFile);
+    $newer->parse();
+
+    expect($newer->getGraphQlName())->toBe('HelloSequence');
+
+    $tm = new TypeManager();
+    $tm->addType($newer->getPhpType(), $newer);
+
+    expect($tm->renderTypes())->toBe(
+        <<<'GQL'
+type AccountEntity {
+	balance: FloatOrInt
+}
+union FloatOrInt = Float | Int
+
+GQL,
+    );
 });

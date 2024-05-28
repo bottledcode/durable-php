@@ -27,17 +27,18 @@ namespace Bottledcode\DurablePhp\State;
 use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\fp\Evolvable;
+use DateTimeImmutable;
 
 readonly class Status
 {
     use Evolvable;
 
     public function __construct(
-        public \DateTimeImmutable $createdAt,
+        public DateTimeImmutable $createdAt,
         public string $customStatus,
         public SerializedArray $input,
         public StateId $id,
-        public \DateTimeImmutable $lastUpdated,
+        public DateTimeImmutable $lastUpdated,
         public SerializedArray|null $output,
         public RuntimeStatus $runtimeStatus,
     ) {}
