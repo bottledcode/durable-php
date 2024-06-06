@@ -36,7 +36,7 @@ if (!interface_exists(orchProxy::class)) {
     }
 }
 
-it('generates a proxy correctly', function () {
+it('generates a proxy correctly', function (): void {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
     expect($proxy)->toBe(
@@ -59,14 +59,14 @@ EOT,
     );
 });
 
-it('is actually callable', function () {
+it('is actually callable', function (): void {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
     eval($proxy);
     $instance = new class () {
         public function pureExample(int|float $number): string
         {
-            return "Hello $number";
+            return "Hello {$number}";
         }
     };
     $proxy = new __ClientProxy_orchProxy($instance);

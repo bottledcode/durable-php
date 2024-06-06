@@ -27,7 +27,7 @@ use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 
-test('multilock example', function () {
+test('multilock example', function (): void {
     $instance = getOrchestration('test', function (OrchestrationContext $context) {
         $lock = $context->lockEntity(new EntityId('test', 'test'));
         expect($lock->isLocked())->toBeTrue();

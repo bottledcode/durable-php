@@ -32,7 +32,6 @@ use Amp\Parallel\Context\ProcessContext;
 use function Amp\async;
 use function Amp\ByteStream\getStderr;
 use function Amp\ByteStream\getStdout;
-use function Amp\ByteStream\pipe;
 
 class LoggingContextFactory implements ContextFactory
 {

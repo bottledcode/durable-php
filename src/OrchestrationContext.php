@@ -378,16 +378,14 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $future =
             $this->createFuture(
                 fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)),
-                function (Event $event, string $eventIdentity) use ($identity) {
-                    return [$event, $identity === $eventIdentity];
-                },
+                fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
                 $identity,
             );
         $this->waitOne($future);
 
         $this->history->locks = $entityId;
 
-        return new EntityLock(function () use ($owner) {
+        return new EntityLock(function () use ($owner): void {
             foreach ($this->history->locks as $lock) {
                 $this->taskController->fire(
                     WithLock::onEntity(

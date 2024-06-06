@@ -24,20 +24,23 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Bottledcode\DurablePhp\State\Attributes\EntryPoint;
+use ReflectionClass;
+use ReflectionException;
+use ReflectionMethod;
 
 trait EntrypointLocatorTrait
 {
-    private function locateEntrypoint(\ReflectionClass $class): \ReflectionMethod|null
+    private function locateEntrypoint(ReflectionClass $class): ReflectionMethod|null
     {
-        foreach($class->getMethods() as $method) {
-            foreach($method->getAttributes(EntryPoint::class) as $attribute) {
+        foreach ($class->getMethods() as $method) {
+            foreach ($method->getAttributes(EntryPoint::class) as $attribute) {
                 return $method;
             }
         }
 
         try {
             return $class->getMethod('__invoke');
-        } catch(\ReflectionException) {
+        } catch (ReflectionException) {
             return null;
         }
     }

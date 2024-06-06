@@ -34,14 +34,15 @@
     "crell/serde": "^1.1.0",
     "nesbot/carbon": ">2.0",
     "php": ">=8.3",
-    "ramsey/uuid": "^4.7.6",
-    "withinboredom/time": "^4.0.3",
     "php-di/php-di": "^7.0.6",
-    "webonyx/graphql-php": "^15.11.1"
+    "ramsey/uuid": "^4.7.6",
+    "webonyx/graphql-php": "^15.11.1",
+    "withinboredom/time": "^4.0.3",
+    "nikic/php-parser": "^5.0"
   },
   "require-dev": {
     "laravel/pint": "^1.15.3",
-    "mockery/mockery": "^1.6.11",
+    "mockery/mockery": "^1.6.12",
     "pestphp/pest": "^2.34.7"
   },
   "scripts": {

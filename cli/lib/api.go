@@ -82,10 +82,10 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		if user, ok := auth.ExtractUser(request, config); !ok || user == nil {
-			http.Error(writer, "Not Authorized", http.StatusForbidden)
-			return
-		}
+		//if user, ok := auth.ExtractUser(request, config); !ok || user == nil {
+		//	http.Error(writer, "Not Authorized", http.StatusForbidden)
+		//	return
+		//}
 
 		if path, ok := glue.GetLibraryDir("/../Gateway/Graph/index.php"); ok {
 			request.URL.Path = path

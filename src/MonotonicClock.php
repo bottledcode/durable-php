@@ -69,8 +69,8 @@ class MonotonicClock
             $μs += 1000000;
         }
 
-        if (6 !== \strlen($now = (string) $μs)) {
-            $now = str_pad($now, 6, '0', \STR_PAD_LEFT);
+        if (6 !== \mb_strlen($now = (string) $μs)) {
+            $now = mb_str_pad($now, 6, '0', \STR_PAD_LEFT);
         }
 
         $now = '@' . ($s + $this->secondsOffset) . '.' . $now;

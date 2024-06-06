@@ -89,7 +89,7 @@ class ActivityHistory extends AbstractHistory
             } elseif (! is_object($task)) {
                 $task = $this->container->get($task);
                 $reflection = new ReflectionClass($task);
-                $entrypoint = $this->locateEntrypoint($reflection) ?? throw new RuntimeException("Unable to locate entrypoint for $event->name");
+                $entrypoint = $this->locateEntrypoint($reflection) ?? throw new RuntimeException("Unable to locate entrypoint for {$event->name}");
                 $arguments = $this->fillParameters($event->input, $entrypoint);
             } else {
                 throw new LogicException('Activity must be callable or a class');

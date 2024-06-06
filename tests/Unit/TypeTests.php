@@ -30,7 +30,7 @@ interface ITest
 
 class Test extends \Bottledcode\DurablePhp\State\EntityState implements ITest
 {
-    public function weee()
+    public function weee(): void
     {
         // TODO: Implement weee() method.
     }
@@ -39,6 +39,6 @@ class Test extends \Bottledcode\DurablePhp\State\EntityState implements ITest
 /**
  * @var \Bottledcode\DurablePhp\State\EntityId<ITest> $id
  */
-$id = new \Bottledcode\DurablePhp\State\EntityId(ITest::class, "hello");
+$id = new \Bottledcode\DurablePhp\State\EntityId(ITest::class, 'hello');
 
 $result = $entityClient->getEntitySnapshot($id);

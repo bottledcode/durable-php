@@ -170,7 +170,7 @@ class EntityHistory extends AbstractHistory
         $replyTo = $this->getReplyTo($original);
 
         $taskDispatcher = null;
-        yield static function ($task) use (&$taskDispatcher) {
+        yield static function ($task) use (&$taskDispatcher): void {
             $taskDispatcher = $task;
         };
 

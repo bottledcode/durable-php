@@ -68,9 +68,9 @@ readonly class StateId implements \Stringable
     {
         $parts = explode(':', $this->id, 3);
         return match ($parts) {
-            ['orchestration', $parts[1]] => throw new Exception("Cannot convert orchestration state to activity id"),
+            ['orchestration', $parts[1]] => throw new Exception('Cannot convert orchestration state to activity id'),
             ['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
-            ['entity', $parts[1], $parts[2]] => throw new Exception("Cannot convert entity state to activity id"),
+            ['entity', $parts[1], $parts[2]] => throw new Exception('Cannot convert entity state to activity id'),
         };
     }
 
@@ -83,10 +83,10 @@ readonly class StateId implements \Stringable
     {
         $parts = explode(':', $this->id, 3);
         return match ($parts) {
-            ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to orchestration instance"),
+            ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to orchestration instance'),
             ['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
             ['entity', $parts[1], $parts[2]] => throw new Exception(
-                "Cannot convert entity state to orchestration instance",
+                'Cannot convert entity state to orchestration instance',
             ),
         };
     }
@@ -95,9 +95,9 @@ readonly class StateId implements \Stringable
     {
         $parts = explode(':', $this->id, 3);
         return match ($parts) {
-            ['activity', $parts[1]] => throw new Exception("Cannot convert activity state to entity id"),
+            ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to entity id'),
             ['orchestration', $parts[1], $parts[2]] => throw new Exception(
-                "Cannot convert orchestration state to entity id",
+                'Cannot convert orchestration state to entity id',
             ),
             ['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
         };
