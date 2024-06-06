@@ -29,6 +29,8 @@ class SchemaExtractor implements SchemaRendererInterface
     #[DictionaryField(arrayType: Union::class, keyType: KeyType::String)]
     private array|null $unions = null;
 
+    private string $fileHash;
+
     public function __construct(
         public readonly string|null $filename = null,
         public readonly string|null $contents = null,
@@ -47,6 +49,7 @@ class SchemaExtractor implements SchemaRendererInterface
         $parser = (new ParserFactory())->createForNewestSupportedVersion();
 
         try {
+            $this->fileHash = $this->contents ? md5($this->contents) : md5_file($this->filename);
             $ast = $parser->parse($this->contents ?? file_get_contents($this->filename));
         } catch (Throwable $error) {
             echo "Parse error: {$error->getMessage()}\n";
@@ -139,10 +142,10 @@ class SchemaExtractor implements SchemaRendererInterface
             $cases = implode("\n\t", $cases);
 
             return <<<GQL
-enum {$this->getGraphQlType()} {
-\t{$cases}
-}
-GQL;
+                enum {$this->getGraphQlType()} {
+                \t{$cases}
+                }
+                GQL;
         }
 
         if ($this->visitor->isOrchestration) {
@@ -162,10 +165,10 @@ GQL;
 
         /** @lang GraphQL */
         return <<<GQL
-type {$this->getGraphQlName()} {
-{$this->renderProps($typeManager)}
-}
-GQL;
+            type {$this->getGraphQlName()} {
+            {$this->renderProps($typeManager)}
+            }
+            GQL;
     }
 
     public function getGraphQlType(bool $forInput = false, bool $nullable = true): string
@@ -239,10 +242,10 @@ GQL;
 
         /** @lang GraphQL */
         return <<<GQL
-input {$this->getGraphQlName()}Input {
-{$this->renderProps($typeManager)}
-}
-GQL;
+            input {$this->getGraphQlName()}Input {
+            {$this->renderProps($typeManager)}
+            }
+            GQL;
         // todo: mutation args
     }
 
