@@ -119,17 +119,17 @@ class TypeManager
                 $typeType = explode(':', $type);
                 $typeType = trim(end($typeType));
                 $final[] = <<<QQL
-type {$typeType} {
-\t{$lines}
-}
-QQL;
+                    type {$typeType} {
+                    \t{$lines}
+                    }
+                    QQL;
                 $tip .= "\t{$type}\n";
             }
             $final[] = <<<QGL
-type Mutation {
-{$tip}
-}
-QGL;
+                type Mutation {
+                {$tip}
+                }
+                QGL;
         }
 
         if ($queries) {
@@ -150,18 +150,18 @@ QGL;
                         str_replace($typeType, $this->lookupType($typeType)?->getGraphQlType(nullable: true), $type);
                 } else {
                     $final[] = <<<GQL
-type {$typeType} {
-\t{$lines}
-}
-GQL;
+                        type {$typeType} {
+                        \t{$lines}
+                        }
+                        GQL;
                 }
                 $tip .= "\t{$type}\n";
             }
             $final[] = <<<GQL
-type Query {
-{$tip}
-}
-GQL;
+                type Query {
+                {$tip}
+                }
+                GQL;
         }
 
         return trim(implode("\n", array_filter($final))) . "\n";

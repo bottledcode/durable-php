@@ -17,6 +17,12 @@
       <option name="KEEP_BLANK_LINES_AFTER_LBRACE" value="0" />
       <option name="FORCE_SHORT_DECLARATION_ARRAY_STYLE" value="true" />
       <option name="NEW_LINE_AFTER_PHP_OPENING_TAG" value="true" />
+      <option name="FORCE_EMPTY_METHODS_IN_ONE_LINE" value="true" />
+      <option name="FORCE_EMPTY_CLASSES_IN_ONE_LINE" value="true" />
+      <option name="MULTILINE_CHAINED_CALLS_FIRST_CALL_ON_NEW_LINE" value="true" />
+      <option name="MULTILINE_CLOSURE_LAMBDA_ON_NEW_LINE" value="true" />
+      <option name="HEREDOC_ON_SAME_LINE" value="true" />
+      <option name="ATTRIBUTES_WRAP" value="2" />
       <option name="PARAMETERS_ATTRIBUTES_WRAP" value="1" />
     </PHPCodeStyleSettings>
     <codeStyleSettings language="PHP">
