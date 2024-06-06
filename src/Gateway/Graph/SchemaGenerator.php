@@ -27,7 +27,7 @@ class SchemaGenerator
 {
     public function __construct() {}
 
-    public function generateSchema(string|null $rootDirectory = null): string
+    public function generateSchema(string|null $rootDirectory = null): TypeManager
     {
         $projectRoot = $rootDirectory ?? $this->findComposerJson(__DIR__ . '/../../../..');
 
@@ -35,7 +35,7 @@ class SchemaGenerator
 
         $this->findPhpFiles($projectRoot, $typeManager);
 
-        return $typeManager->renderTypes();
+        return $typeManager;
     }
 
     public function findComposerJson(string $startDirectory): ?string

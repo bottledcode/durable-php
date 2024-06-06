@@ -43,7 +43,7 @@ $schema = $generator->generateSchema();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     header('Content-Type: text/plain');
-    echo $schema;
+    echo $schema->renderTypes();
     exit();
 }
 
@@ -109,6 +109,15 @@ function signal(array $args, DurableClient $context): array
     unset($args['id'], $args['signal']);
 
     $context->signalEntity($id, $signal, $args);
+
+    return [];
+}
+
+function handleTypes(array $typeConfig, TypeDefinitionNode $typeDefinitionNode): array
+{
+    $name = $typeConfig['name'];
+
+    var_dump($typeConfig);
 
     return [];
 }
