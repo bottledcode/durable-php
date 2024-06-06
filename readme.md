@@ -82,22 +82,28 @@ class UploadEntity extends \Bottledcode\DurablePhp\State\EntityState implements 
 # UploadOrchestration.php
 
 class UploadOrchestration {
-    public function __invoke(\Bottledcode\DurablePhp\OrchestrationContextInterface $context) {
-        $url = $context->getInput();
-        $entity = $context->createEntityProxy(UploadEntityInterface::class);
+    public function __construct(private \Bottledcode\DurablePhp\OrchestrationContextInterface $context) {}
+   
+    public function __invoke(string $url) {
+        $ctx = $this->context();
+        $uploadId = $ctx->newUuid();
+
         // get a future that will be resolved when the upload is processed
         $signal = $context->waitForExternalEvent('upload-processed');
+
         // get a future that will be resolved when the timer expires (one hour from now)
         $timeout = $context->createTimer($context->getCurrentTime()->add(new DateInterval('PT1H')))
+
         // wait for the upload to be processed or the timer to expire
         $winner = $context->waitAny($signal, $timeout);
+
         if($winner === $signal) {
             // upload was processed
-            $entity->setProcessState('processed');
+            $ctx->signal($uploadId, fn(UploadEntity $entity) => $entity->setProcessState('processed'));
             $context->callActivity(SendEmailActivity::class, ['to' => 'user', 'subject' => 'Upload processed', 'body' => 'Your upload was processed']);
         } else {
             // upload was not processed
-            $entity->setProcessState('timed-out');
+            $ctx->signal($uploadId, fn(UploadEntity $entity) => $entity->setProcessState('timed-out'));
             $context->callActivity(SendEmailActivity::class, ['to' => 'admin', 'subject' => 'Upload failed', 'body' => 'The upload timed out']);
         }
     }
