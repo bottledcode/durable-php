@@ -23,6 +23,9 @@
 
 namespace Bottledcode\DurablePhp\Gateway\Graph;
 
+use RuntimeException;
+use Throwable;
+
 class SchemaGenerator
 {
     public function __construct() {}
@@ -71,7 +74,11 @@ class SchemaGenerator
     public function processPhpFile(string $file, TypeManager $typeManager): void
     {
         $type = new SchemaExtractor($file);
-        $type->parse();
-        $typeManager->addType($type->getPhpType(), $type);
+        try {
+            $type->parse();
+            $typeManager->addType($type->getPhpType(), $type);
+        } catch (Throwable $throwable) {
+            throw new RuntimeException("Failed to parse {$file}", previous: $throwable);
+        }
     }
 }
