@@ -2,7 +2,7 @@ module durable_php
 
 go 1.22
 
-require github.com/dunglas/frankenphp v1.1.5
+require github.com/dunglas/frankenphp v1.2.0
 
 require github.com/nats-io/nats.go v1.35.0
 
