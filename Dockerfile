@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS cli-base-alpine
+FROM golang:1.22.4-alpine AS cli-base-alpine
 
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
@@ -66,7 +66,7 @@ COPY cli/ ./cli/
 WORKDIR /go/src/app/cli
 RUN --mount=type=secret,id=github-token GITHUB_TOKEN=$(cat /run/secrets/github-token) ./build.sh
 
-FROM php:8-zts AS common
+FROM php:8.3.7-zts AS common
 
 WORKDIR /app
 
@@ -75,7 +75,7 @@ RUN install-php-extensions @composer apcu bcmath bz2 calendar ctype curl dom exi
 
 FROM common AS builder
 
-COPY --from=golang:1.22 /usr/local/go /usr/local/go
+COPY --from=cli-base-alpine /usr/local/go /usr/local/go
 ENV PATH /usr/local/go/bin:$PATH
 
 RUN apt-get update && \
