@@ -23,6 +23,9 @@
 
 namespace Bottledcode\DurablePhp\Tests\Common;
 
+use Bottledcode\DurablePhp\State\Attributes\Orchestration;
+
+#[Orchestration]
 class SayHello
 {
     public function __invoke(string $name): string

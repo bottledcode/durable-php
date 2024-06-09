@@ -109,7 +109,7 @@ class TypeManager
             $mutationTypes = [];
             foreach ($mutations as $type => $part) {
                 if (($this->referenced[$type] ?? false) && !empty($part)) {
-                    $mutationTypes = array_merge_recursive($part);
+                    $mutationTypes = array_merge_recursive($part, $mutationTypes);
                 }
             }
 
@@ -136,7 +136,7 @@ class TypeManager
             $queryTypes = [];
             foreach ($queries as $type => $part) {
                 if (($this->referenced[$type] ?? false) && !empty($part)) {
-                    $queryTypes = array_merge_recursive($part);
+                    $queryTypes = array_merge_recursive($part, $queryTypes);
                 }
             }
 
