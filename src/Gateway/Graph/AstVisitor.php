@@ -72,7 +72,7 @@ class AstVisitor extends NodeVisitorAbstract
      */
     #[SequenceField(arrayType: AstAttribute::class)]
     public array $attributes = [];
-    public string $name;
+    public string $name = '';
     /**
      * @var array<string>
      */
@@ -122,19 +122,17 @@ class AstVisitor extends NodeVisitorAbstract
                         break;
                     case $node instanceof Node\Expr\New_:
                         // check explicitly for new dates!
-                        if ($node->class instanceof Node\Name) {
-                            if (in_array(
-                                $node->class->name->name,
-                                [DateTimeImmutable::class, DateTimeImmutable::class],
-                                true,
-                            )) {
-                                if (empty($node->args) || ($node->args[0] instanceof Node\Scalar\String_ &&
-                                        $node->args[0]->value === 'now')) {
-                                    $this->emitError(
-                                        $node,
-                                        'Usage of non-deterministic date main orchestration body, use activity instead: ',
-                                    );
-                                }
+                        if (($node->class instanceof Node\Name) && in_array(
+                            $node->class->name,
+                            [DateTimeImmutable::class, DateTimeImmutable::class],
+                            true,
+                        )) {
+                            if (empty($node->args) ||
+                                ($node->args[0] instanceof Node\Scalar\String_ && $node->args[0]->value === 'now')) {
+                                $this->emitError(
+                                    $node,
+                                    'Usage of non-deterministic date main orchestration body, use activity instead: ',
+                                );
                             }
                         }
                         break;
@@ -318,6 +316,7 @@ class AstVisitor extends NodeVisitorAbstract
             $value instanceof Node\Scalar\Int_ => $value->value,
             $value instanceof Node\Scalar\Float_ => $value->value,
             $value instanceof Node\Expr\ConstFetch => $value->name,
+            $value instanceof Node\Expr\ClassConstFetch => $value->name,
             default => $this->emitError($arg, 'attempted to parse impossible argument', ['type' => $value->getType()]),
         };
     }

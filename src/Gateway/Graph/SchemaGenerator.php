@@ -76,6 +76,10 @@ class SchemaGenerator
         $type = new SchemaExtractor($file);
         try {
             $type->parse();
+            if (str_ends_with($type->getPhpType(), '\\')) {
+                // file does not contain a type
+                return;
+            }
             $typeManager->addType($type->getPhpType(), $type);
         } catch (Throwable $throwable) {
             throw new RuntimeException("Failed to parse {$file}", previous: $throwable);

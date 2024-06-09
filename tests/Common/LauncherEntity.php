@@ -25,9 +25,11 @@ namespace Bottledcode\DurablePhp\Tests\Common;
 
 use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
+use Bottledcode\DurablePhp\State\Attributes\Entity;
 use Bottledcode\DurablePhp\State\EntityState;
 
 #[AllowCreateAll]
+#[Entity]
 class LauncherEntity extends EntityState
 {
     public function __construct(private bool $launched = false) {}
@@ -35,7 +37,7 @@ class LauncherEntity extends EntityState
     public function launch(string $orchestration, int $number, int $offset): void
     {
         $context = EntityContext::current();
-        for($i = 0; $i < $number; $i++) {
+        for ($i = 0; $i < $number; $i++) {
             $context->startNewOrchestration($orchestration, [], $offset + $i);
         }
         $this->launched = true;

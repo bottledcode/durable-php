@@ -228,3 +228,72 @@ it('can render an orchestration', function (): void {
             GQL,
     );
 });
+
+it('can render more than one', function (): void {
+    $file1 = new SchemaExtractor(filename: __DIR__ . '/../Common/LauncherEntity.php');
+    $file2 = new SchemaExtractor(filename: __DIR__ . '/../Common/SayHello.php');
+
+    $file1->parse();
+    $file2->parse();
+
+    $tm = new TypeManager();
+    $tm->addType($file1->getPhpType(), $file1);
+    $tm->addType($file2->getPhpType(), $file2);
+
+    expect(trim($tm->renderTypes()))->toBe(
+        <<<'GQL'
+            scalar DateTime
+            scalar Void
+            type Status {
+            	createdAt: DateTime!
+            	customStatus: String!
+            	input: [Mixed]!
+            	id: StateId!
+            	lastUpdated: DateTime!
+            	output: [Mixed]
+            	runtimeStatus: RuntimeStatus!
+            }
+            enum RuntimeStatus {
+            	Running
+            	Completed
+            	ContinuedAsNew
+            	Failed
+            	Canceled
+            	Terminated
+            	Pending
+            	Suspended
+            	Unknown
+            }
+            type StateId {
+            	id: String!
+            }
+            type LauncherEntity {
+            
+            }
+            input OrchestrationInstanceInput {
+            	instanceId: String!
+            	executionId: String!
+            }
+            type SayHelloOrchestration {
+            	Start(name: String!,id: OrchestrationInstanceInput): Status!
+            	Signal(id: OrchestrationInstanceInput, name: String!, message: [Mixed]!): Void
+            }
+            type LauncherEntityEntitySignal {
+            	launch(orchestration: String!,number: Int!,offset: Int!): Void
+            }
+            type Mutation {
+            	SayHello: SayHelloOrchestration
+            	LauncherEntity(id: ID!): LauncherEntityEntitySignal
+            
+            }
+            type SayHelloQuery {
+            	Status: Status!
+            }
+            type Query {
+            	SayHello(id: OrchestrationInstanceInput): SayHelloQuery
+            	LauncherEntity(id: ID!): LauncherEntity
+            
+            }
+            GQL,
+    );
+});
