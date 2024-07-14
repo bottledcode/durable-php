@@ -121,7 +121,7 @@ class AstVisitor extends NodeVisitorAbstract
                     case $node instanceof Node\Expr\NullsafeMethodCall:
                         break;
                     case $node instanceof Node\Expr\New_:
-                        // check explicitly for new dates!
+                        // todo: check explicitly for new dates!
                         if (($node->class instanceof Node\Name) && in_array(
                             $node->class->name,
                             [DateTimeImmutable::class, DateTimeImmutable::class],
