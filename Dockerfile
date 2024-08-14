@@ -1,4 +1,4 @@
-FROM golang:1.22.6-alpine AS golang-base
+FROM golang:1.23.0-alpine AS golang-base
 FROM php:8.4.0alpha4-zts AS php-base
 FROM golang-base AS cli-base-alpine
 
