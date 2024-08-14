@@ -4,7 +4,7 @@ go 1.22
 
 require github.com/dunglas/frankenphp v1.2.4
 
-require github.com/nats-io/nats.go v1.36.0
+require github.com/nats-io/nats.go v1.37.0
 
 require github.com/nats-io/nats-server/v2 v2.10.18
 
