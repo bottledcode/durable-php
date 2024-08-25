@@ -23,14 +23,15 @@
 
 namespace Bottledcode\DurablePhp\State\Attributes;
 
-use Withinboredom\Time\AnyTime;
+use Attribute;
+use Withinboredom\Time\Time;
 
-#[\Attribute(\Attribute::TARGET_CLASS)]
+#[Attribute(Attribute::TARGET_CLASS)]
 readonly class TimeToLive
 {
-    public function __construct(private AnyTime $unit, private int $amount) {}
+    public function __construct(private Time $unit, private int $amount) {}
 
-    public function timeToLive(): AnyTime
+    public function timeToLive(): Time
     {
         return $this->unit->multiply($this->amount);
     }
