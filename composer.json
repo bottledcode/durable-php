@@ -27,23 +27,23 @@
   "name": "bottledcode/durable-php",
   "require": {
     "adhocore/cli": "^1.7.1",
-    "amphp/file": "^3.1.0",
+    "amphp/file": "^3.1.1",
     "amphp/http-client": "^5.1.0",
     "amphp/log": "^v2.0.0",
     "amphp/parallel": "^2.2.9",
-    "crell/serde": "^1.1.0",
+    "crell/serde": "^1.2.0",
     "nesbot/carbon": ">2.0",
     "php": ">=8.3",
-    "php-di/php-di": "^7.0.6",
+    "php-di/php-di": "^7.0.7",
     "ramsey/uuid": "^4.7.6",
-    "webonyx/graphql-php": "^15.11.1",
-    "withinboredom/time": "^4.0.3",
-    "nikic/php-parser": "^5.0"
+    "webonyx/graphql-php": "^15.12.5",
+    "withinboredom/time": "^5.0.0",
+    "nikic/php-parser": "^5.1"
   },
   "require-dev": {
-    "laravel/pint": "^1.15.3",
+    "laravel/pint": "^1.17.2",
     "mockery/mockery": "^1.6.12",
-    "pestphp/pest": "^2.34.7"
+    "pestphp/pest": "^2.35.1"
   },
   "scripts": {
     "test": "pest"
