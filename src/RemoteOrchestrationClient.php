@@ -34,6 +34,7 @@ use Bottledcode\DurablePhp\State\Status;
 use Exception;
 use Generator;
 use Override;
+use Withinboredom\Time\TimeUnit;
 
 use function Withinboredom\Time\Hours;
 use function Withinboredom\Time\Seconds;
@@ -103,7 +104,11 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $id = rawurlencode($instance->executionId);
         $signal = rawurlencode($eventName);
         $eventData = SerializedArray::fromArray($eventData);
-        $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}/{$signal}", 'PUT', json_encode($eventData, JSON_THROW_ON_ERROR));
+        $req = new Request(
+            "{$this->apiHost}/orchestration/{$name}/{$id}/{$signal}",
+            'PUT',
+            json_encode($eventData, JSON_THROW_ON_ERROR),
+        );
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -162,9 +167,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
         $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}?wait=60");
-        $req->setInactivityTimeout(Hours(1)->inSeconds());
-        $req->setTcpConnectTimeout(Seconds(1)->inSeconds());
-        $req->setTransferTimeout(Hours(1)->inSeconds());
+        $req->setInactivityTimeout(Hours(1)->as(TimeUnit::Seconds));
+        $req->setTcpConnectTimeout(Seconds(1)->as(TimeUnit::Seconds));
+        $req->setTransferTimeout(Hours(1)->as(TimeUnit::Seconds));
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }

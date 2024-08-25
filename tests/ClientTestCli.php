@@ -21,20 +21,26 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+use Amp\TimeoutCancellation;
 use Bottledcode\DurablePhp\Abstractions\Sources\SourceFactory;
+use Bottledcode\DurablePhp\Config\Config;
+use Bottledcode\DurablePhp\HelloSequence;
+use Bottledcode\DurablePhp\OrchestrationClient;
+use Ramsey\Uuid\Uuid;
+use Withinboredom\Time\TimeUnit;
 
 use function Withinboredom\Time\Hours;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$config = \Bottledcode\DurablePhp\Config\Config::fromArgs($argv);
-$client = new \Bottledcode\DurablePhp\OrchestrationClient($config, SourceFactory::fromConfig($config));
+$config = Config::fromArgs($argv);
+$client = new OrchestrationClient($config, SourceFactory::fromConfig($config));
 
 $orchestrationInstance = $client->startNew(
-    \Bottledcode\DurablePhp\HelloSequence::class,
+    HelloSequence::class,
     ['name' => 'World'],
-    \Ramsey\Uuid\Uuid::uuid7()->toString(),
+    Uuid::uuid7()->toString(),
 );
 $client->raiseEvent($orchestrationInstance, 'event', ['data']);
-$client->waitForCompletion($orchestrationInstance, new \Amp\TimeoutCancellation(hours(2)->inSeconds()));
+$client->waitForCompletion($orchestrationInstance, new TimeoutCancellation(hours(2)->as(TimeUnit::Seconds)));
 var_dump($client->getStatus($orchestrationInstance));
