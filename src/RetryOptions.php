@@ -23,18 +23,20 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Withinboredom\Time\AnyTime;
+use Withinboredom\Time\Time;
+
+use function Withinboredom\Time\Hours;
 
 class RetryOptions
 {
     public function __construct(
-        public AnyTime $firstRetryInterval,
+        public Time $firstRetryInterval,
         public int $maxNumberAttempts,
-        public AnyTime|null $maxRetryInterval = null,
+        public Time|null $maxRetryInterval = null,
         public float $backoffCoefficient = 1.0,
-        public AnyTime|null $retryTimeout = null,
+        public Time|null $retryTimeout = null,
     ) {
-        $this->maxRetryInterval = \Withinboredom\Time\Hours(1);
-        $this->retryTimeout = \Withinboredom\Time\Hours(1);
+        $this->maxRetryInterval = Hours(1);
+        $this->retryTimeout = Hours(1);
     }
 }
