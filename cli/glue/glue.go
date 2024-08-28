@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -98,8 +99,14 @@ func FromApiRequest(ctx context.Context, r *http.Request, function Method, logge
 	env := make(map[string]string)
 	env["FROM_REQUEST"] = "1"
 	env["STATE_ID"] = id.String()
+	remoteAddr := strings.Split(r.RemoteAddr, ":")[0]
+	env["REMOTE_ADDR"] = remoteAddr
 
 	msgs, responseHeaders, _, deleteAfter := glu.Execute(ctx, headers, logger, env, stream, id)
+
+	for _, msg := range msgs {
+		msg.Header.Add("Remote-Addr", remoteAddr)
+	}
 
 	return msgs, temp.Name(), nil, &responseHeaders, deleteAfter
 }
