@@ -168,7 +168,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $id = rawurlencode($instance->executionId);
         $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}?wait=60");
         $req->setInactivityTimeout(Hours(1)->as(TimeUnit::Seconds));
-        $req->setTcpConnectTimeout(Seconds(1)->as(TimeUnit::Seconds));
+        $req->setTcpConnectTimeout(Seconds(30)->as(TimeUnit::Seconds));
         $req->setTransferTimeout(Hours(1)->as(TimeUnit::Seconds));
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
