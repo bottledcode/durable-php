@@ -565,6 +565,7 @@ func main() {
 		WithOption(cli.NewOption("no-api", "Disable the api server").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("verbose", "Enable info level logging").WithType(cli.TypeBool)).
 		WithOption(cli.NewOption("debug", "Enable debug logging").WithType(cli.TypeBool)).
+		WithOption(cli.NewOption("typesense-url", "The url to the typesense server").WithType(cli.TypeString)).
 		WithCommand(run).
 		WithCommand(initCmd).
 		WithCommand(version).

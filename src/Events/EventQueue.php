@@ -25,9 +25,14 @@
 namespace Bottledcode\DurablePhp\Events;
 
 use Amp\DeferredCancellation;
+use DateTimeImmutable;
 use Revolt\EventLoop;
 use SplQueue;
 use Withinboredom\Time\Seconds;
+use Withinboredom\Time\Time;
+use Withinboredom\Time\TimeUnit;
+
+use function Withinboredom\Time\Seconds;
 
 class EventQueue
 {
@@ -96,8 +101,8 @@ class EventQueue
     public function enqueue(string $key, Event $event): void
     {
         $delay = $this->getDelay($event);
-        if ($delay->inSeconds() > 0) {
-            EventLoop::delay($delay->inSeconds(), function () use ($key, $event): void {
+        if ($delay->as(TimeUnit::Seconds) > 0) {
+            EventLoop::delay($delay->as(TimeUnit::Seconds), function () use ($key, $event): void {
                 $this->enqueue($key, $event);
                 if ($this->cancellation !== null) {
                     $this->cancellation?->cancel();
@@ -116,14 +121,14 @@ class EventQueue
         $this->size++;
     }
 
-    private function getDelay(Event $event): Seconds
+    private function getDelay(Event $event): Time
     {
         while ($event instanceof HasInnerEventInterface) {
             if ($event instanceof WithDelay) {
                 $at = $event->fireAt->getTimestamp();
-                $now = (new \DateTimeImmutable())->getTimestamp();
+                $now = (new DateTimeImmutable())->getTimestamp();
                 $seconds = $at - $now;
-                return new Seconds(max(0, $seconds));
+                return Seconds(max(0, $seconds));
             }
 
             $event = $event->getInnerEvent();
