@@ -2,7 +2,7 @@ module durable_php
 
 go 1.22
 
-require github.com/dunglas/frankenphp v1.2.4
+require github.com/dunglas/frankenphp v1.2.5
 
 require github.com/nats-io/nats.go v1.37.0
 
@@ -30,7 +30,7 @@ require (
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
-	github.com/maypok86/otter v1.2.1 // indirect
+	github.com/maypok86/otter v1.2.2 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/nats-io/jwt/v2 v2.5.8 // indirect
 	github.com/nats-io/nkeys v0.4.7 // indirect
