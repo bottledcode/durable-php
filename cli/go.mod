@@ -1,6 +1,6 @@
 module durable_php
 
-go 1.22
+go 1.23
 
 require github.com/dunglas/frankenphp v1.2.5
 

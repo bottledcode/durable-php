@@ -289,6 +289,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	headers.Add("X-Correlation-ID", ctx.Value("cid").(string))
 	env["EVENT"] = string(msg.Data())
 	env["STATE_ID"] = msg.Headers().Get(string(glue.HeaderStateId))
+	env["REMOTE_ADDR"] = msg.Headers().Get("Remote-Addr")
 
 	msgs, headers, _, deleteAfter := glu.Execute(ctx, headers, logger, env, js, id)
 

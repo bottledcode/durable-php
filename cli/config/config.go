@@ -114,6 +114,9 @@ func ApplyOptions(config *Config, options map[string]string) (*Config, error) {
 		config.Nat.Url = options["nats-server"]
 		config.Nat.Internal = false
 	}
+	if options["typesense-url"] != "" {
+		config.Extensions.Search.Url = options["typesense-url"]
+	}
 	if options["bootstrap"] != "" {
 		config.Bootstrap = options["bootstrap"]
 	}

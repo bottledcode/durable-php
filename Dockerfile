@@ -78,7 +78,7 @@ RUN install-php-extensions @composer apcu bcmath bz2 calendar ctype curl dom exi
 FROM common AS builder
 
 COPY --from=golang-base /usr/local/go /usr/local/go
-ENV PATH /usr/local/go/bin:$PATH
+ENV PATH=/usr/local/go/bin:$PATH
 
 RUN apt-get update && \
 	apt-get -y --no-install-recommends install \
