@@ -36,7 +36,7 @@
     "php": ">=8.3",
     "php-di/php-di": "^7.0.7",
     "ramsey/uuid": "^4.7.6",
-    "webonyx/graphql-php": "^15.12.5",
+    "webonyx/graphql-php": "^15.13.0",
     "withinboredom/time": "^5.0.0",
     "nikic/php-parser": "^5.1"
   },
