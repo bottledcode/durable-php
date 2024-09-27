@@ -6,7 +6,7 @@ require github.com/dunglas/frankenphp v1.2.5
 
 require github.com/nats-io/nats.go v1.37.0
 
-require github.com/nats-io/nats-server/v2 v2.10.20
+require github.com/nats-io/nats-server/v2 v2.10.21
 
 require github.com/teris-io/cli v1.0.1
 
@@ -39,9 +39,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/crypto v0.27.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
