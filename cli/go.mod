@@ -16,7 +16,7 @@ require github.com/gorilla/mux v1.8.1
 
 require github.com/typesense/typesense-go v1.1.0
 
-require github.com/golang-jwt/jwt/v4 v4.5.0
+require github.com/golang-jwt/jwt/v4 v4.5.1
 
 require (
 	github.com/google/uuid v1.6.0
