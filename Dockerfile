@@ -1,5 +1,5 @@
 FROM golang:1.23.2-alpine AS golang-base
-FROM php:8.4.0RC2-zts AS php-base
+FROM php:8.4.0RC3-zts AS php-base
 FROM golang-base AS cli-base-alpine
 
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
