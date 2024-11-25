@@ -2,7 +2,7 @@ module durable_php
 
 go 1.23
 
-require github.com/dunglas/frankenphp v1.3.1
+require github.com/dunglas/frankenphp v1.3.2
 
 require github.com/nats-io/nats.go v1.37.0
 
@@ -30,9 +30,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
-	github.com/gammazero/deque v0.2.1 // indirect
+	github.com/gammazero/deque v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
-	github.com/maypok86/otter v1.2.3 // indirect
+	github.com/maypok86/otter v1.2.4 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/jwt/v2 v2.5.8 // indirect
@@ -50,6 +50,6 @@ require (
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
-	google.golang.org/protobuf v1.35.1 // indirect
+	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
