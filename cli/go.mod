@@ -6,7 +6,7 @@ require github.com/dunglas/frankenphp v1.3.3
 
 require github.com/nats-io/nats.go v1.37.0
 
-require github.com/nats-io/nats-server/v2 v2.10.23
+require github.com/nats-io/nats-server/v2 v2.10.24
 
 require github.com/teris-io/cli v1.0.1
 
@@ -35,8 +35,8 @@ require (
 	github.com/maypok86/otter v1.2.4 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/jwt/v2 v2.5.8 // indirect
-	github.com/nats-io/nkeys v0.4.8 // indirect
+	github.com/nats-io/jwt/v2 v2.7.3 // indirect
+	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
