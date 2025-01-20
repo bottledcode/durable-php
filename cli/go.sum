@@ -11,8 +11,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dolthub/maphash v0.1.0 h1:bsQ7JsF4FkkWyrP3oCnFJgrCUAFbFf3kOl4L/QxPDyQ=
 github.com/dolthub/maphash v0.1.0/go.mod h1:gkg4Ch4CdCDu5h6PMriVLawB7koZ+5ijb9puGMV50a4=
-github.com/dunglas/frankenphp v1.4.0 h1:yHOCOtobHG9LoMgqKBUFVO809eS1xk7Lyw5yfqL0jE4=
-github.com/dunglas/frankenphp v1.4.0/go.mod h1:Jc0uiWdbebGeqGRkD02J1Of9Jp6bLiT3dwHgGTlAIyU=
+github.com/dunglas/frankenphp v1.4.1 h1:igX356oPL09ZXtYHwG0KEQ8Bbqqbkb4kYepl2vjztoI=
+github.com/dunglas/frankenphp v1.4.1/go.mod h1:Jc0uiWdbebGeqGRkD02J1Of9Jp6bLiT3dwHgGTlAIyU=
 github.com/gammazero/deque v1.0.0 h1:LTmimT8H7bXkkCy6gZX7zNLtkbz4NdS2z8LZuor3j34=
 github.com/gammazero/deque v1.0.0/go.mod h1:iflpYvtGfM3U8S8j+sZEKIak3SAKYpA5/SQewgfXDKo=
 github.com/golang-jwt/jwt/v4 v4.5.1 h1:JdqV9zKUdtaa9gdPlywC3aeoEsR681PlKC+4F5gQgeo=
