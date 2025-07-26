@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -57,7 +58,7 @@ use LogicException;
 use Ramsey\Uuid\Uuid;
 use ReflectionClass;
 use ReflectionFunction;
-use Withinboredom\Time\TimeUnit;
+use Withinboredom\Time\Unit;
 
 require_once __DIR__ . '/autoload.php';
 
@@ -185,7 +186,7 @@ class Glue
     {
         // determine access level
 
-        echo 'EVENT~!~' . trim($event->toStream()) . "\n";
+        echo 'EVENT~!~' . mb_trim($event->toStream()) . "\n";
     }
 
     private function startOrchestration(): void
@@ -320,7 +321,7 @@ class Glue
                         break;
                     case $attribute->getName() === TimeToLive::class:
                         /** @var TimeToLive $attribute */ $attribute = $attribute->newInstance();
-                        $permissions['ttl'] = $attribute->timeToLive()->as(TimeUnit::Nanoseconds);
+                        $permissions['ttl'] = $attribute->timeToLive()->as(Unit::Nanoseconds);
                         break;
                 }
             }

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -34,7 +35,7 @@ use Bottledcode\DurablePhp\State\Status;
 use Exception;
 use Generator;
 use Override;
-use Withinboredom\Time\TimeUnit;
+use Withinboredom\Time\Unit;
 
 use function Withinboredom\Time\Hours;
 use function Withinboredom\Time\Seconds;
@@ -48,7 +49,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         private HttpClient $client = new HttpClient(),
         private SpyProxy $spyProxy = new SpyProxy(),
     ) {
-        $this->apiHost = rtrim($this->apiHost, '/');
+        $this->apiHost = mb_rtrim($this->apiHost, '/');
     }
 
     #[Override]
@@ -167,9 +168,9 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         $name = rawurlencode($instance->instanceId);
         $id = rawurlencode($instance->executionId);
         $req = new Request("{$this->apiHost}/orchestration/{$name}/{$id}?wait=60");
-        $req->setInactivityTimeout(Hours(1)->as(TimeUnit::Seconds));
-        $req->setTcpConnectTimeout(Seconds(30)->as(TimeUnit::Seconds));
-        $req->setTransferTimeout(Hours(1)->as(TimeUnit::Seconds));
+        $req->setInactivityTimeout(Hours(1)->as(Unit::Seconds));
+        $req->setTcpConnectTimeout(Seconds(30)->as(Unit::Seconds));
+        $req->setTransferTimeout(Hours(1)->as(Unit::Seconds));
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }

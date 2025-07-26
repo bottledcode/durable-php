@@ -33,11 +33,11 @@
     "amphp/parallel": "^2.2.9",
     "crell/serde": "^1.2.0",
     "nesbot/carbon": ">2.0",
-    "php": ">=8.3",
+    "php": ">=8.4",
     "php-di/php-di": "^7.0.7",
     "ramsey/uuid": "^4.7.6",
     "webonyx/graphql-php": "^15.12.5",
-    "withinboredom/time": "^5.0.0",
+    "withinboredom/time": "^6.0.0",
     "nikic/php-parser": "^5.1"
   },
   "require-dev": {
