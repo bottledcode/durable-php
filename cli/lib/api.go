@@ -19,6 +19,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -327,9 +328,24 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
+
+		// url decode the name
+		escapedName, err := url.QueryUnescape(vars["name"])
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to url decode name", zap.Error(err))
+			return
+		}
+		escapedId, err := url.QueryUnescape(vars["id"])
+		if err != nil {
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			logger.Error("Failed to url decode id", zap.Error(err))
+			return
+		}
+
 		id := &glue.EntityId{
-			Name: strings.TrimSpace(vars["name"]),
-			Id:   strings.TrimSpace(vars["id"]),
+			Name: escapedName,
+			Id:   escapedId,
 		}
 
 		ctx := getCorrelationId(ctx, &request.Header, nil)
