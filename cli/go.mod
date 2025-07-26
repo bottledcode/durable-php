@@ -1,6 +1,7 @@
 module durable_php
 
-go 1.23
+go 1.23.0
+
 require github.com/dunglas/frankenphp v1.4.4
 
 require github.com/nats-io/nats.go v1.38.0
@@ -15,7 +16,7 @@ require github.com/gorilla/mux v1.8.1
 
 require github.com/typesense/typesense-go v1.1.0
 
-require github.com/golang-jwt/jwt/v4 v4.5.1
+require github.com/golang-jwt/jwt/v4 v4.5.2
 
 require (
 	github.com/google/uuid v1.6.0
