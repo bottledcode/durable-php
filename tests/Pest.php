@@ -170,20 +170,9 @@ function simpleFactory(string $key, Closure|null $store = null): object
         $factory[$key] = $store;
     }
 
-    return $factory[$key]();
+    $closure = $factory[$key] ?? fn() => new $key();
 
-    return new class ($key, $factory[$key] ?? null) {
-        public function __invoke(...$params)
-        {
-            return ($this->store)(...$params);
-        }
-
-        public function __construct(
-            private string $key,
-            private Closure|null $store
-        ) {
-        }
-    };
+    return $closure();
 }
 
 function getEntityHistory(EntityState|null $withState = null): EntityHistory
