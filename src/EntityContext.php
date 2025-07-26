@@ -154,14 +154,21 @@ class EntityContext implements EntityContextInterface
             throw new Exception('Cannot delay a function with parameters');
         }
 
-        // create the spy proxy
+        // create the spy proxy and capture the invoked operation
         $spy = $this->spyProxy->define($interfaces[0]);
+        $operationName = null;
+        $arguments = null;
         $class = new $spy($operationName, $arguments);
-        $self->bindTo($class);
+        $self = $self->bindTo($class, $class);
 
         try {
             $self();
         } catch (Throwable) {
+            // the spy always throws when an operation is invoked
+        }
+
+        if ($operationName === null || $arguments === null) {
+            throw new Exception('Did not call an operation');
         }
 
         $this->delayUntil($operationName, $arguments, $until);
