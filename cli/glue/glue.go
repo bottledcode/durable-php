@@ -168,7 +168,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 		Response:         nil,
 	}
 
-	r, err = frankenphp.NewRequestWithContext(r, frankenphp.WithRequestLogger(logger), frankenphp.WithRequestEnv(env))
+	r, err = frankenphp.NewRequestWithContext(r, frankenphp.WithRequestEnv(env))
 	if err != nil {
 		panic(err)
 	}

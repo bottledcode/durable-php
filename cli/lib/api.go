@@ -101,7 +101,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		request, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestEnv(map[string]string{
 			"LOG_LEVEL": "DEBUG",
-		}), frankenphp.WithRequestLogger(logger))
+		}))
 		if err != nil {
 			logger.Error("Failed to serve request", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)

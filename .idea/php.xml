@@ -6,6 +6,9 @@
       <laravel_pint_by_interpreter interpreter_id="2566a3df-07bd-446a-b82b-13292a836129" tool_path="/home/withinboredom/code/durable-php/vendor/bin/pint">
         <option name="timeout" value="30000" />
       </laravel_pint_by_interpreter>
+      <laravel_pint_by_interpreter asDefaultInterpreter="true" interpreter_id="2566a3df-07bd-446a-b82b-13292a836129" tool_path="/home/withinboredom/code/durable-php/vendor/bin/pint">
+        <option name="timeout" value="30000" />
+      </laravel_pint_by_interpreter>
     </laravel_pint_settings>
   </component>
   <component name="LaravelPintOptionsConfiguration">

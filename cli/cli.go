@@ -201,7 +201,7 @@ func execute(args []string, options map[string]string) int {
 		panic(err)
 	}
 
-	opts := []frankenphp.Option{frankenphp.WithNumThreads(runtime.NumCPU() * 2), frankenphp.WithLogger(logger)}
+	opts := []frankenphp.Option{frankenphp.WithNumThreads(runtime.NumCPU() * 2)}
 
 	if err := frankenphp.Init(opts...); err != nil {
 		panic(err)
