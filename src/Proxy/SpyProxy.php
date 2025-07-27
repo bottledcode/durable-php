@@ -32,7 +32,7 @@ class SpyProxy extends Generator
 {
     protected function pureMethod(ReflectionMethod $method, bool $isHook = false): string
     {
-        return $this->impureCall($method);
+        return $this->impureCall($method, $isHook);
     }
 
     protected function impureCall(ReflectionMethod $method, bool $isHook = false): string
