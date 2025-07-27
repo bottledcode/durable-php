@@ -68,8 +68,12 @@ class EntityHistory extends AbstractHistory
 
     private LockStateMachine $lockQueue;
 
-    public function __construct(public StateId $id, #[Field(exclude: true)] public ?DurableLogger $logger, private Provenance $user)
-    {
+    public function __construct(
+        public StateId $id,
+        #[Field(exclude: true)]
+        public ?DurableLogger $logger,
+        private Provenance $user,
+    ) {
         $this->entityId = $id->toEntityId();
     }
 
@@ -118,10 +122,12 @@ class EntityHistory extends AbstractHistory
                 // reply to the lock request
                 $reply = $this->getReplyTo($original);
                 foreach ($reply as $nextEvent) {
-                    yield WithPriority::high(With::id(
-                        $nextEvent,
-                        RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target']),
-                    ));
+                    yield WithPriority::high(
+                        With::id(
+                            $nextEvent,
+                            RaiseEvent::forLock('locked', $event->eventData['owner'], $event->eventData['target']),
+                        ),
+                    );
                 }
                 break;
             case '__unlock':
@@ -156,11 +162,19 @@ class EntityHistory extends AbstractHistory
         }
 
         $this->lockQueue ??= new LockStateMachine($this->id);
-        $this->state ??= new class () extends EntityState {};
+        $this->state ??= new class extends EntityState {};
 
         $this->name = $this->id->toEntityId()->name;
         $now = MonotonicClock::current()->now();
-        $this->status = new Status($now, '', SerializedArray::fromArray([]), $this->id, $now, SerializedArray::fromArray([]), RuntimeStatus::Running);
+        $this->status = new Status(
+            $now,
+            '',
+            SerializedArray::fromArray([]),
+            $this->id,
+            $now,
+            SerializedArray::fromArray([]),
+            RuntimeStatus::Running,
+        );
 
         $this->state = $this->container->get($this->name);
     }
@@ -197,6 +211,16 @@ class EntityHistory extends AbstractHistory
                 }
             }
             try {
+                if (str_contains($operation, '::')) {
+                    [$property, $operation] = explode('::', $operation);
+                    $result = match ($operation) {
+                        'get' => $this->state->{$property},
+                        'set' => $this->state->{$property} = $input[0],
+                        default => throw new ReflectionException('Unknown operation'),
+                    };
+                    goto finalize;
+                }
+
                 $operationReflection = $reflector->getMethod($operation);
             } catch (ReflectionException) {
                 // search attributes for matching operation
@@ -239,9 +263,13 @@ class EntityHistory extends AbstractHistory
             }
         }
 
+        finalize:
+
         if ($replyTo) {
             foreach ($replyTo as $reply) {
-                yield WithPriority::high(WithOrchestration::forInstance($reply, TaskCompleted::forId($original->eventId, $result ?? null)));
+                yield WithPriority::high(
+                    WithOrchestration::forInstance($reply, TaskCompleted::forId($original->eventId, $result ?? null)),
+                );
             }
         }
     }
@@ -257,11 +285,10 @@ class EntityHistory extends AbstractHistory
         $now = time();
         $cutoff = $now - 3600; // 1 hour
         $this->history[$event->eventId] = $this->debugHistory ? $event : $now;
-        $this->history =
-            array_filter(
-                $this->history,
-                static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value,
-            );
+        $this->history = array_filter(
+            $this->history,
+            static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value,
+        );
         $this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 
         yield null;
