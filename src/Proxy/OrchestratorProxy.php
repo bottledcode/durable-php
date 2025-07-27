@@ -69,6 +69,7 @@ class OrchestratorProxy extends Generator
             } else {
                 $value = '[$value]';
             }
+            $hookName = str_replace('$', '\$', $hookName);
             return <<<EOT
                 {$name} {
                   {$getHook}\$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$hookName}", {$value}));

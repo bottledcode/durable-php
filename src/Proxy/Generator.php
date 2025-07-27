@@ -98,7 +98,7 @@ abstract class Generator
         $namespace = $namespace ? "namespace {$namespace};" : '';
         $props = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
         $props = array_map(function (ReflectionProperty $prop) {
-            $hooks = ['public ' . $this->getTypes($prop->getType()) . ' $' . $prop->getName() . '{'];
+            $hooks = ['public ' . $this->getTypes($prop->getType()) . ' $' . $prop->getName() . ' {'];
             if ($hook = $prop->getHook(PropertyHookType::Get)) {
                 $hooks[] = $this->impureCall($hook, true);
             }

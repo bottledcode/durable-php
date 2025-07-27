@@ -37,12 +37,12 @@ class SpyProxy extends Generator
 
     protected function impureCall(ReflectionMethod $method, bool $isHook = false): string
     {
-        $getHook = 'return ';
+        $getHook = true;
         if ($isHook && str_ends_with($method->getName(), 'get')) {
             $name = 'get';
         } elseif ($isHook && str_ends_with($method->getName(), 'set')) {
             $name = 'set';
-            $getHook = '';
+            $getHook = false;
         } else {
             $name = $method->getName();
         }
@@ -70,6 +70,7 @@ class SpyProxy extends Generator
             } else {
                 $value = '[]';
             }
+            $hookName = str_replace('$', '\$', $hookName);
             return <<<EOT
                 {$name} {
                   \$this->operation = "{$hookName}";
