@@ -38,7 +38,8 @@
     "ramsey/uuid": "^4.7.6",
     "webonyx/graphql-php": "^15.12.5",
     "withinboredom/time": "^6.0.0",
-    "nikic/php-parser": "^5.1"
+    "nikic/php-parser": "^5.1",
+    "withinboredom/record": "v0.1.0"
   },
   "require-dev": {
     "laravel/pint": "^1.17.2",
