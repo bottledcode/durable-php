@@ -64,9 +64,14 @@ class OrchestratorProxy extends Generator
 
         if ($isHook) {
             $hookName = $method->getName();
+            if ($getHook) {
+                $value = '[]';
+            } else {
+                $value = '[$value]';
+            }
             return <<<EOT
                 {$name} {
-                  {$getHook}\$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$hookName}", func_get_args()));
+                  {$getHook}\$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$hookName}", {$value}));
                 }
                 EOT;
         }

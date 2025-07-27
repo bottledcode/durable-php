@@ -65,10 +65,15 @@ class SpyProxy extends Generator
 
         if ($isHook) {
             $hookName = $method->getName();
+            if (str_ends_with($hookName, 'get')) {
+                $value = '[$value]';
+            } else {
+                $value = '[]';
+            }
             return <<<EOT
                 {$name} {
                   \$this->operation = "{$hookName}";
-                  \$this->arguments = func_get_args();
+                  \$this->arguments = {$value};
                   throw new \Exception('Not implemented');
                 }
                 EOT;
@@ -96,7 +101,7 @@ class SpyProxy extends Generator
     protected function preamble(ReflectionClass $class): string
     {
         return <<<'EOT'
-public function __construct(private string|null &$operation = null, private array|null &$arguments = null) {}
-EOT;
+            public function __construct(private string|null &$operation = null, private array|null &$arguments = null) {}
+            EOT;
     }
 }
