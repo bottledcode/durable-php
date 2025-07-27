@@ -213,6 +213,7 @@ class EntityHistory extends AbstractHistory
             try {
                 if (str_contains($operation, '::')) {
                     [$property, $operation] = explode('::', $operation);
+                    $property = str_replace('$', '', $property);
                     $result = match ($operation) {
                         'get' => $this->state->{$property},
                         'set' => $this->state->{$property} = $input[0],
