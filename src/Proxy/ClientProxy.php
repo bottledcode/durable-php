@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -23,14 +24,24 @@
 
 namespace Bottledcode\DurablePhp\Proxy;
 
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionParameter;
+
 class ClientProxy extends Generator
 {
-    protected function pureMethod(\ReflectionMethod $method): string
+    protected function pureMethod(ReflectionMethod $method, bool $isHook = false): string
     {
-        $name = $method->getName();
+        if ($isHook) {
+            $name = explode('::', $method->getName())[0];
+            $name = str_replace('$', '', $name);
+            $name = ucfirst($name);
+        } else {
+            $name = $method->getName();
+        }
         $params = $method->getParameters();
         $params = array_map(
-            function (\ReflectionParameter $param) {
+            function (ReflectionParameter $param) {
                 $type = $param->getType();
                 if ($type !== null) {
                     $type = $this->getTypes($type);
@@ -44,29 +55,41 @@ class ClientProxy extends Generator
         $return = $method->getReturnType();
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
+        if ($isHook) {
+            return <<<EOT
+                set {
+                  \$this->source->__set{$name}(\$value);
+                }
+                EOT;
+        }
+
         return <<<EOT
-public function {$name}({$params}){$return} {
-    return \$this->source->{$name}(...func_get_args());
-}
-EOT;
+            public function {$name}({$params}){$return} {
+                return \$this->source->{$name}(...func_get_args());
+            }
+            EOT;
     }
 
-    protected function getName(\ReflectionClass $class): string
+    protected function getName(ReflectionClass $class): string
     {
         return "__ClientProxy_{$class->getShortName()}";
     }
 
-    protected function impureSignal(\ReflectionMethod $method): string
+    protected function impureSignal(ReflectionMethod $method): string
     {
         return $this->impureCall($method);
     }
 
-    protected function impureCall(\ReflectionMethod $method): string
+    protected function impureCall(ReflectionMethod $method, bool $isHook = false): string
     {
-        $name = $method->getName();
+        if ($isHook) {
+            $name = 'get';
+        } else {
+            $name = $method->getName();
+        }
         $params = $method->getParameters();
         $params = array_map(
-            function (\ReflectionParameter $param) {
+            function (ReflectionParameter $param) {
                 $type = $param->getType();
                 if ($type !== null) {
                     $type = $this->getTypes($type);
@@ -80,17 +103,25 @@ EOT;
         $return = $method->getReturnType();
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
+        if ($isHook) {
+            return <<<EOT
+                {$name} {
+                   throw new Bottledcode\DurablePhp\Proxy\ImpureException();
+                }
+                EOT;
+        }
+
         return <<<EOT
-public function {$name}({$params}){$return} {
-    throw new Bottledcode\DurablePhp\Proxy\ImpureException();
-}
-EOT;
+            public function {$name}({$params}){$return} {
+                throw new Bottledcode\DurablePhp\Proxy\ImpureException();
+            }
+            EOT;
     }
 
-    protected function preamble(\ReflectionClass $class): string
+    protected function preamble(ReflectionClass $class): string
     {
         return <<<'EOT'
-public function __construct(private mixed $source) {}
-EOT;
+            public function __construct(private mixed $source) {}
+            EOT;
     }
 }

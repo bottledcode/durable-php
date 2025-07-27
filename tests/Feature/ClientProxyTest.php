@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -22,11 +23,17 @@
  */
 
 use Bottledcode\DurablePhp\Proxy\ClientProxy;
+use Bottledcode\DurablePhp\Proxy\ImpureException;
 use Bottledcode\DurablePhp\Proxy\Pure;
 
 if (!interface_exists(orchProxy::class)) {
     interface orchProxy
     {
+        public string $prop {
+            get;
+            set;
+        }
+
         public function callExample(): string;
 
         public function signalExample(int $a): void;
@@ -36,41 +43,27 @@ if (!interface_exists(orchProxy::class)) {
     }
 }
 
-it('generates a proxy correctly', function (): void {
+it('generates a client proxy correctly', function (): void {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
-    expect($proxy)->toBe(
-        <<<'EOT'
-
-
-class __ClientProxy_orchProxy implements orchProxy {
-  public function __construct(private mixed $source) {}
-  public function callExample(): string {
-    throw new Bottledcode\DurablePhp\Proxy\ImpureException();
-}
-public function signalExample(int $a): void {
-    throw new Bottledcode\DurablePhp\Proxy\ImpureException();
-}
-public function pureExample(int|float $number): string {
-    return $this->source->pureExample(...func_get_args());
-}
-}
-EOT,
-    );
+    expect($proxy)->toMatchSnapshot();
 });
 
 it('is actually callable', function (): void {
     $generator = new ClientProxy();
     $proxy = $generator->generate(orchProxy::class);
     eval($proxy);
-    $instance = new class () {
+    $instance = new class {
+        public string $prop = 'test';
+
         public function pureExample(int|float $number): string
         {
             return "Hello {$number}";
         }
     };
     $proxy = new __ClientProxy_orchProxy($instance);
-    expect($proxy->pureExample(1))->toBe('Hello 1')
-        ->and(fn() => $proxy->signalExample(1))->toThrow(\Bottledcode\DurablePhp\Proxy\ImpureException::class)
-        ->and(fn() => $proxy->callExample())->toThrow(\Bottledcode\DurablePhp\Proxy\ImpureException::class);
+    expect($proxy->pureExample(1))
+        ->toBe('Hello 1')->and(fn() => $proxy->signalExample(1))->toThrow(
+            ImpureException::class,
+        )->and(fn() => $proxy->callExample())->toThrow(ImpureException::class);
 });

@@ -560,7 +560,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 				logger.Debug("Got change!")
 				status, err := extractStatus(update.Value())
 				if err != nil {
-					http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+					http.Error(writer, "\"Internal Server Error\"", http.StatusInternalServerError)
 					return
 				}
 				if runtimeStatus, ok := status.(map[string]interface{})["runtimeStatus"].(string); ok {
@@ -620,7 +620,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	})
 
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		logger.Warn("Unkown endpoint")
+		logger.Warn("Unknown endpoint")
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 	})
