@@ -65,7 +65,7 @@ class SpyProxy extends Generator
 
         if ($isHook) {
             $hookName = $method->getName();
-            if (str_ends_with($hookName, 'get')) {
+            if (str_ends_with($hookName, 'set')) {
                 $value = '[$value]';
             } else {
                 $value = '[]';
