@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -47,7 +48,7 @@ class RemoteEntityClient implements EntityClientInterface
         private HttpClient $client = new HttpClient(),
         private SpyProxy $spyProxy = new SpyProxy(),
     ) {
-        $this->apiHost = rtrim($this->apiHost, '/');
+        $this->apiHost = mb_rtrim($this->apiHost, '/');
     }
 
     #[Override]
@@ -56,7 +57,11 @@ class RemoteEntityClient implements EntityClientInterface
     #[Override]
     public function listEntities(EntityFilter $filter, int $page): Generator
     {
-        $req = new Request($this->apiHost . '/entities/filter/' . $page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
+        $req = new Request(
+            $this->apiHost . '/entities/filter/' . $page,
+            'POST',
+            json_encode($filter, JSON_THROW_ON_ERROR),
+        );
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -82,7 +87,11 @@ class RemoteEntityClient implements EntityClientInterface
         } catch (Throwable) {
             // spies always throw
         }
-        $this->signalEntity(is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments);
+        $this->signalEntity(
+            is_string($entityId) ? EntityId($interfaceName, $entityId) : $entityId,
+            $operationName,
+            $arguments,
+        );
     }
 
     #[Override]

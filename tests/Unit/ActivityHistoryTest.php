@@ -31,10 +31,11 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\State\ActivityHistory;
-use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use DI\Container;
 use Ramsey\Uuid\Uuid;
+
+use function Bottledcode\DurablePhp\EntityId;
 
 function activity(bool $fail): void
 {
@@ -50,16 +51,16 @@ test('exampleaa', function (): void {
 it('real: fails on an exception', function (): void {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
     $event = AwaitResult::forEvent(
-        StateId::fromEntityId(new EntityId('test', 'test')),
+        StateId::fromEntityId(EntityId('test', 'test')),
         WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [true])),
     );
     $result1 = processEvent($event, $history->applyScheduleTask(...));
     expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent())->toBeInstanceOf(TaskFailed::class);
 
     $result2 = processEvent($event, $history->applyScheduleTask(...));
-    expect($result2)->toHaveCount(1)
-        ->and($result2[0]->getInnerEvent())->toBeInstanceOf(TaskFailed::class)
-        ->and(current($result1))->toEqual(current($result2));
+    expect($result2)
+        ->toHaveCount(1)->and($result2[0]->getInnerEvent())->toBeInstanceOf(TaskFailed::class)->and(current($result1))
+        ->toEqual(current($result2));
 });
 
 it('succeeds on no exception', function (): void {
@@ -67,14 +68,17 @@ it('succeeds on no exception', function (): void {
     $container = new Container([__NAMESPACE__ . '\activity' => activity(...)]);
     $history->setContainer($container);
     $event = AwaitResult::forEvent(
-        StateId::fromEntityId(new EntityId('test', 'test')),
+        StateId::fromEntityId(EntityId('test', 'test')),
         WithActivity::forEvent(Uuid::uuid7(), ScheduleTask::forName(__NAMESPACE__ . '\activity', [false])),
     );
     $result1 = processEvent($event, $history->applyScheduleTask(...));
-    expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent()->getInnerEvent())->toBeInstanceOf(TaskCompleted::class);
+    expect($result1)->toHaveCount(1)->and($result1[0]->getInnerEvent()->getInnerEvent())->toBeInstanceOf(
+        TaskCompleted::class,
+    );
 
     $result2 = processEvent($event, $history->applyScheduleTask(...));
-    expect($result2)->toHaveCount(1)
-        ->and($result2[0]->getInnerEvent())->toBeInstanceOf(TaskCompleted::class)
-        ->and(current($result1))->toEqual(current($result2));
+    expect($result2)
+        ->toHaveCount(1)->and($result2[0]->getInnerEvent())->toBeInstanceOf(TaskCompleted::class)->and(
+            current($result1),
+        )->toEqual(current($result2));
 });

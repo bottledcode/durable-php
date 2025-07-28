@@ -6,8 +6,6 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="Bottledcode\DurablePhp\" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" packagePrefix="Bottledcode\DurablePhp\Tests\" />
       <sourceFolder url="file://$MODULE_DIR$/cli/init/template/src" isTestSource="false" packagePrefix="{{.Name}}\" />
-      <sourceFolder url="file://$MODULE_DIR$/cli/dist/static-php-cli/tests" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/spec" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/brick/math" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/ramsey/collection" />
@@ -113,7 +111,7 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/pestphp/pest-plugin-mutate" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/psr/simple-cache" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/staabm/side-effects-detector" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/withinboredom/record" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/withinboredom/records" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

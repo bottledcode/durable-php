@@ -34,9 +34,14 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 use Exception;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
+use RuntimeException;
+use Stringable;
+
+use function Bottledcode\DurablePhp\EntityId;
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 #[ClassNameTypeMap('__type')]
-readonly class StateId implements \Stringable
+readonly class StateId implements Stringable
 {
     public function __construct(public string $id) {}
 
@@ -84,7 +89,7 @@ readonly class StateId implements \Stringable
         $parts = explode(':', $this->id, 3);
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to orchestration instance'),
-            ['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
+            ['orchestration', $parts[1], $parts[2]] => OrchestrationInstance($parts[1], $parts[2]),
             ['entity', $parts[1], $parts[2]] => throw new Exception(
                 'Cannot convert entity state to orchestration instance',
             ),
@@ -99,7 +104,7 @@ readonly class StateId implements \Stringable
             ['orchestration', $parts[1], $parts[2]] => throw new Exception(
                 'Cannot convert orchestration state to entity id',
             ),
-            ['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
+            ['entity', $parts[1], $parts[2]] => EntityId($parts[1], $parts[2]),
         };
     }
 
@@ -162,7 +167,7 @@ readonly class StateId implements \Stringable
             return self::fromActivityId($id);
         }
 
-        throw new \RuntimeException("Cannot convert {$id} to StateId");
+        throw new RuntimeException("Cannot convert {$id} to StateId");
     }
 
     public function __toString(): string

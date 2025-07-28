@@ -40,7 +40,6 @@ use Bottledcode\DurablePhp\State\Attributes\TimeToLive;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
@@ -59,6 +58,8 @@ use Ramsey\Uuid\Uuid;
 use ReflectionClass;
 use ReflectionFunction;
 use Withinboredom\Time\Unit;
+
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 require_once __DIR__ . '/autoload.php';
 
@@ -193,7 +194,7 @@ class Glue
     {
         if (!$this->target->toOrchestrationInstance()->executionId) {
             $this->target = StateId::fromInstance(
-                new OrchestrationInstance(
+                OrchestrationInstance(
                     $this->target->toOrchestrationInstance()->instanceId,
                     Uuid::uuid7()->toString(),
                 ),

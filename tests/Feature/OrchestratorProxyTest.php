@@ -26,7 +26,8 @@ use Amp\DeferredFuture;
 use Bottledcode\DurablePhp\DurableFuture;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\Pure;
-use Bottledcode\DurablePhp\State\EntityId;
+
+use function Bottledcode\DurablePhp\EntityId;
 
 if (!interface_exists(orchProxy::class)) {
     interface orchProxy
@@ -60,7 +61,7 @@ it('actually works', function (): void {
         new DurableFuture(new DeferredFuture()),
     );
     $context->shouldReceive('signalEntity')->andReturn('signal');
-    $proxy = new __OrchestratorProxy_orchProxy($context, new EntityId('test', 'test'));
+    $proxy = new __OrchestratorProxy_orchProxy($context, EntityId('test', 'test'));
 
     expect($proxy->callExample())
         ->toBe('waited')->and($proxy->pureExample(1))->toBe('waited')->and($proxy->signalExample(1))->toBe(null);

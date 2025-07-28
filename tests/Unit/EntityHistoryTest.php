@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -29,7 +30,8 @@ use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
+
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 it('knows if it has applied an event', function (): void {
     $history = getEntityHistory();
@@ -83,8 +85,8 @@ it('only processes locked events', function (): void {
         },
     );
 
-    $owner = StateId::fromInstance(new OrchestrationInstance('owner', 'owner'));
-    $other = StateId::fromInstance(new OrchestrationInstance('other', 'other'));
+    $owner = StateId::fromInstance(OrchestrationInstance('owner', 'owner'));
+    $other = StateId::fromInstance(OrchestrationInstance('other', 'other'));
 
     $lockResult = processEvent(
         AwaitResult::forEvent(
@@ -115,8 +117,8 @@ it('only processes locked events', function (): void {
         $history->applyRaiseEvent(...),
     );
 
-    expect($unlockResult)->toContain($waiting)
-        ->and($called)->toBe(1);
+    expect($unlockResult)
+        ->toContain($waiting)->and($called)->toBe(1);
 });
 
 it('properly locks in a chain', function (): void {
@@ -135,8 +137,8 @@ it('properly locks in a chain', function (): void {
         },
     );
 
-    $owner = StateId::fromInstance(new OrchestrationInstance('owner', 'owner'));
-    $other = StateId::fromInstance(new OrchestrationInstance('other', 'other'));
+    $owner = StateId::fromInstance(OrchestrationInstance('owner', 'owner'));
+    $other = StateId::fromInstance(OrchestrationInstance('other', 'other'));
 
     $otherEntity = getEntityHistory();
 
@@ -168,8 +170,8 @@ it('properly locks in a chain', function (): void {
 
     // send the first lock notification in the chain
     $firstResult = processEvent($firstLock, $otherEntity->applyRaiseEvent(...));
-    expect($firstResult)->toHaveCount(3)
-        ->and($firstResult[0]->innerEvent->target->id)->toBe($history->id->id);
+    expect($firstResult)
+        ->toHaveCount(3)->and($firstResult[0]->innerEvent->target->id)->toBe($history->id->id);
 
     // send a signal to be run once the lock is complete
     $locked = processEvent($actualEvent, $history->applyRaiseEvent(...));
@@ -177,8 +179,8 @@ it('properly locks in a chain', function (): void {
 
     // complete the lock sequence
     $secondResult = processEvent($firstResult[0], $history->applyRaiseEvent(...));
-    expect($secondResult)->toHaveCount(3)
-        ->and($secondResult[0])->toBeInstanceOf(WithEntity::class);
+    expect($secondResult)
+        ->toHaveCount(3)->and($secondResult[0])->toBeInstanceOf(WithEntity::class);
 
     // process the actual event earlier
     $finalResult = processEvent($secondResult[0], $history->applyRaiseEvent(...));

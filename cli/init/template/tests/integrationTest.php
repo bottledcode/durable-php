@@ -6,18 +6,20 @@ use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use {{.Name}}\Entities\CountInterface;
 use {{.Name}}\Orchestrations\Password;
+use function Bottledcode\DurablePhp\EntityId;
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 $client = DurableClient::get();
 
 
-$entity = new EntityId(CountInterface::class, random_int(0, 10000));
+$entity = EntityId(CountInterface::class, random_int(0, 10000));
 
 echo "Signaling an entity, which will start an orchestration, which we will wait for completion\n";
 $start = microtime(true);
 $client->signal($entity, fn(CountInterface $state) => $state->countTo(100));
-$client->waitForCompletion(new OrchestrationInstance(\{{.Name}}\Orchestrations\Counter::class, $entity->id));
+$client->waitForCompletion(OrchestrationInstance(\{{.Name}}\Orchestrations\Counter::class, $entity->id));
 $time = number_format(microtime(true) - $start, 2);
 echo "Cool! That took $time seconds\n";
 echo "Here's the state:\n" . json_encode($client->getEntitySnapshot($entity, CountInterface::class), JSON_PRETTY_PRINT) . "\n";

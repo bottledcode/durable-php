@@ -36,7 +36,6 @@ use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Closure;
 use Crell\Serde\Attributes\ClassSettings;
 use DateTimeImmutable;
@@ -132,7 +131,7 @@ class EntityContext implements EntityContextInterface
             $id = Uuid::uuid7()->toString();
         }
 
-        $instance = StateId::fromInstance(new OrchestrationInstance($orchestration, $id));
+        $instance = StateId::fromInstance(OrchestrationInstance($orchestration, $id));
         $this->eventDispatcher->fire(
             WithOrchestration::forInstance(
                 $instance,
