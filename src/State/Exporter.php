@@ -31,6 +31,10 @@ class Exporter extends DictionaryExporter
     public function importValue(Deserializer $deserializer, Field $field, mixed $source): mixed
     {
         $reflectedRecord = new ReflectionClass($field->phpType);
+        if ($source === null || $source['root'] === null) {
+            return null;
+        }
+
         $record = $reflectedRecord->getMethod('fromArgs')->invoke(null, ...($source['root']));
 
         return $record;
