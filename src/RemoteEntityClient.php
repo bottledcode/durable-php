@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
+use Bottledcode\DurablePhp\Proxy\SpyException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
@@ -37,7 +38,6 @@ use Exception;
 use Generator;
 use Override;
 use ReflectionFunction;
-use Throwable;
 
 class RemoteEntityClient implements EntityClientInterface
 {
@@ -84,8 +84,8 @@ class RemoteEntityClient implements EntityClientInterface
         try {
             $class = new $spy($operationName, $arguments);
             $signal($class);
-        } catch (Throwable) {
-            // spies always throw
+        } catch (SpyException) {
+            // we have completed the spy
         }
         $this->signalEntity(
             is_string($entityId) ? EntityId($interfaceName, $entityId) : $entityId,

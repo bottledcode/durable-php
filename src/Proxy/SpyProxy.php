@@ -71,11 +71,12 @@ class SpyProxy extends Generator
                 $value = '[]';
             }
             $hookName = str_replace('$', '\$', $hookName);
+
             return <<<EOT
                 {$name} {
                   \$this->operation = "{$hookName}";
                   \$this->arguments = {$value};
-                  throw new \Exception('Not implemented');
+                  throw new \Bottledcode\DurablePhp\Proxy\SpyException('do not call outside of context');
                 }
                 EOT;
         }
@@ -84,7 +85,7 @@ class SpyProxy extends Generator
             public function {$name}({$params}){$return} {
                 \$this->operation = "{$name}";
                 \$this->arguments = func_get_args();
-                throw new \Exception('Not implemented');
+                throw new \Bottledcode\DurablePhp\Proxy\SpyException('do not call outside of context');
             }
             EOT;
     }
@@ -102,7 +103,24 @@ class SpyProxy extends Generator
     protected function preamble(ReflectionClass $class): string
     {
         return <<<'EOT'
-            public function __construct(private string|null &$operation = null, private array|null &$arguments = null) {}
+            private string|null $operation {
+              get => $this->op;
+              set {
+                if ($this->op !== null) {
+                  throw new \LogicException('Can only send one signal at a time');
+                }
+              }
+            }
+            private array|null $arguments {
+              get => $this->args;
+              set {
+                if ($this->args !== null) {
+                  throw new \LogicException('Can only send one signal at a time');
+                }
+              }
+            }
+            
+            public function __construct(private string|null &$op = null, private array|null &$args = null) {}
             EOT;
     }
 }
