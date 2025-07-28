@@ -31,12 +31,11 @@ class Exporter extends DictionaryExporter
     public function importValue(Deserializer $deserializer, Field $field, mixed $source): mixed
     {
         $reflectedRecord = new ReflectionClass($field->phpType);
-        error_log(print_r($source, true));
-        if ($source === null || $source['root'] === null) {
+        if ($source === null || $source[$field->phpName] === null) {
             return null;
         }
 
-        $record = $reflectedRecord->getMethod('fromArgs')->invoke(null, ...($source['root']));
+        $record = $reflectedRecord->getMethod('fromArgs')->invoke(null, ...($source[$field->phpName]));
 
         return $record;
     }
