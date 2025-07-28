@@ -139,7 +139,7 @@ abstract class Generator
             if ($type->isBuiltin()) {
                 return $nullable . $type->getName();
             }
-            return '\\' . $nullable . $type->getName();
+            return $nullable . '\\' . $type->getName();
         }
 
         if ($type instanceof ReflectionUnionType) {
