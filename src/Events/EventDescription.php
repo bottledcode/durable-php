@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -29,6 +30,8 @@ use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\Serializer;
 use DateTimeImmutable;
+use JsonException;
+use ReflectionClass;
 
 readonly class EventDescription
 {
@@ -73,7 +76,7 @@ readonly class EventDescription
 
         $targetOps = [];
         $sourceOps = [];
-        while  ($event instanceof HasInnerEventInterface) {
+        while ($event instanceof HasInnerEventInterface) {
             if ($event instanceof ReplyToInterface) {
                 $this->replyTo = $event->getReplyTo();
             }
@@ -93,14 +96,14 @@ readonly class EventDescription
                 $this->meta = Serializer::serialize($event);
             }
 
-            $reflection = new \ReflectionClass($event);
-            foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
+            $reflection = new ReflectionClass($event);
+            foreach ($reflection->getAttributes(NeedsTarget::class) as $target) {
                 /** @var NeedsTarget $attr */
                 $attr = $target->newInstance();
                 $targetOps[] = $attr->operation;
             }
 
-            foreach($reflection->getAttributes(NeedsSource::class) as $target) {
+            foreach ($reflection->getAttributes(NeedsSource::class) as $target) {
                 /** @var NeedsTarget $attr */
                 $attr = $target->newInstance();
                 $sourceOps[] = $attr->operation;
@@ -109,14 +112,24 @@ readonly class EventDescription
             $event = $event->getInnerEvent();
         }
 
-        $reflection = new \ReflectionClass($event);
-        foreach($reflection->getAttributes(NeedsTarget::class) as $target) {
+        if ($event instanceof PoisonPill) {
+            $this->isPoisoned = true;
+        }
+        if ($event instanceof External) {
+            $this->meta = Serializer::serialize($event);
+        }
+        if ($event instanceof ReplyToInterface) {
+            $this->replyTo = $event->getReplyTo();
+        }
+
+        $reflection = new ReflectionClass($event);
+        foreach ($reflection->getAttributes(NeedsTarget::class) as $target) {
             /** @var NeedsTarget $attr */
             $attr = $target->newInstance();
             $targetOps[] = $attr->operation;
         }
 
-        foreach($reflection->getAttributes(NeedsSource::class) as $target) {
+        foreach ($reflection->getAttributes(NeedsSource::class) as $target) {
             /** @var NeedsTarget $attr */
             $attr = $target->newInstance();
             $sourceOps[] = $attr->operation;
@@ -131,11 +144,12 @@ readonly class EventDescription
         $this->replyTo ??= null;
         $this->scheduledAt ??= null;
         $this->destination ??= null;
+        $this->meta ??= [];
 
         $this->targetType = match (true) {
-            $this->destination->isActivityId() => TargetType::Activity,
-            $this->destination->isOrchestrationId() => TargetType::Orchestration,
-            $this->destination->isEntityId() => TargetType::Entity,
+            $this->destination?->isActivityId() => TargetType::Activity,
+            $this->destination?->isOrchestrationId() => TargetType::Orchestration,
+            $this->destination?->isEntityId() => TargetType::Entity,
             default => TargetType::None,
         };
     }
@@ -150,22 +164,25 @@ readonly class EventDescription
     }
 
     /**
-     * @throws \JsonException
+     * @throws JsonException
      */
     public static function fromJson(string $json): EventDescription
     {
-        return new EventDescription(Serializer::deserialize(json_decode($json, true, 512, JSON_THROW_ON_ERROR), Event::class));
+        return new EventDescription(
+            Serializer::deserialize(json_decode($json, true, 512, JSON_THROW_ON_ERROR), Event::class),
+        );
     }
 
     public function toStream(): string
     {
-        $serialized = function_exists('igbinary_serialize') ? igbinary_serialize($this->event) : serialize($this->event);
+        $serialized =
+            function_exists('igbinary_serialize') ? igbinary_serialize($this->event) : serialize($this->event);
         $serialized = function_exists('gzencode') ? gzencode($serialized) : $serialized;
 
         $event = base64_encode($serialized);
 
         return json_encode([
-            'destination' => $this->destination->id,
+            'destination' => $this->destination?->id ?? null,
             'replyTo' => $this->replyTo?->id ?? '',
             'scheduleAt' => $this->scheduledAt?->format(DATE_ATOM) ?? gmdate(DATE_ATOM, time() - 30),
             'eventId' => $this->eventId,
@@ -179,7 +196,7 @@ readonly class EventDescription
     }
 
     /**
-     * @throws \JsonException
+     * @throws JsonException
      */
     public function toJson(): string
     {

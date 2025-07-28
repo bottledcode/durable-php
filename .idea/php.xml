@@ -32,6 +32,9 @@
       <PhpCSConfiguration beautifier_path="$PROJECT_DIR$/vendor/bin/phpcbf" tool_path="$PROJECT_DIR$/vendor/bin/phpcs" />
     </phpcs_settings>
   </component>
+  <component name="PhpExternalFormatter">
+    <option name="externalFormatter" value="LARAVEL_PINT" />
+  </component>
   <component name="PhpIncludePathManager">
     <include_path>
       <path value="$PROJECT_DIR$" />

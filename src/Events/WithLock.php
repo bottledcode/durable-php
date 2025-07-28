@@ -34,10 +34,7 @@ use Ramsey\Uuid\Uuid;
 class WithLock extends Event implements HasInnerEventInterface
 {
     /**
-     * @param string $eventId
-     * @param StateId $owner
-     * @param array<StateId> $participants
-     * @param Event $innerEvent
+     * @param  array<StateId>  $participants
      */
     public function __construct(
         string $eventId,
@@ -46,7 +43,7 @@ class WithLock extends Event implements HasInnerEventInterface
         public array $participants,
         public Event $innerEvent,
     ) {
-        parent::__construct($this->innerEvent ?: Uuid::uuid7());
+        parent::__construct($this->innerEvent->eventId ?: Uuid::uuid7());
     }
 
     public static function onEntity(StateId $owner, Event $innerEvent, StateId ...$targets): self
