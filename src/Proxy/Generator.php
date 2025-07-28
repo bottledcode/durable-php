@@ -135,10 +135,11 @@ abstract class Generator
     protected function getTypes(ReflectionNamedType|ReflectionUnionType|ReflectionIntersectionType|null $type): string
     {
         if ($type instanceof ReflectionNamedType) {
+            $nullable = $type->allowsNull() ? '?' : '';
             if ($type->isBuiltin()) {
-                return $type->getName();
+                return $nullable . $type->getName();
             }
-            return '\\' . $type->getName();
+            return '\\' . $nullable . $type->getName();
         }
 
         if ($type instanceof ReflectionUnionType) {
