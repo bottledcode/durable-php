@@ -70,16 +70,10 @@ readonly class StateId extends Record implements Stringable
         return self::fromArgs(id: "entity:{$entityId}");
     }
 
-    protected static function create(...$args): static
-    {
-        $obj = parent::create($args);
-        $obj->id = $args['id'];
-        return $obj;
-    }
-
     public function toActivityId(): string
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['orchestration', $parts[1]] => throw new Exception('Cannot convert orchestration state to activity id'),
             ['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
@@ -95,6 +89,7 @@ readonly class StateId extends Record implements Stringable
     public function toOrchestrationInstance(): OrchestrationInstance
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to orchestration instance'),
             ['orchestration', $parts[1], $parts[2]] => OrchestrationInstance($parts[1], $parts[2]),
@@ -107,6 +102,7 @@ readonly class StateId extends Record implements Stringable
     public function toEntityId(): EntityId
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to entity id'),
             ['orchestration', $parts[1], $parts[2]] => throw new Exception(
@@ -127,6 +123,7 @@ readonly class StateId extends Record implements Stringable
     public function getStateType(): string
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['activity', $parts[1]] => ActivityHistory::class,
             ['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
@@ -134,7 +131,7 @@ readonly class StateId extends Record implements Stringable
         };
     }
 
-    public function getPartitionKey(int $totalPartitions): int|null
+    public function getPartitionKey(int $totalPartitions): ?int
     {
         return match ($this->isPartitioned()) {
             true => crc32($this->id) % $totalPartitions,
