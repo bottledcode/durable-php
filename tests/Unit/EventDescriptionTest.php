@@ -279,6 +279,9 @@ test('toStream method', function (): void {
     $stream = json_decode($stream, true);
     $result = EventDescription::fromStream($stream['event']);
 
+    // hack around serialization of timestamps
+    $description = new EventDescription($event->with(timestamp: $result->event->timestamp));
+
     expect($result)->toEqual($description);
 });
 

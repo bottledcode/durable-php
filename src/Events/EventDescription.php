@@ -159,6 +159,7 @@ readonly class EventDescription
         $data = base64_decode($data, true);
         $data = function_exists('gzdecode') ? gzdecode($data) : $data;
         $data = function_exists('igbinary_unserialize') ? igbinary_unserialize($data) : unserialize($data);
+        $data = Serializer::deserialize($data, Event::class);
 
         return new self($data);
     }
@@ -175,8 +176,10 @@ readonly class EventDescription
 
     public function toStream(): string
     {
+        $serialized = Serializer::serialize($this->event);
+
         $serialized =
-            function_exists('igbinary_serialize') ? igbinary_serialize($this->event) : serialize($this->event);
+            function_exists('igbinary_serialize') ? igbinary_serialize($serialized) : serialize($serialized);
         $serialized = function_exists('gzencode') ? gzencode($serialized) : $serialized;
 
         $event = base64_encode($serialized);

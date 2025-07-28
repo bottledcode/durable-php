@@ -88,7 +88,7 @@ class Glue
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
         try {
             $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? 'null', true, 32, JSON_THROW_ON_ERROR);
-            if (!$provenance || $provenance === ['userId' => '', 'roles' => null]) {
+            if (! $provenance || $provenance === ['userId' => '', 'roles' => null]) {
                 $this->provenance = null;
             } else {
                 $provenance['roles'] ??= [];
@@ -102,7 +102,7 @@ class Glue
             $this->provenance = null;
         }
 
-        if (!file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
+        if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
             throw new LogicException('Unable to load payload');
         }
 
@@ -192,7 +192,7 @@ class Glue
 
     private function startOrchestration(): void
     {
-        if (!$this->target->toOrchestrationInstance()->executionId) {
+        if (! $this->target->toOrchestrationInstance()->executionId) {
             $this->target = StateId::fromInstance(
                 OrchestrationInstance(
                     $this->target->toOrchestrationInstance()->instanceId,
@@ -204,8 +204,7 @@ class Glue
         header('X-Id: ' . $this->target->id);
         $input = SerializedArray::import($this->payload['input'])->toArray();
 
-        $event =
-            WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
+        $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
         $this->outputEvent(new EventDescription($event));
 
         $actualId = $this->target->toOrchestrationInstance();

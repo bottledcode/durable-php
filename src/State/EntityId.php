@@ -33,24 +33,15 @@ use Withinboredom\Record;
 readonly class EntityId extends Record implements Stringable
 {
     public protected(set) string $name;
+
     public protected(set) string $id;
 
     /**
-     * @param class-string<T> $name
-     * @param string $id
-     * @return static
+     * @param  class-string<T>  $name
      */
     public static function from(string $name, string $id): static
     {
         return self::fromArgs(name: $name, id: $id);
-    }
-
-    protected static function create(...$args): static
-    {
-        $obj = parent::create($args);
-        $obj->name = $args['name'];
-        $obj->id = $args['id'];
-        return $obj;
     }
 
     public function __toString(): string

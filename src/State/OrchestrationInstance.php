@@ -38,15 +38,6 @@ readonly class OrchestrationInstance extends Record implements Stringable
         return static::fromArgs(instanceId: $instanceId, executionId: $executionId);
     }
 
-    protected static function create(...$args): static
-    {
-        $obj = parent::create($args);
-        $obj->instanceId = $args['instanceId'];
-        $obj->executionId = $args['executionId'];
-
-        return $obj;
-    }
-
     public function __toString(): string
     {
         return "{$this->instanceId}:{$this->executionId}";
