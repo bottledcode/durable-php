@@ -36,14 +36,15 @@ use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 use RuntimeException;
 use Stringable;
+use Withinboredom\Record;
 
 use function Bottledcode\DurablePhp\EntityId;
 use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 #[ClassNameTypeMap('__type')]
-readonly class StateId implements Stringable
+readonly class StateId extends Record implements Stringable
 {
-    public function __construct(public string $id) {}
+    public protected(set) string $id;
 
     public static function fromState(StateInterface $state): self
     {
@@ -56,17 +57,24 @@ readonly class StateId implements Stringable
 
     public static function fromInstance(OrchestrationInstance $instance): self
     {
-        return new self("orchestration:{$instance}");
+        return self::fromArgs(id: "orchestration:{$instance}");
     }
 
     public static function fromActivityId(UuidInterface|string $activityId): self
     {
-        return new self("activity:{$activityId}");
+        return self::fromArgs(id: "activity:{$activityId}");
     }
 
     public static function fromEntityId(EntityId $entityId): self
     {
-        return new self("entity:{$entityId}");
+        return self::fromArgs(id: "entity:{$entityId}");
+    }
+
+    protected static function create(...$args): static
+    {
+        $obj = parent::create($args);
+        $obj->id = $args['id'];
+        return $obj;
     }
 
     public function toActivityId(): string
@@ -81,7 +89,7 @@ readonly class StateId implements Stringable
 
     public static function fromString(string $id): self
     {
-        return new self($id);
+        return self::fromArgs(id: $id);
     }
 
     public function toOrchestrationInstance(): OrchestrationInstance
