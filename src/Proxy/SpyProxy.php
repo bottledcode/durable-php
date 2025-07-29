@@ -109,6 +109,7 @@ class SpyProxy extends Generator
                 if ($this->op !== null) {
                   throw new \LogicException('Can only send one signal at a time');
                 }
+                $this->op = $value;
               }
             }
             private array|null $arguments {
@@ -117,6 +118,7 @@ class SpyProxy extends Generator
                 if ($this->args !== null) {
                   throw new \LogicException('Can only send one signal at a time');
                 }
+                $this->args = $value;
               }
             }
             
