@@ -6,6 +6,7 @@ import (
 	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	"encoding/json"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
@@ -16,7 +17,7 @@ import (
 	"time"
 )
 
-func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind glue.IdKind, logger *zap.Logger, js jetstream.JetStream, rm *auth.ResourceManager) {
+func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind ids.IdKind, logger *zap.Logger, js jetstream.JetStream, rm *auth.ResourceManager) {
 	logger.Debug("Creating consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
 
 	consumer, err := stream.Consumer(ctx, config.Stream+"-"+string(kind))
@@ -55,7 +56,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 				}
 
 				if strings.HasSuffix(msg.Subject(), ".delete") {
-					id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+					id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
 					err := glue.DeleteState(ctx, js, logger, id)
 					if err != nil {
 						panic(err)
@@ -98,8 +99,8 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
-	id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
-	if id.Kind == glue.Entity {
+	id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+	if id.Kind == ids.Entity {
 		unlocker, err := lockSubject(ctx, id.ToSubject(), js, logger)
 		if err != nil {
 			return err
@@ -128,7 +129,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		// extract the source operations
 		sourceOps := strings.Split(msg.Headers().Get(string(glue.HeaderSourceOps)), ",")
 		// retrieve the source
-		sourceId := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
+		sourceId := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
 		if sourceR, err := rm.DiscoverResource(ctx, sourceId, logger, true); err != nil {
 			if sourceR == nil {
 				logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
@@ -290,6 +291,16 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	env["EVENT"] = string(msg.Data())
 	env["STATE_ID"] = msg.Headers().Get(string(glue.HeaderStateId))
 	env["REMOTE_ADDR"] = msg.Headers().Get("Remote-Addr")
+
+	res, err := rm.DiscoverResource(ctx, id, logger, true)
+	if err != nil {
+		logger.Error("DiscoverResource", zap.Error(err))
+		panic(err)
+	}
+	if res != nil {
+		ac, _ := rm.ToAuthContext(ctx, res)
+		headers.Add("DPHP_AUTH_CONTEXT", string(ac))
+	}
 
 	msgs, headers, _, deleteAfter := glu.Execute(ctx, headers, logger, env, js, id)
 

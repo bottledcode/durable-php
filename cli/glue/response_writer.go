@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"durable_php/appcontext"
+	"durable_php/ids"
 	"encoding/json"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -53,7 +54,7 @@ type InternalLoggingResponseWriter struct {
 	events      []*nats.Msg
 	query       chan []string
 	headers     http.Header
-	CurrentId   *StateId
+	CurrentId   *ids.StateId
 	Context     context.Context
 	DeleteAfter bool
 }
@@ -78,10 +79,10 @@ func (w *InternalLoggingResponseWriter) Write(b []byte) (int, error) {
 				return len(b), err
 			}
 
-			destinationId := ParseStateId(body.Destination)
+			destinationId := ids.ParseStateId(body.Destination)
 			replyTo := ""
 			if body.ReplyTo != "" {
-				replyTo = ParseStateId(body.ReplyTo).ToSubject().String()
+				replyTo = ids.ParseStateId(body.ReplyTo).ToSubject().String()
 			}
 
 			now, _ := time.Now().MarshalText()

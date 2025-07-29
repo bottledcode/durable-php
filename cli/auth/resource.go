@@ -4,6 +4,7 @@ import (
 	"context"
 	"durable_php/appcontext"
 	"durable_php/glue"
+	"durable_php/ids"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,7 +51,7 @@ type Resource struct {
 	Mode     Mode                `json:"mode"`
 	mu       sync.RWMutex
 	kv       jetstream.KeyValue
-	id       *glue.StateId
+	id       *ids.StateId
 	Expires  time.Time
 	revision uint64
 }
@@ -107,7 +108,7 @@ func (r *Resource) ShareOwnership(newUser UserId, currentUser *User, keepPermiss
 	return nil
 }
 
-func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
+func (r *Resource) ApplyPerms(id *ids.StateId, ctx context.Context, logger *zap.Logger) bool {
 	perms, err := r.getOrCreatePermissions(id, ctx, logger)
 	if err != nil {
 		logger.Error("failed to get permissions", zap.Error(err))
@@ -122,7 +123,7 @@ func (r *Resource) ApplyPerms(id *glue.StateId, ctx context.Context, logger *zap
 }
 
 // CanCreate Load permissions from cache if available, otherwise fetch from external source
-func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.Logger) bool {
+func (r *Resource) CanCreate(id *ids.StateId, ctx context.Context, logger *zap.Logger) bool {
 	perms, err := r.getOrCreatePermissions(id, ctx, logger)
 	if err != nil {
 		logger.Error("failed to create permissions", zap.Error(err))
@@ -131,7 +132,7 @@ func (r *Resource) CanCreate(id *glue.StateId, ctx context.Context, logger *zap.
 	return r.isUserPermitted(perms, ctx)
 }
 
-func (r *Resource) getOrCreatePermissions(id *glue.StateId, ctx context.Context, logger *zap.Logger) (CreatePermissions, error) {
+func (r *Resource) getOrCreatePermissions(id *ids.StateId, ctx context.Context, logger *zap.Logger) (CreatePermissions, error) {
 	var perms CreatePermissions
 	if cached, found := cache.Load(id.Name()); found {
 		perms = cached.(CreatePermissions)

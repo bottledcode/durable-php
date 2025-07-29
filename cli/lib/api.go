@@ -5,6 +5,7 @@ import (
 	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
@@ -164,7 +165,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &glue.ActivityId{
+		id := &ids.ActivityId{
 			Id: vars["id"],
 		}
 		err := OutputStatus(ctx, writer, id.ToStateId(), js, logger)
@@ -255,10 +256,21 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	bootstrap := ctx.Value("bootstrap").(string)
 
-	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *glue.StateId, function glue.Method, headers http.Header) {
+	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *ids.StateId, function glue.Method, headers http.Header) {
 		logger.Debug("Processing request to call function", zap.String("function", string(function)), zap.Any("Headers", headers))
 		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
+
+		rm := auth.GetResourceManager(ctx, js)
+		res, err := rm.DiscoverResource(ctx, id, logger, true)
+		if err != nil {
+			logger.Error("DiscoverResource", zap.Error(err))
+			panic(err)
+		}
+		if res != nil {
+			ac, _ := rm.ToAuthContext(ctx, res)
+			headers.Add("DPHP_AUTH_CONTEXT", string(ac))
+		}
 
 		msgs, stateFile, err, responseHeaders, deleteAfter := glue.FromApiRequest(ctx, request, function, logger, js, id, headers)
 		if err != nil {
@@ -330,7 +342,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &glue.EntityId{
+		id := &ids.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
 			Id:   strings.TrimSpace(vars["id"]),
 		}
@@ -381,7 +393,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		id := &glue.EntityId{
+		id := &ids.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
 			Id:   strings.TrimSpace(vars["id"]),
 		}
@@ -456,7 +468,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		id := &glue.EntityId{
+		id := &ids.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
 			Id:   strings.TrimSpace(vars["id"]),
 		}
@@ -508,7 +520,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		id := &glue.EntityId{
+		id := &ids.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
 			Id:   strings.TrimSpace(vars["id"]),
 		}
@@ -624,7 +636,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  vars["name"],
 			ExecutionId: execId.String(),
 		}
@@ -652,7 +664,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  strings.TrimSpace(vars["name"]),
 			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
@@ -703,7 +715,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  strings.TrimSpace(vars["name"]),
 			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
@@ -778,7 +790,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  strings.TrimSpace(vars["name"]),
 			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
@@ -833,7 +845,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  strings.TrimSpace(vars["name"]),
 			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
@@ -899,7 +911,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			defer cancel()
 
 			bucket, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-				Bucket:      string(glue.Orchestration),
+				Bucket:      string(ids.Orchestration),
 				Description: "Holds orchestration state and history",
 				Compression: true,
 			})
@@ -964,7 +976,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  vars["name"],
 			ExecutionId: vars["id"],
 		}
@@ -996,7 +1008,7 @@ func authorize(
 	config *config.Config,
 	ctx context.Context,
 	rm *auth.ResourceManager,
-	id *glue.StateId,
+	id *ids.StateId,
 	logger *zap.Logger,
 	preventCreation bool,
 	operation auth.Operation,
@@ -1066,7 +1078,7 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 			continue
 		}
 
-		id := glue.ParseStateId(activity.Headers.Get(string(glue.HeaderStateId)))
+		id := ids.ParseStateId(activity.Headers.Get(string(glue.HeaderStateId)))
 		t := id.String()
 		parts := strings.Split(t, ":")[1:]
 		names = append(names, parts)
@@ -1078,7 +1090,7 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	}
 }
 
-func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *glue.StateId, stream jetstream.JetStream, logger *zap.Logger) error {
+func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *ids.StateId, stream jetstream.JetStream, logger *zap.Logger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stateFile, _ := glue.GetStateFile(id, stream, ctx, logger)

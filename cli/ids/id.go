@@ -1,4 +1,4 @@
-package glue
+package ids
 
 import (
 	"fmt"
@@ -41,11 +41,6 @@ func (subj *Subject) Bucket() string {
 }
 
 // state ids
-
-type StateId struct {
-	Id   string
-	Kind IdKind
-}
 
 func fromEntityId(entity *EntityId) *StateId {
 	return &StateId{
@@ -176,4 +171,9 @@ func (id *OrchestrationId) String() string {
 
 func (id *OrchestrationId) ToStateId() *StateId {
 	return fromOrchestrationId(id)
+}
+
+type StateId struct {
+	Id   string
+	Kind IdKind
 }

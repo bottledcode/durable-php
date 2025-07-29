@@ -4,6 +4,7 @@ import (
 	"context"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	"encoding/json"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/typesense/typesense-go/typesense"
@@ -15,13 +16,13 @@ import (
 	"time"
 )
 
-func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind, js jetstream.JetStream, logger *zap.Logger) error {
+func IndexerListen(ctx context.Context, config *config.Config, kind ids.IdKind, js jetstream.JetStream, logger *zap.Logger) error {
 	//logger.Info("Starting indexer extension", zap.String("for", string(kind)), zap.Any("config", config.Extensions.Search))
 
 	client := typesense.NewClient(typesense.WithServer(config.Extensions.Search.Url), typesense.WithAPIKey(config.Extensions.Search.Key))
 
 	switch kind {
-	case glue.Entity:
+	case ids.Entity:
 		collection := client.Collection(config.Stream + "_entities")
 
 		err := CreateEntityIndex(ctx, client, config)
@@ -99,7 +100,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 				go func() {
 					ctx, done := context.WithCancel(ctx)
 
-					obj, err := glue.GetObjectStore(glue.Entity, js, ctx)
+					obj, err := glue.GetObjectStore(ids.Entity, js, ctx)
 					if err != nil {
 						logger.Warn("Unable to load state for entity", zap.Error(err))
 						done()
@@ -119,7 +120,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 						done()
 						return
 					}
-					id := glue.ParseStateId(result["id"].(map[string]interface{})["id"].(string))
+					id := ids.ParseStateId(result["id"].(map[string]interface{})["id"].(string))
 					eid, _ := id.ToEntityId()
 
 					entityData := struct {
@@ -140,7 +141,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 				}()
 			}
 		}()
-	case glue.Orchestration:
+	case ids.Orchestration:
 		collection := client.Collection(config.Stream + "_orchestrations")
 
 		err := CreateOrchestrationIndex(ctx, client, config)
@@ -148,7 +149,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 			return err
 		}
 
-		obj, err := js.KeyValue(ctx, string(glue.Orchestration))
+		obj, err := js.KeyValue(ctx, string(ids.Orchestration))
 		if err != nil {
 			// key value doesn't exist yet, try again in a few minutes
 			go func() {
@@ -226,7 +227,7 @@ func IndexerListen(ctx context.Context, config *config.Config, kind glue.IdKind,
 						return
 					}
 
-					id := glue.ParseStateId(result["id"].(map[string]interface{})["id"].(string))
+					id := ids.ParseStateId(result["id"].(map[string]interface{})["id"].(string))
 					oid, _ := id.ToOrchestrationId()
 
 					status := result["status"].(map[string]interface{})

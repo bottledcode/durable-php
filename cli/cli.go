@@ -27,6 +27,7 @@ import (
 	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	di "durable_php/init"
 	"durable_php/lib"
 	"encoding/json"
@@ -180,9 +181,9 @@ func execute(args []string, options map[string]string) int {
 		})
 
 		consumers := []string{
-			string(glue.Activity),
-			string(glue.Entity),
-			string(glue.Orchestration),
+			string(ids.Activity),
+			string(ids.Entity),
+			string(ids.Orchestration),
 		}
 
 		for _, kind := range consumers {
@@ -211,30 +212,30 @@ func execute(args []string, options map[string]string) int {
 
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, cfg, glue.Activity, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, ids.Activity, logger, js, rm)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, cfg, glue.Entity, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, ids.Entity, logger, js, rm)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, cfg, glue.Orchestration, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, ids.Orchestration, logger, js, rm)
 	}
 
 	if len(cfg.Extensions.Search.Collections) > 0 {
 		for _, collection := range cfg.Extensions.Search.Collections {
 			switch collection {
 			case "entities":
-				err := lib.IndexerListen(ctx, cfg, glue.Entity, js, logger)
+				err := lib.IndexerListen(ctx, cfg, ids.Entity, js, logger)
 				if err != nil {
 					cfg.Extensions.Search.Collections = []string{}
 					logger.Warn("Disabling search extension due to failing to connect to typesense")
 				}
 			case "orchestrations":
-				err := lib.IndexerListen(ctx, cfg, glue.Orchestration, js, logger)
+				err := lib.IndexerListen(ctx, cfg, ids.Orchestration, js, logger)
 				if err != nil {
 					cfg.Extensions.Search.Collections = []string{}
 					logger.Warn("Disabling search extension due to failing to connect to typesense")
@@ -451,13 +452,13 @@ func main() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var store glue.IdKind
+			var store ids.IdKind
 			switch args[0] {
-			case string(glue.Orchestration):
-				store = glue.Orchestration
+			case string(ids.Orchestration):
+				store = ids.Orchestration
 
 				if len(args) == 1 {
-					kv, err := js.KeyValue(ctx, string(glue.Orchestration))
+					kv, err := js.KeyValue(ctx, string(ids.Orchestration))
 					if err != nil {
 						fmt.Println("[]")
 						return 0
@@ -478,10 +479,10 @@ func main() {
 					fmt.Println(string(marshal))
 					return 0
 				}
-			case string(glue.Activity):
-				store = glue.Activity
-			case string(glue.Entity):
-				store = glue.Entity
+			case string(ids.Activity):
+				store = ids.Activity
+			case string(ids.Entity):
+				store = ids.Entity
 			default:
 				panic(fmt.Errorf("invalid type: %s", args[0]))
 			}
@@ -502,14 +503,14 @@ func main() {
 				return 0
 			}
 
-			var id *glue.StateId
+			var id *ids.StateId
 			switch store {
-			case glue.Entity:
+			case ids.Entity:
 				fallthrough
-			case glue.Orchestration:
-				id = glue.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
-			case glue.Activity:
-				id = glue.ParseStateId(fmt.Sprintf("%s:%s", string(glue.Activity), args[0]))
+			case ids.Orchestration:
+				id = ids.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
+			case ids.Activity:
+				id = ids.ParseStateId(fmt.Sprintf("%s:%s", string(ids.Activity), args[0]))
 			}
 
 			ctx, cancel = context.WithCancel(ctx)

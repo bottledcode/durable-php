@@ -9,7 +9,7 @@ use Bottledcode\DurablePhp\State\Serializer;
 use Crell\Serde\Attributes\SequenceField;
 use Withinboredom\Record;
 
-abstract readonly class AuthContext extends Record
+readonly class AuthContext extends Record
 {
     public StateId $contextId;
 
@@ -28,7 +28,9 @@ abstract readonly class AuthContext extends Record
     public static function fromCurrentContext(): ?AuthContext
     {
         if (isset($_SERVER['HTTP_DPHP_AUTH_CONTEXT'])) {
-            return Serializer::deserialize($_SERVER['HTTP_DPHP_AUTH_CONTEXT'], self::class);
+            $json = json_decode($_SERVER['HTTP_DPHP_AUTH_CONTEXT'], true, flags: JSON_THROW_ON_ERROR);
+
+            return Serializer::deserialize($json, self::class);
         }
 
         return null;

@@ -2,7 +2,7 @@ package lib
 
 import (
 	"context"
-	"durable_php/glue"
+	"durable_php/ids"
 	"errors"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -14,7 +14,7 @@ const (
 	LockKey   string = "lock"
 )
 
-func acquireLock(ctx context.Context, subject *glue.Subject, kv jetstream.KeyValue, logger *zap.Logger) (bool, uint64) {
+func acquireLock(ctx context.Context, subject *ids.Subject, kv jetstream.KeyValue, logger *zap.Logger) (bool, uint64) {
 	value, err := kv.Get(ctx, LockKey)
 	// not found or empty value
 	if err != nil || string(value.Value()) == "" {
@@ -31,7 +31,7 @@ func acquireLock(ctx context.Context, subject *glue.Subject, kv jetstream.KeyVal
 	return false, value.Revision()
 }
 
-func waitForLock(ctx context.Context, subject *glue.Subject, kv jetstream.KeyValue, logger *zap.Logger) bool {
+func waitForLock(ctx context.Context, subject *ids.Subject, kv jetstream.KeyValue, logger *zap.Logger) bool {
 	logger.Debug("Waiting for lock", zap.String("Subject", subject.String()))
 
 	ok, revision := acquireLock(ctx, subject, kv, logger)
@@ -61,7 +61,7 @@ func waitForLock(ctx context.Context, subject *glue.Subject, kv jetstream.KeyVal
 	}
 }
 
-func lockSubject(ctx context.Context, subject *glue.Subject, js jetstream.JetStream, logger *zap.Logger) (func() error, error) {
+func lockSubject(ctx context.Context, subject *ids.Subject, js jetstream.JetStream, logger *zap.Logger) (func() error, error) {
 	logger.Debug("Attempting to take lock", zap.String("Subject", subject.String()))
 	kv, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket: subject.Bucket(),

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"durable_php/appcontext"
-	"durable_php/auth"
+	"durable_php/ids"
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
@@ -12,7 +12,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -74,7 +73,7 @@ func NewGlue(bootstrap string, function Method, input []any, payload string) *Gl
 	}
 }
 
-func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header, bool) {
+func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *ids.StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header, bool) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
 		return nil, "", err, nil, false
@@ -113,7 +112,7 @@ func FromApiRequest(ctx context.Context, r *http.Request, function Method, logge
 	return msgs, temp.Name(), nil, &responseHeaders, deleteAfter
 }
 
-func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *StateId) ([]*nats.Msg, http.Header, int, bool) {
+func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *ids.StateId) ([]*nats.Msg, http.Header, int, bool) {
 	var dir string
 	var ok bool
 	if dir, ok = GetLibraryDir("glue.php"); !ok {
@@ -127,17 +126,6 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	headers.Add("DPHP_BOOTSTRAP", g.bootstrap)
 	headers.Add("DPHP_FUNCTION", string(g.function))
 	headers.Add("DPHP_PAYLOAD", g.payload)
-
-	rm := auth.GetResourceManager(ctx, stream)
-	res, err := rm.DiscoverResource(ctx, id, logger, true)
-	if err != nil {
-		logger.Error("DiscoverResource", zap.Error(err))
-		panic(err)
-	}
-	if res != nil {
-		ac, _ := rm.ToAuthContext(ctx, res)
-		headers.Add("DPHP_AUTH_CONTEXT", string(ac))
-	}
 
 	provenance := ctx.Value(appcontext.CurrentUserKey)
 	if provenance != nil {
@@ -205,7 +193,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	go func() {
 		mu := sync.Mutex{}
 		for query := range writer.query {
-			id := ParseStateId(query[0])
+			id := ids.ParseStateId(query[0])
 			qid := query[1]
 			wg.Add(1)
 			go func() {
@@ -232,11 +220,11 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	return writer.events, writer.Header(), writer.status, writer.DeleteAfter
 }
 
-func DeleteState(ctx context.Context, stream jetstream.JetStream, logger *zap.Logger, id *StateId) error {
+func DeleteState(ctx context.Context, stream jetstream.JetStream, logger *zap.Logger, id *ids.StateId) error {
 	logger.Info("Deleting state", zap.Any("id", id))
-	if id.Kind == Orchestration {
+	if id.Kind == ids.Orchestration {
 		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-			Bucket:      string(Orchestration),
+			Bucket:      string(ids.Orchestration),
 			Compression: true,
 		})
 		if err != nil {
@@ -264,11 +252,11 @@ func DeleteState(ctx context.Context, stream jetstream.JetStream, logger *zap.Lo
 	return nil
 }
 
-func GetStateFile(id *StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*os.File, func() error) {
-	if id.Kind == Orchestration {
+func GetStateFile(id *ids.StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*os.File, func() error) {
+	if id.Kind == ids.Orchestration {
 		// orchestrations use optimistic concurrency and the kv store for state
 		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-			Bucket:      string(Orchestration),
+			Bucket:      string(ids.Orchestration),
 			Description: "Holds orchestration state and history",
 			Compression: true,
 		})
