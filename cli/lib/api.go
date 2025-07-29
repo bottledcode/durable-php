@@ -346,6 +346,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "Not Found", http.StatusNotFound)
+			return
 		}
 
 		newUser := strings.TrimSpace(vars["userid"])
@@ -354,12 +355,14 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to share ownership", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
 
 		err = r.Update(ctx, logger)
 		if err != nil {
 			logger.Error("Failed to update resource", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
 
 		logger.Info("Shared ownership", zap.String("id", id.String()), zap.String("newUser", newUser))
@@ -383,6 +386,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			Id:   strings.TrimSpace(vars["id"]),
 		}
 		stateId := id.ToStateId()
+
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.SharePlus)
+		if done {
+			return
+		}
 
 		operation := auth.Owner
 		switch strings.ToLower(vars["operation"]) {
@@ -411,6 +419,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
+			return
 		}
 
 		switch vars["type"] {
@@ -422,12 +431,14 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to grant resource", zap.Error(err))
 			http.Error(writer, "", http.StatusForbidden)
+			return
 		}
 
 		err = r.Update(ctx, logger)
 		if err != nil {
 			logger.Error("Failed to update resource", zap.Error(err))
 			http.Error(writer, "", http.StatusInternalServerError)
+			return
 		}
 
 		http.Error(writer, "", http.StatusOK)
@@ -451,10 +462,16 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 		stateId := id.ToStateId()
 
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.ShareMinus)
+		if done {
+			return
+		}
+
 		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
+			return
 		}
 
 		switch vars["type"] {
@@ -466,12 +483,14 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to revoke resource", zap.Error(err))
 			http.Error(writer, "", http.StatusForbidden)
+			return
 		}
 
 		err = r.Update(ctx, logger)
 		if err != nil {
 			logger.Error("Failed to update resource", zap.Error(err))
 			http.Error(writer, "", http.StatusInternalServerError)
+			return
 		}
 
 		http.Error(writer, "", http.StatusOK)
@@ -649,6 +668,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "Not Found", http.StatusNotFound)
+			return
 		}
 
 		newUser := strings.TrimSpace(vars["userid"])
@@ -657,12 +677,14 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to share ownership", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
 
 		err = r.Update(ctx, logger)
 		if err != nil {
 			logger.Error("Failed to update resource", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
 
 		logger.Info("Shared ownership", zap.String("id", id.String()), zap.String("newUser", newUser))
@@ -686,6 +708,11 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
 		stateId := id.ToStateId()
+
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.SharePlus)
+		if done {
+			return
+		}
 
 		operation := auth.Owner
 		switch strings.ToLower(vars["operation"]) {
@@ -714,6 +741,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
+			return
 		}
 
 		switch vars["type"] {
@@ -725,19 +753,21 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to grant resource", zap.Error(err))
 			http.Error(writer, "", http.StatusForbidden)
+			return
 		}
 
 		err = r.Update(ctx, logger)
 		if err != nil {
 			logger.Error("Failed to update resource", zap.Error(err))
 			http.Error(writer, "", http.StatusInternalServerError)
+			return
 		}
 
 		http.Error(writer, "", http.StatusOK)
 	})
 
 	// DELETE /orchestration/{name}/{id}/grant/{type}/{user}
-	r.HandleFunc("/entity/{name}/{id}/grant/{type}/{user}", func(writer http.ResponseWriter, request *http.Request) {
+	r.HandleFunc("/orchestration/{name}/{id}/grant/{type}/{user}", func(writer http.ResponseWriter, request *http.Request) {
 		if stop := handleCors(writer, request); stop {
 			return
 		}
@@ -754,10 +784,16 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 		stateId := id.ToStateId()
 
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.ShareMinus)
+		if done {
+			return
+		}
+
 		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
+			return
 		}
 
 		switch vars["type"] {
@@ -769,12 +805,14 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		if err != nil {
 			logger.Error("Failed to revoke resource", zap.Error(err))
 			http.Error(writer, "", http.StatusForbidden)
+			return
 		}
 
 		err = r.Update(ctx, logger)
 		if err != nil {
 			logger.Error("Failed to update resource", zap.Error(err))
 			http.Error(writer, "", http.StatusInternalServerError)
+			return
 		}
 
 		http.Error(writer, "", http.StatusOK)
