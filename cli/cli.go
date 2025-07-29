@@ -529,6 +529,8 @@ func main() {
 	createUser := cli.NewCommand("create-user", "Create a new user").
 		WithArg(cli.NewArg("id", "The user id to assign to the user").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("admin", "Create the user as an admin").WithType(cli.TypeBool)).
+		WithOption(cli.NewOption("roles", "Create with the roles").WithType(cli.TypeString).WithChar('r')).
+		WithOption(cli.NewOption("claims", "Create with the claims as key:value;key:value").WithType(cli.TypeString).WithChar('c')).
 		WithAction(func(args []string, options map[string]string) int {
 			cfg, err := config.GetProjectConfig()
 			if err != nil {
@@ -540,7 +542,22 @@ func main() {
 				rol = append(rol, "admin")
 			}
 
-			user, err := auth.CreateUser(auth.UserId(args[0]), rol, cfg)
+			roles := strings.Split(options["roles"], ",")
+			for _, role := range roles {
+				rol = append(rol, auth.Role(role))
+			}
+
+			claims := strings.Split(options["claims"], ";")
+			extraClaims := make(map[string]string)
+			for _, claim := range claims {
+				kv := strings.Split(claim, ":")
+				if len(kv) != 2 {
+					panic(fmt.Errorf("invalid claim: %s", claim))
+				}
+				extraClaims[kv[0]] = kv[1]
+			}
+
+			user, err := auth.CreateUser(auth.UserId(args[0]), rol, extraClaims, cfg)
 			if err != nil {
 				return 1
 			}
