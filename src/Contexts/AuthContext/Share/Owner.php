@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2024 Robert Landers
+ * Copyright ©2025 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -22,27 +22,8 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\Contexts\AuthContext\Share;
 
-use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
-use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Ramsey\Uuid\Uuid;
+use Bottledcode\DurablePhp\Contexts\AuthContext\Share;
 
-#[NeedsTarget(Operation::ShareMinus)]
-class RevokeRole extends Event implements External
-{
-    private function __construct(public string $role, public ?Operation $operation)
-    {
-        parent::__construct(Uuid::uuid7());
-    }
-
-    public static function completely(string $role): self
-    {
-        return new self($role, null);
-    }
-
-    public function __toString()
-    {
-        return sprintf('Revoke(role: %s)', $this->role);
-    }
-}
+readonly class Owner extends Share {}

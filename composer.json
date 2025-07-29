@@ -10,7 +10,8 @@
       "Bottledcode\\DurablePhp\\": "src/"
     },
     "files": [
-      "src/functions.php"
+      "src/functions.php",
+      "src/Contexts/AuthContext/functions.php"
     ]
   },
   "autoload-dev": {

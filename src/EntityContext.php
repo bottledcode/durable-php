@@ -24,7 +24,14 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Events\GiveOwnership;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\RevokeRole;
+use Bottledcode\DurablePhp\Events\RevokeUser;
+use Bottledcode\DurablePhp\Events\ShareOwnership;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Events\ShareWithRole;
+use Bottledcode\DurablePhp\Events\ShareWithUser;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\WithDelay;
@@ -187,5 +194,65 @@ class EntityContext implements EntityContextInterface
     public function currentUserId(): string
     {
         return $this->user->userId;
+    }
+
+    public function shareOwnership(string $withUser): void
+    {
+        $this->eventDispatcher->fire(
+            WithEntity::forInstance(
+                StateId::fromEntityId($this->id),
+                ShareOwnership::withUser($withUser),
+            ),
+        );
+    }
+
+    public function giveOwnership(string $withUser): void
+    {
+        $this->eventDispatcher->fire(
+            WithEntity::forInstance(
+                StateId::fromEntityId($this->id),
+                GiveOwnership::withUser($withUser),
+            ),
+        );
+    }
+
+    public function grantUser(string $withUser, Operation ...$operation): void
+    {
+        $this->eventDispatcher->fire(
+            WithEntity::forInstance(
+                StateId::fromEntityId($this->id),
+                ShareWithUser::For($withUser, ...$operation),
+            ),
+        );
+    }
+
+    public function grantRole(string $withRole, Operation ...$operation): void
+    {
+        $this->eventDispatcher->fire(
+            WithEntity::forInstance(
+                StateId::fromEntityId($this->id),
+                ShareWithRole::For($withRole, ...$operation),
+            ),
+        );
+    }
+
+    public function revokeUser(string $user): void
+    {
+        $this->eventDispatcher->fire(
+            WithEntity::forInstance(
+                StateId::fromEntityId($this->id),
+                RevokeUser::completely($user),
+            ),
+        );
+    }
+
+    public function revokeRole(string $role): void
+    {
+        $this->eventDispatcher->fire(
+            WithEntity::forInstance(
+                StateId::fromEntityId($this->id),
+                RevokeRole::completely($role),
+            ),
+        );
     }
 }

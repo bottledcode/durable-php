@@ -4,10 +4,12 @@ import (
 	"context"
 	"durable_php/appcontext"
 	"durable_php/glue"
+	"encoding/json"
 	"github.com/modern-go/concurrent"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
+	"maps"
 	"time"
 )
 
@@ -85,6 +87,47 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *glue.StateId
 	}
 
 	return resource, nil
+}
+
+func (r *ResourceManager) ToAuthContext(ctx context.Context, resource *Resource) ([]byte, error) {
+	var owners []map[string]interface{}
+
+	for o, _ := range resource.Owners {
+		owners = append(owners, map[string]interface{}{
+			"shareType": "owner",
+			"subject":   string(o),
+			"allowed":   []string{string(Owner)},
+		})
+	}
+
+	var shares []map[string]interface{}
+
+	for _, s := range resource.Shares {
+		if u, ok := s.(*UserShare); ok {
+			shares = append(shares, map[string]interface{}{
+				"shareType": "user",
+				"subject":   string(u.UserId),
+				"allowed":   maps.Keys(u.AllowedOperations),
+			})
+		}
+		if r, ok := s.(*RoleShare); ok {
+			shares = append(shares, map[string]interface{}{
+				"shareType": "role",
+				"subject":   string(r.Role),
+				"allowed":   maps.Keys(r.AllowedOperations),
+			})
+		}
+	}
+
+	c := map[string]interface{}{
+		"contextId": map[string]string{
+			"id": resource.id.String(),
+		},
+		"owners": owners,
+		"shares": shares,
+	}
+
+	return json.Marshal(c)
 }
 
 // ScheduleDelete is a method of the ResourceManager struct that is responsible for scheduling the deletion of a

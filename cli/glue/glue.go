@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"durable_php/appcontext"
+	"durable_php/auth"
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
@@ -11,6 +12,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -125,6 +127,17 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	headers.Add("DPHP_BOOTSTRAP", g.bootstrap)
 	headers.Add("DPHP_FUNCTION", string(g.function))
 	headers.Add("DPHP_PAYLOAD", g.payload)
+
+	rm := auth.GetResourceManager(ctx, stream)
+	res, err := rm.DiscoverResource(ctx, id, logger, true)
+	if err != nil {
+		logger.Error("DiscoverResource", zap.Error(err))
+		panic(err)
+	}
+	if res != nil {
+		ac, _ := rm.ToAuthContext(ctx, res)
+		headers.Add("DPHP_AUTH_CONTEXT", string(ac))
+	}
 
 	provenance := ctx.Value(appcontext.CurrentUserKey)
 	if provenance != nil {
