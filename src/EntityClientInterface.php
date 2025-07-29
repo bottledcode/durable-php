@@ -87,4 +87,8 @@ interface EntityClientInterface
     public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void;
 
     public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void;
+
+    public function revokeEntityAccessToUser(EntityId $id, string $user): void;
+
+    public function revokeEntityAccessToRole(EntityId $id, string $role): void;
 }

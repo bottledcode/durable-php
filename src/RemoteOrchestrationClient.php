@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\SocketException;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -147,7 +148,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
             throw new Exception($result->getBody()->buffer());
         }
 
-        return (new StateId($result->getHeader('X-Id')))->toOrchestrationInstance();
+        return StateId::fromString($result->getHeader('X-Id'))->toOrchestrationInstance();
     }
 
     #[Override]
@@ -191,5 +192,65 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     public function withAuth(string $token): void
     {
         $this->userToken = $token;
+    }
+
+    public function shareOrchestrationOwnership(OrchestrationInstance $id, string $with): void
+    {
+        $req = new Request("{$this->apiHost}/orchestration/{$id->instanceId}/{$id->executionId}/share/{$with}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to share ownership');
+        }
+    }
+
+    public function grantOrchestrationAccessToUser(OrchestrationInstance $id, string $user, Operation $operation): void
+    {
+        $req = new Request("{$this->apiHost}/orchestration/{$id->instanceId}/{$id->executionId}/grant/user/{$user}/{$operation->value}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function grantOrchestrationAccessToRole(OrchestrationInstance $id, string $role, Operation $operation): void
+    {
+        $req = new Request("{$this->apiHost}/orchestration/{$id->instanceId}/{$id->executionId}/grant/role/{$role}/{$operation->value}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function revokeOrchestrationAccessToUser(OrchestrationInstance $id, string $user): void
+    {
+        $req = new Request("{$this->apiHost}/orchestration/{$id->instanceId}/{$id->executionId}/grant/user/{$user}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function revokeOrchestrationAccessToRole(OrchestrationInstance $id, string $role): void
+    {
+        $req = new Request("{$this->apiHost}/orchestration/{$id->instanceId}/{$id->executionId}/grant/role/{$role}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
     }
 }

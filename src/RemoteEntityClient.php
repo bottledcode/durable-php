@@ -200,4 +200,28 @@ class RemoteEntityClient implements EntityClientInterface
             throw new Exception('Failed to grant access');
         }
     }
+
+    public function revokeEntityAccessToUser(EntityId $id, string $user): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/user/{$user}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function revokeEntityAccessToRole(EntityId $id, string $role): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/role/{$role}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
 }

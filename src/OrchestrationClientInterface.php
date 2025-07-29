@@ -24,8 +24,10 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Status;
+use Generator;
 
 interface OrchestrationClientInterface
 {
@@ -33,7 +35,7 @@ interface OrchestrationClientInterface
 
     public function getStatus(OrchestrationInstance $instance): Status;
 
-    public function listInstances(/* todo */): \Generator;
+    public function listInstances(/* todo */): Generator;
 
     public function purge(OrchestrationInstance $instance): void;
 
@@ -43,11 +45,21 @@ interface OrchestrationClientInterface
 
     public function resume(OrchestrationInstance $instance, string $reason): void;
 
-    public function startNew(string $name, array $args = [], string|null $id = null): OrchestrationInstance;
+    public function startNew(string $name, array $args = [], ?string $id = null): OrchestrationInstance;
 
     public function suspend(OrchestrationInstance $instance, string $reason): void;
 
     public function terminate(OrchestrationInstance $instance, string $reason): void;
 
     public function waitForCompletion(OrchestrationInstance $instance): void;
+
+    public function shareOrchestrationOwnership(OrchestrationInstance $id, string $with): void;
+
+    public function grantOrchestrationAccessToUser(OrchestrationInstance $id, string $user, Operation $operation): void;
+
+    public function grantOrchestrationAccessToRole(OrchestrationInstance $id, string $role, Operation $operation): void;
+
+    public function revokeOrchestrationAccessToUser(OrchestrationInstance $id, string $user): void;
+
+    public function revokeOrchestrationAccessToRole(OrchestrationInstance $id, string $role): void;
 }

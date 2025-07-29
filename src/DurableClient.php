@@ -158,4 +158,39 @@ final readonly class DurableClient implements DurableClientInterface
     {
         $this->entityClient->grantEntityAccessToRole($id, $role, $operation);
     }
+
+    public function revokeEntityAccessToUser(EntityId $id, string $user): void
+    {
+        $this->entityClient->revokeEntityAccessToUser($id, $user);
+    }
+
+    public function revokeEntityAccessToRole(EntityId $id, string $role): void
+    {
+        $this->entityClient->revokeEntityAccessToRole($id, $role);
+    }
+
+    public function shareOrchestrationOwnership(OrchestrationInstance $id, string $with): void
+    {
+        $this->orchestrationClient->shareOrchestrationOwnership($id, $with);
+    }
+
+    public function grantOrchestrationAccessToUser(OrchestrationInstance $id, string $user, Operation $operation): void
+    {
+        $this->orchestrationClient->grantOrchestrationAccessToUser($id, $user, $operation);
+    }
+
+    public function grantOrchestrationAccessToRole(OrchestrationInstance $id, string $role, Operation $operation): void
+    {
+        $this->orchestrationClient->grantOrchestrationAccessToRole($id, $role, $operation);
+    }
+
+    public function revokeOrchestrationAccessToUser(OrchestrationInstance $id, string $user): void
+    {
+        $this->orchestrationClient->revokeOrchestrationAccessToUser($id, $user);
+    }
+
+    public function revokeOrchestrationAccessToRole(OrchestrationInstance $id, string $role): void
+    {
+        $this->orchestrationClient->revokeOrchestrationAccessToRole($id, $role);
+    }
 }
