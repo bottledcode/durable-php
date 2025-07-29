@@ -547,14 +547,16 @@ func main() {
 				rol = append(rol, auth.Role(role))
 			}
 
-			claims := strings.Split(options["claims"], ";")
 			extraClaims := make(map[string]string)
-			for _, claim := range claims {
-				kv := strings.Split(claim, ":")
-				if len(kv) != 2 {
-					panic(fmt.Errorf("invalid claim: %s", claim))
+			if options["claims"] != "" {
+				claims := strings.Split(options["claims"], ";")
+				for _, claim := range claims {
+					kv := strings.Split(claim, ":")
+					if len(kv) != 2 {
+						panic(fmt.Errorf("invalid claim: %s", claim))
+					}
+					extraClaims[kv[0]] = kv[1]
 				}
-				extraClaims[kv[0]] = kv[1]
 			}
 
 			user, err := auth.CreateUser(auth.UserId(args[0]), rol, extraClaims, cfg)

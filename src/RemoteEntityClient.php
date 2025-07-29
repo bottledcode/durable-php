@@ -81,14 +81,19 @@ class RemoteEntityClient implements EntityClientInterface
             throw new Exception("Interface {$interfaceName} does not exist");
         }
         $spy = $this->spyProxy->define($interfaceName);
-        $operationName = '';
-        $arguments = [];
+        $operationName = null;
+        $arguments = null;
         try {
             $class = new $spy($operationName, $arguments);
             $signal($class);
         } catch (SpyException) {
             // we have completed the spy
         }
+
+        if ($operationName === null || $arguments === null) {
+            return;
+        }
+
         $this->signalEntity(
             is_string($entityId) ? EntityId($interfaceName, $entityId) : $entityId,
             $operationName,
