@@ -315,6 +315,46 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 	}
 
+	// POST /resource/{id}/share: share ownership of the resource with another user
+	r.HandleFunc("/resource/{id}/share/{userid}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "POST" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &glue.StateId{
+			Id: strings.TrimSpace(vars["id"]),
+		}
+
+		// verify the user is authorized to access the resource
+		ctx, done := authorize(writer, request, config, ctx, rm, id, logger, true, auth.Owner)
+		if done {
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, id, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "Not Found", http.StatusNotFound)
+		}
+
+		newUser := strings.TrimSpace(vars["userid"])
+
+		err = r.ShareOwnership(auth.UserId(newUser), auth.GetUserFromContext(ctx), true)
+		if err != nil {
+			logger.Error("Failed to share ownership", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+		}
+	})
+
 	// GET /entity/{name}/{id}
 	// get an entity state and status
 	// PUT /entity/{name}/{id}

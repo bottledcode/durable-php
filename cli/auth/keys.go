@@ -35,6 +35,11 @@ func DecorateContextWithUser(ctx context.Context, user *User) context.Context {
 	return context.WithValue(ctx, appcontext.CurrentUserKey, user)
 }
 
+func GetUserFromContext(ctx context.Context) *User {
+	user, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
+	return user
+}
+
 // ExtractUser extracts user information from the Authorization token in the HTTP request header.
 // It returns the user and a boolean indicating if the extraction was successful.
 //

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -140,5 +141,10 @@ final readonly class DurableClient implements DurableClientInterface
     public function deleteEntity(EntityId $entityId): void
     {
         $this->entityClient->deleteEntity($entityId);
+    }
+
+    public function shareOwnership(EntityId|OrchestrationInstance $resource, string $with): void
+    {
+        $this->entityClient->shareOwnership($resource, $with);
     }
 }

@@ -31,6 +31,8 @@ use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
+use Bottledcode\DurablePhp\State\Ids\StateId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Closure;
 use DateTimeImmutable;
@@ -156,6 +158,19 @@ class RemoteEntityClient implements EntityClientInterface
 
         if ($result->getStatus() !== 204) {
             throw new Exception('Failed to delete entity');
+        }
+    }
+
+    public function shareOwnership(EntityId|OrchestrationInstance $resource, string $with): void
+    {
+        $id = $resource instanceof EntityId ? StateId::fromEntityId($resource) : StateId::fromInstance($resource);
+        $req = new Request("{$this->apiHost}/resource/{$id}/share/{$with}", 'POST');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to share ownership');
         }
     }
 }
