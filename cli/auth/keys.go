@@ -119,6 +119,8 @@ func CreateUser(userId UserId, role []Role, claims map[string]string, config *co
 	}
 
 	for k, v := range claims {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
 		claimMap[k] = v
 	}
 
