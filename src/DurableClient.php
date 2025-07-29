@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClientBuilder;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -146,5 +147,15 @@ final readonly class DurableClient implements DurableClientInterface
     public function shareEntityOwnership(EntityId $id, string $with): void
     {
         $this->entityClient->shareEntityOwnership($id, $with);
+    }
+
+    public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void
+    {
+        $this->entityClient->grantEntityAccessToUser($id, $user, $operation);
+    }
+
+    public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void
+    {
+        $this->entityClient->grantEntityAccessToRole($id, $role, $operation);
     }
 }

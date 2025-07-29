@@ -315,13 +315,13 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 	}
 
-	// POST /entity/{name}/{id}/share/{userid}: share ownership of the resource with another user
+	// PUT /entity/{name}/{id}/share/{userid}: share ownership of the resource with another user
 	r.HandleFunc("/entity/{name}/{id}/share/{userid}", func(writer http.ResponseWriter, request *http.Request) {
 		if stop := handleCors(writer, request); stop {
 			return
 		}
 
-		if request.Method != "POST" {
+		if request.Method != "PUT" {
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -355,6 +355,77 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			logger.Error("Failed to share ownership", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+		}
+
+		logger.Info("Shared ownership", zap.String("id", id.String()), zap.String("newUser", newUser))
+		http.Error(writer, "", http.StatusOK)
+	})
+
+	// PUT /entity/{name}/{id}/grant/{user}/{operation}
+	r.HandleFunc("/entity/{name}/{id}/grant/{type}/{user}/{operation}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		vars := mux.Vars(request)
+		id := &glue.EntityId{
+			Name: strings.TrimSpace(vars["name"]),
+			Id:   strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		operation := auth.Owner
+		switch strings.ToLower(vars["operation"]) {
+		case "signal":
+			operation = auth.Signal
+			break
+		case "completion":
+			operation = auth.Completion
+			break
+		case "output":
+			operation = auth.Output
+		case "call":
+			operation = auth.Call
+		case "lock":
+			operation = auth.Lock
+		case "sharePlus":
+			operation = auth.SharePlus
+		case "shareMinus":
+			operation = auth.ShareMinus
+		default:
+			http.Error(writer, "", http.StatusBadRequest)
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "", http.StatusNotFound)
+		}
+
+		switch vars["type"] {
+		case "user":
+			err = r.GrantUser(auth.UserId(vars["user"]), operation, ctx)
+		case "role":
+			err = r.GrantRole(auth.Role(vars["user"]), operation, ctx)
+		}
+		if err != nil {
+			logger.Error("Failed to grant resource", zap.Error(err))
+			http.Error(writer, "", http.StatusForbidden)
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "", http.StatusInternalServerError)
+		}
+
+		http.Error(writer, "", http.StatusOK)
 	})
 
 	// GET /entity/{name}/{id}

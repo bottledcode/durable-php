@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\Proxy\SpyException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
@@ -166,13 +167,37 @@ class RemoteEntityClient implements EntityClientInterface
 
     public function shareEntityOwnership(EntityId $id, string $with): void
     {
-        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/share/{$with}", 'POST');
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/share/{$with}", 'PUT');
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
         $result = $this->client->request($req);
         if ($result->getStatus() !== 200) {
             throw new Exception('Failed to share ownership');
+        }
+    }
+
+    public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/user/{$user}/{$operation->value}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/role/{$role}/{$operation->value}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
         }
     }
 }
