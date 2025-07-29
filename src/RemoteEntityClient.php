@@ -31,8 +31,6 @@ use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
-use Bottledcode\DurablePhp\State\Ids\StateId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Closure;
 use DateTimeImmutable;
@@ -166,10 +164,9 @@ class RemoteEntityClient implements EntityClientInterface
         }
     }
 
-    public function shareOwnership(EntityId|OrchestrationInstance $resource, string $with): void
+    public function shareEntityOwnership(EntityId $id, string $with): void
     {
-        $id = $resource instanceof EntityId ? StateId::fromEntityId($resource) : StateId::fromInstance($resource);
-        $req = new Request("{$this->apiHost}/resource/{$id}/share/{$with}", 'POST');
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/share/{$with}", 'POST');
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }

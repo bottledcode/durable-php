@@ -27,7 +27,6 @@ namespace Bottledcode\DurablePhp;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Closure;
 use DateTimeImmutable;
 use Generator;
@@ -82,5 +81,5 @@ interface EntityClientInterface
      */
     public function deleteEntity(EntityId $entityId): void;
 
-    public function shareOwnership(EntityId|OrchestrationInstance $resource, string $with): void;
+    public function shareEntityOwnership(EntityId $id, string $with): void;
 }
