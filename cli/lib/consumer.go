@@ -25,7 +25,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 		panic(err)
 	}
 
-	iter, err := consumer.Messages(jetstream.PullMaxMessages(1))
+	iter, err := consumer.Messages(jetstream.PullMaxMessages(1), jetstream.WithMessagesErrOnMissingHeartbeat(false))
 	if err != nil {
 		panic(err)
 	}
