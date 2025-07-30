@@ -548,7 +548,7 @@ func main() {
 				rol = append(rol, auth.Role(role))
 			}
 
-			extraClaims := make(map[string]string)
+			extraClaims := make(map[string]interface{})
 			if options["claims"] != "" {
 				claims := strings.Split(options["claims"], ";")
 				for _, claim := range claims {
@@ -556,7 +556,11 @@ func main() {
 					if len(kv) != 2 {
 						panic(fmt.Errorf("invalid claim: %s", claim))
 					}
-					extraClaims[kv[0]] = kv[1]
+					if strings.Contains(kv[1], ",") {
+						extraClaims[kv[0]] = strings.Split(strings.TrimSpace(kv[1]), ",")
+					} else {
+						extraClaims[kv[0]] = strings.TrimSpace(kv[1])
+					}
 				}
 			}
 

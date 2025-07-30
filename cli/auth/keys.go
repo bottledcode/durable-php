@@ -114,7 +114,7 @@ func ExtractUser(r *http.Request, config *config.Config) (user *User, ok bool) {
 // The token is signed using the active secret key from the config.
 // The token will expire in 72 hours and is valid starting from 5 minutes ago.
 // Returns the signed token string or an error if the signing process fails.
-func CreateUser(userId UserId, role []Role, claims map[string]string, config *config.Config) (string, error) {
+func CreateUser(userId UserId, role []Role, claims map[string]interface{}, config *config.Config) (string, error) {
 	claimMap := jwt.MapClaims{
 		"sub":   userId,
 		"exp":   time.Now().Add(72 * time.Hour).Unix(),
@@ -125,7 +125,6 @@ func CreateUser(userId UserId, role []Role, claims map[string]string, config *co
 
 	for k, v := range claims {
 		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
 		claimMap[k] = v
 	}
 
