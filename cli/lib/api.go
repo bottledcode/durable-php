@@ -392,6 +392,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		vars := mux.Vars(request)
 		id := &ids.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
@@ -466,6 +469,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
 		id := &ids.EntityId{
@@ -714,6 +720,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
 		vars := mux.Vars(request)
 		id := &ids.OrchestrationId{
 			InstanceId:  strings.TrimSpace(vars["name"]),
@@ -788,6 +797,9 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
 		id := &ids.OrchestrationId{
