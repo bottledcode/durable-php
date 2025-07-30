@@ -118,7 +118,7 @@ fi
 env
 go env
 go get durable_php
-go build -buildmode=pie -tags "cgo netgo nats osusergo static_build" -ldflags "-linkmode=external -extldflags '-static-pie ${extraExtldflags}' ${extraLdflags} -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP ${FRANKENPHP_VERSION} PHP ${LIBPHP_VERSION} go_durable_php' -X 'main.version=$VERSION'" -o "dist/${bin}" durable_php
+go build -buildmode=pie -tags "cgo netgo nats osusergo static_build nowatcher" -ldflags "-linkmode=external -extldflags '-static-pie ${extraExtldflags}' ${extraLdflags} -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP ${FRANKENPHP_VERSION} PHP ${LIBPHP_VERSION} go_durable_php' -X 'main.version=$VERSION'" -o "dist/${bin}" durable_php
 
 if [ -d "${EMBED}" ]; then
   truncate -s 0 app.tar
