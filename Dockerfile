@@ -107,7 +107,7 @@ ENV GOBIN=/usr/local/bin
 RUN go get durable_php
 #RUN go test ./...
 
-RUN go install --tags nowatcher -ldflags "-w -s -X 'main.version=$VERSION'"
+RUN  CGO_CFLAGS=$(php-config --includes) CGO_LDFLAGS="$(php-config --ldflags) $(php-config --libs)" go install --tags nowatcher -ldflags "-w -s -X 'main.version=$VERSION'"
 
 FROM common AS durable-php
 COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp
