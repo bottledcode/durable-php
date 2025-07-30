@@ -65,7 +65,7 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           cache-from: type=gha,scope=image
           cache-to: type=gha,mode=max,scope=image
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Build Test Image
         uses: docker/build-push-action@v6
         with:
