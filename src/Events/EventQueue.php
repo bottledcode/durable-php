@@ -28,9 +28,8 @@ use Amp\DeferredCancellation;
 use DateTimeImmutable;
 use Revolt\EventLoop;
 use SplQueue;
-use Withinboredom\Time\Seconds;
-use Withinboredom\Time\Time;
-use Withinboredom\Time\TimeUnit;
+use Withinboredom\Time;
+use Withinboredom\Time\Unit;
 
 use function Withinboredom\Time\Seconds;
 
@@ -101,8 +100,8 @@ class EventQueue
     public function enqueue(string $key, Event $event): void
     {
         $delay = $this->getDelay($event);
-        if ($delay->as(TimeUnit::Seconds) > 0) {
-            EventLoop::delay($delay->as(TimeUnit::Seconds), function () use ($key, $event): void {
+        if ($delay->as(Unit::Seconds) > 0) {
+            EventLoop::delay($delay->as(Unit::Seconds), function () use ($key, $event): void {
                 $this->enqueue($key, $event);
                 if ($this->cancellation !== null) {
                     $this->cancellation?->cancel();
@@ -134,7 +133,7 @@ class EventQueue
             $event = $event->getInnerEvent();
         }
 
-        return new Seconds(0);
+        return Seconds(0);
     }
 
     private function addKey(string $key): void

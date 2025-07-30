@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -23,19 +24,30 @@
 
 namespace Bottledcode\DurablePhp\Proxy;
 
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionParameter;
+
 class SpyProxy extends Generator
 {
-    protected function pureMethod(\ReflectionMethod $method): string
+    protected function pureMethod(ReflectionMethod $method, bool $isHook = false): string
     {
-        return $this->impureCall($method);
+        return $this->impureCall($method, $isHook);
     }
 
-    protected function impureCall(\ReflectionMethod $method): string
+    protected function impureCall(ReflectionMethod $method, bool $isHook = false): string
     {
-        $name = $method->getName();
+        if ($isHook && str_ends_with($method->getName(), 'get')) {
+            $name = 'get';
+        } elseif ($isHook && str_ends_with($method->getName(), 'set')) {
+            $name = 'set';
+        } else {
+            $name = $method->getName();
+        }
+
         $params = $method->getParameters();
         $params = array_map(
-            function (\ReflectionParameter $param) {
+            function (ReflectionParameter $param) {
                 $type = $param->getType();
                 if ($type !== null) {
                     $type = $this->getTypes($type);
@@ -49,29 +61,66 @@ class SpyProxy extends Generator
         $return = $method->getReturnType();
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
+        if ($isHook) {
+            $hookName = $method->getName();
+            if (str_ends_with($hookName, 'set')) {
+                $value = '[$value]';
+            } else {
+                $value = '[]';
+            }
+            $hookName = str_replace('$', '\$', $hookName);
+
+            return <<<EOT
+                {$name} {
+                  \$this->operation = "{$hookName}";
+                  \$this->arguments = {$value};
+                  throw new \Bottledcode\DurablePhp\Proxy\SpyException('do not call outside of context');
+                }
+                EOT;
+        }
+
         return <<<EOT
-public function {$name}({$params}){$return} {
-    \$this->operation = "{$name}";
-    \$this->arguments = func_get_args();
-    throw new \Exception('Not implemented');
-}
-EOT;
+            public function {$name}({$params}){$return} {
+                \$this->operation = "{$name}";
+                \$this->arguments = func_get_args();
+                throw new \Bottledcode\DurablePhp\Proxy\SpyException('do not call outside of context');
+            }
+            EOT;
     }
 
-    protected function getName(\ReflectionClass $class): string
+    protected function getName(ReflectionClass $class): string
     {
         return "__SpyProxy_{$class->getShortName()}";
     }
 
-    protected function impureSignal(\ReflectionMethod $method): string
+    protected function impureSignal(ReflectionMethod $method): string
     {
         return $this->impureCall($method);
     }
 
-    protected function preamble(\ReflectionClass $class): string
+    protected function preamble(ReflectionClass $class): string
     {
         return <<<'EOT'
-public function __construct(private string|null &$operation = null, private array|null &$arguments = null) {}
-EOT;
+            private string|null $operation {
+              get => $this->op;
+              set {
+                if ($this->op !== null) {
+                  throw new \LogicException('Can only send one signal at a time');
+                }
+                $this->op = $value;
+              }
+            }
+            private array|null $arguments {
+              get => $this->args;
+              set {
+                if ($this->args !== null) {
+                  throw new \LogicException('Can only send one signal at a time');
+                }
+                $this->args = $value;
+              }
+            }
+            
+            public function __construct(private string|null &$op = null, private array|null &$args = null) {}
+            EOT;
     }
 }

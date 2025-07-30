@@ -132,7 +132,7 @@ Here's an example showing a lock:
 
 ```php
 function orch(\Bottledcode\DurablePhp\OrchestrationContext $context): void {
-    $entityId = new \Bottledcode\DurablePhp\State\EntityId('myEntity', 'id');
+    $entityId = \Bottledcode\DurablePhp\EntityId('myEntity', 'id');
     $lock = $context->lockEntity($entityId);
     // from here-on, you have exclusive access to the entity
     $context->entityOp($entityId, fn($entity) => $entity->add(5));

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -52,6 +53,8 @@ use ReflectionFunction;
 use ReflectionIntersectionType;
 use ReflectionUnionType;
 
+use function Bottledcode\DurablePhp\OrchestrationInstance;
+
 class DummyOrchestrationContext implements OrchestrationContextInterface
 {
     /** @var array<ActivityMock> */
@@ -70,7 +73,15 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     public function __construct(public mixed $orchestration, private array $input)
     {
-        $this->status = new Status(new DateTimeImmutable(), '', SerializedArray::fromArray($input), StateId::fromInstance(new OrchestrationInstance('test', 'test')), new DateTimeImmutable(), null, RuntimeStatus::Running);
+        $this->status = new Status(
+            new DateTimeImmutable(),
+            '',
+            SerializedArray::fromArray($input),
+            StateId::fromInstance(OrchestrationInstance('test', 'test')),
+            new DateTimeImmutable(),
+            null,
+            RuntimeStatus::Running,
+        );
     }
 
     public function handleActivities(ActivityMock ...$activities): void
@@ -136,7 +147,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         }
 
         $name = $type->getName();
-        if (! interface_exists($name)) {
+        if (!interface_exists($name)) {
             throw new LogicException('Unable to load interface: ' . $name);
         }
 
@@ -156,7 +167,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
             throw new LogicException('Did not call an operation');
         }
 
-        $entityId = $id instanceof EntityId ? $id : new EntityId($name, $id);
+        $entityId = $id instanceof EntityId ? $id : EntityId($name, $id);
 
         if ($returns) {
             return $this->waitOne($this->callEntity($entityId, $operationName, $arguments));
@@ -177,8 +188,10 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         string $operation,
         array $args = [],
     ): DurableFuture {
-        return ($this->entities[$entityId->name] ?? throw new LogicException('Failed to find registered entity: ' . $entityId->name))
-            ->mock->{$operation}(...$args);
+        return ($this->entities[$entityId->name] ??
+            throw new LogicException('Failed to find registered entity: ' . $entityId->name))->mock->{$operation}(
+                ...$args,
+            );
     }
 
     public function signalEntity(
@@ -186,8 +199,10 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         string $operation,
         array $args = [],
     ): void {
-        ($this->entities[$entityId->name] ?? throw new LogicException('Failed to find registered entity: ' . $entityId->name))
-            ->mock->{$operation}(...$args);
+        ($this->entities[$entityId->name] ??
+            throw new LogicException('Failed to find registered entity: ' . $entityId->name))->mock->{$operation}(
+                ...$args,
+            );
     }
 
     public function isLockedOwned(EntityId $entityId): bool
@@ -294,13 +309,11 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         ?int $seconds = null,
         ?int $microseconds = null,
     ): DateInterval {
-        if (
-            empty(
-                array_filter(
-                    compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds'),
-                )
+        if (empty(
+            array_filter(
+                compact('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds', 'microseconds'),
             )
-        ) {
+        )) {
             throw new LogicException('At least one interval part must be specified');
         }
 
@@ -345,7 +358,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     {
         $results = [];
         foreach ($tasks as $task) {
-            if (! $task->future->isComplete()) {
+            if (!$task->future->isComplete()) {
                 throw new LogicException('Not all futures are completed');
             }
             $results[] = $task->getResult();
@@ -359,11 +372,11 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         ?EntityId $entityId = null,
     ): object {
         if ($entityId === null) {
-            $entityId = new EntityId($className, $this->newGuid());
+            $entityId = EntityId($className, $this->newGuid());
         }
 
         $class = new ReflectionClass($className);
-        if (! $class->isInterface()) {
+        if (!$class->isInterface()) {
             throw new LogicException('Only interfaces can be proxied');
         }
 

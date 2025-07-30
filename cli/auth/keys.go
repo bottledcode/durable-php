@@ -35,6 +35,11 @@ func DecorateContextWithUser(ctx context.Context, user *User) context.Context {
 	return context.WithValue(ctx, appcontext.CurrentUserKey, user)
 }
 
+func GetUserFromContext(ctx context.Context) *User {
+	user, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
+	return user
+}
+
 // ExtractUser extracts user information from the Authorization token in the HTTP request header.
 // It returns the user and a boolean indicating if the extraction was successful.
 //
@@ -109,13 +114,21 @@ func ExtractUser(r *http.Request, config *config.Config) (user *User, ok bool) {
 // The token is signed using the active secret key from the config.
 // The token will expire in 72 hours and is valid starting from 5 minutes ago.
 // Returns the signed token string or an error if the signing process fails.
-func CreateUser(userId UserId, role []Role, config *config.Config) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+func CreateUser(userId UserId, role []Role, claims map[string]interface{}, config *config.Config) (string, error) {
+	claimMap := jwt.MapClaims{
 		"sub":   userId,
 		"exp":   time.Now().Add(72 * time.Hour).Unix(),
 		"iat":   time.Now().Add(-5 * time.Minute).Unix(),
+		"nbf":   time.Now().Add(-5 * time.Minute).Unix(),
 		"roles": role,
-	})
+	}
+
+	for k, v := range claims {
+		k = strings.TrimSpace(k)
+		claimMap[k] = v
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claimMap)
 
 	key, err := getActiveKey(config)
 	if err != nil {

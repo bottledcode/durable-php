@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -25,14 +26,15 @@ namespace Bottledcode\DurablePhp\Gateway\Graph;
 
 use Bottledcode\DurablePhp\DurableClient;
 use Bottledcode\DurablePhp\SerializedArray;
-use Bottledcode\DurablePhp\State\EntityId;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use GraphQL\Error\DebugFlag;
 use GraphQL\Language\AST\TypeDefinitionNode;
 use GraphQL\Server\ServerConfig;
 use GraphQL\Server\StandardServer;
 use GraphQL\Utils\BuildSchema;
+
+use function Bottledcode\DurablePhp\EntityId;
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 require_once __DIR__ . '/../../Glue/autoload.php';
 
@@ -52,7 +54,7 @@ $client->withAuth(str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']));
 
 function getOrchestrationStatus(array $args, DurableClient $context): array
 {
-    $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
+    $id = OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
     if ($args['waitForCompletion'] ?? false) {
         $context->waitForCompletion($id);
     }
@@ -65,7 +67,7 @@ function getOrchestrationStatus(array $args, DurableClient $context): array
 
 function getEntitySnapshot(array $args, DurableClient $context): array
 {
-    $id = new EntityId($args['id']['name'], $args['id']['id']);
+    $id = EntityId($args['id']['name'], $args['id']['id']);
 
     return Serializer::serialize($context->getEntitySnapshot($id));
 }
@@ -90,7 +92,7 @@ function startOrchestration(array $args, DurableClient $context): array
 
 function raiseEvent(array $args, DurableClient $context): array
 {
-    $id = new OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
+    $id = OrchestrationInstance($args['id']['instance'], $args['id']['execution']);
     $arguments = array_map(
         static fn($x, $i) => ['key' => $i, ...$x],
         $args['arguments'],
@@ -104,7 +106,7 @@ function raiseEvent(array $args, DurableClient $context): array
 
 function signal(array $args, DurableClient $context): array
 {
-    $id = new EntityId($args['id']['name'], $args['id']['id']);
+    $id = EntityId($args['id']['name'], $args['id']['id']);
     $signal = $args['signal'];
     unset($args['id'], $args['signal']);
 

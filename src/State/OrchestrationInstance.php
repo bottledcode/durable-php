@@ -24,9 +24,19 @@
 
 namespace Bottledcode\DurablePhp\State;
 
-readonly class OrchestrationInstance implements \Stringable
+use Stringable;
+use Withinboredom\Record;
+
+readonly class OrchestrationInstance extends Record implements Stringable
 {
-    public function __construct(public string $instanceId, public string $executionId) {}
+    public protected(set) string $instanceId;
+
+    public protected(set) string $executionId;
+
+    public static function from(string $instanceId, string $executionId): static
+    {
+        return static::fromArgs(instanceId: $instanceId, executionId: $executionId);
+    }
 
     public function __toString(): string
     {

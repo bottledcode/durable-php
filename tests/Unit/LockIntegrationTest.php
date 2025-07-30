@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -24,14 +25,15 @@
 //namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\OrchestrationContext;
-use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
+
+use function Bottledcode\DurablePhp\EntityId;
 
 test('multilock example', function (): void {
     $instance = getOrchestration('test', function (OrchestrationContext $context) {
-        $lock = $context->lockEntity(new EntityId('test', 'test'));
+        $lock = $context->lockEntity(EntityId('test', 'test'));
         expect($lock->isLocked())->toBeTrue();
-        $result = $context->callEntity(new EntityId('test', 'test'), 'test');
+        $result = $context->callEntity(EntityId('test', 'test'), 'test');
         $result = $context->waitOne($result);
         expect($result)->toBe('hello world');
         $lock->unlock();
@@ -39,12 +41,14 @@ test('multilock example', function (): void {
 
         return $result;
     }, [], $nextEvent);
-    $entity = getEntityHistory(new class () extends EntityState {
-        public function test()
-        {
-            return 'hello world';
-        }
-    });
+    $entity = getEntityHistory(
+        new class extends EntityState {
+            public function test()
+            {
+                return 'hello world';
+            }
+        },
+    );
 
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     $instance->resetState();

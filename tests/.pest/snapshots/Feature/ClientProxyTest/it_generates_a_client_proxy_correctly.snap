@@ -1,0 +1,22 @@
+
+
+class __ClientProxy_orchProxy implements orchProxy {
+  public function __construct(private mixed $source) {}
+  public string $prop {
+get {
+   throw new Bottledcode\DurablePhp\Proxy\ImpureException();
+}
+set {
+  $this->source->__setProp($value);
+}
+}
+  public function callExample(): string {
+    throw new Bottledcode\DurablePhp\Proxy\ImpureException();
+}
+public function signalExample(int $a): void {
+    throw new Bottledcode\DurablePhp\Proxy\ImpureException();
+}
+public function pureExample(int|float $number): string {
+    return $this->source->pureExample(...func_get_args());
+}
+}

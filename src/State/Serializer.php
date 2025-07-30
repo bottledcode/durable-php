@@ -38,11 +38,7 @@ abstract class Serializer
             return self::get()->serialize($value, 'array', scopes: $scopes);
         }
         if (is_array($value)) {
-            $result = [];
-            foreach ($value as $k => $v) {
-                $result[$k] = self::serialize($v, $scopes);
-            }
-            return $result;
+            return array_map(static fn($v) => self::serialize($v, $scopes), $value);
         }
         if (is_scalar($value) || $value === null) {
             return compact('value');
@@ -53,13 +49,13 @@ abstract class Serializer
 
     public static function get(): Serde
     {
-        return self::$serializer ??= new SerdeCommon();
+        return self::$serializer ??= new SerdeCommon(handlers: [new Exporter()]);
     }
 
     /**
      * @template T
-     * @param array $value
-     * @param class-string<T> $type
+     *
+     * @param  class-string<T>  $type
      * @return T
      */
     public static function deserialize(array $value, string $type): mixed

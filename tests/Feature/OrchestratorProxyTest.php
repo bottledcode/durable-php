@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -25,11 +26,17 @@ use Amp\DeferredFuture;
 use Bottledcode\DurablePhp\DurableFuture;
 use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\Pure;
-use Bottledcode\DurablePhp\State\EntityId;
 
-if (! interface_exists(orchProxy::class)) {
+use function Bottledcode\DurablePhp\EntityId;
+
+if (!interface_exists(orchProxy::class)) {
     interface orchProxy
     {
+        public string $prop {
+            get;
+            set;
+        }
+
         public function callExample(): string;
 
         public function signalExample(int $a): void;
@@ -42,24 +49,7 @@ if (! interface_exists(orchProxy::class)) {
 it('generates a proxy correctly', function (): void {
     $generator = new OrchestratorProxy();
     $proxy = $generator->generate(orchProxy::class);
-    expect($proxy)->toBe(
-        <<<'EOT'
-
-
-class __OrchestratorProxy_orchProxy implements orchProxy {
-  public function __construct(private \Bottledcode\DurablePhp\OrchestrationContextInterface $context, private \Bottledcode\DurablePhp\State\EntityId $id) {}
-  public function callExample(): string {
-    return $this->context->waitOne($this->context->callEntity($this->id, "callExample", func_get_args()));
-}
-public function signalExample(int $a): void {
-    $this->context->signalEntity($this->id, "signalExample", func_get_args());
-}
-public function pureExample(int|float $number): string {
-    return $this->context->waitOne($this->context->callEntity($this->id, "pureExample", func_get_args()));
-}
-}
-EOT,
-    );
+    expect($proxy)->toMatchSnapshot();
 });
 
 it('actually works', function (): void {
@@ -71,9 +61,8 @@ it('actually works', function (): void {
         new DurableFuture(new DeferredFuture()),
     );
     $context->shouldReceive('signalEntity')->andReturn('signal');
-    $proxy = new __OrchestratorProxy_orchProxy($context, new EntityId('test', 'test'));
+    $proxy = new __OrchestratorProxy_orchProxy($context, EntityId('test', 'test'));
 
-    expect($proxy->callExample())->toBe('waited')
-        ->and($proxy->pureExample(1))->toBe('waited')
-        ->and($proxy->signalExample(1))->toBe(null);
+    expect($proxy->callExample())
+        ->toBe('waited')->and($proxy->pureExample(1))->toBe('waited')->and($proxy->signalExample(1))->toBe(null);
 });

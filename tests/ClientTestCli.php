@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2023 Robert Landers
  *
@@ -27,7 +28,7 @@ use Bottledcode\DurablePhp\Config\Config;
 use Bottledcode\DurablePhp\HelloSequence;
 use Bottledcode\DurablePhp\OrchestrationClient;
 use Ramsey\Uuid\Uuid;
-use Withinboredom\Time\TimeUnit;
+use Withinboredom\Time\Unit;
 
 use function Withinboredom\Time\Hours;
 
@@ -42,5 +43,5 @@ $orchestrationInstance = $client->startNew(
     Uuid::uuid7()->toString(),
 );
 $client->raiseEvent($orchestrationInstance, 'event', ['data']);
-$client->waitForCompletion($orchestrationInstance, new TimeoutCancellation(hours(2)->as(TimeUnit::Seconds)));
+$client->waitForCompletion($orchestrationInstance, new TimeoutCancellation(hours(2)->as(Unit::Seconds)));
 var_dump($client->getStatus($orchestrationInstance));

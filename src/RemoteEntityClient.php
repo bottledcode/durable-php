@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -25,6 +26,8 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Proxy\SpyException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
@@ -36,7 +39,6 @@ use Exception;
 use Generator;
 use Override;
 use ReflectionFunction;
-use Throwable;
 
 class RemoteEntityClient implements EntityClientInterface
 {
@@ -47,7 +49,7 @@ class RemoteEntityClient implements EntityClientInterface
         private HttpClient $client = new HttpClient(),
         private SpyProxy $spyProxy = new SpyProxy(),
     ) {
-        $this->apiHost = rtrim($this->apiHost, '/');
+        $this->apiHost = mb_rtrim($this->apiHost, '/');
     }
 
     #[Override]
@@ -56,7 +58,11 @@ class RemoteEntityClient implements EntityClientInterface
     #[Override]
     public function listEntities(EntityFilter $filter, int $page): Generator
     {
-        $req = new Request($this->apiHost . '/entities/filter/' . $page, 'POST', json_encode($filter, JSON_THROW_ON_ERROR));
+        $req = new Request(
+            $this->apiHost . '/entities/filter/' . $page,
+            'POST',
+            json_encode($filter, JSON_THROW_ON_ERROR),
+        );
         if ($this->userToken) {
             $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
         }
@@ -74,15 +80,24 @@ class RemoteEntityClient implements EntityClientInterface
             throw new Exception("Interface {$interfaceName} does not exist");
         }
         $spy = $this->spyProxy->define($interfaceName);
-        $operationName = '';
-        $arguments = [];
+        $operationName = null;
+        $arguments = null;
         try {
             $class = new $spy($operationName, $arguments);
             $signal($class);
-        } catch (Throwable) {
-            // spies always throw
+        } catch (SpyException) {
+            // we have completed the spy
         }
-        $this->signalEntity(is_string($entityId) ? new EntityId($interfaceName, $entityId) : $entityId, $operationName, $arguments);
+
+        if ($operationName === null || $arguments === null) {
+            return;
+        }
+
+        $this->signalEntity(
+            is_string($entityId) ? EntityId($interfaceName, $entityId) : $entityId,
+            $operationName,
+            $arguments,
+        );
     }
 
     #[Override]
@@ -147,6 +162,66 @@ class RemoteEntityClient implements EntityClientInterface
 
         if ($result->getStatus() !== 204) {
             throw new Exception('Failed to delete entity');
+        }
+    }
+
+    public function shareEntityOwnership(EntityId $id, string $with): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/share/{$with}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to share ownership');
+        }
+    }
+
+    public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/user/{$user}/{$operation->value}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/role/{$role}/{$operation->value}", 'PUT');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function revokeEntityAccessToUser(EntityId $id, string $user): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/user/{$user}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
+        }
+    }
+
+    public function revokeEntityAccessToRole(EntityId $id, string $role): void
+    {
+        $req = new Request("{$this->apiHost}/entity/{$id->name}/{$id->id}/grant/role/{$role}", 'DELETE');
+        if ($this->userToken) {
+            $req->setHeader('Authorization', 'Bearer ' . $this->userToken);
+        }
+        $result = $this->client->request($req);
+        if ($result->getStatus() !== 200) {
+            throw new Exception('Failed to grant access');
         }
     }
 }

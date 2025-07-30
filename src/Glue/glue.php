@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -39,7 +40,6 @@ use Bottledcode\DurablePhp\State\Attributes\TimeToLive;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Bottledcode\DurablePhp\Task;
@@ -57,7 +57,9 @@ use LogicException;
 use Ramsey\Uuid\Uuid;
 use ReflectionClass;
 use ReflectionFunction;
-use Withinboredom\Time\TimeUnit;
+use Withinboredom\Time\Unit;
+
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 require_once __DIR__ . '/autoload.php';
 
@@ -86,7 +88,7 @@ class Glue
         $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
         try {
             $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? 'null', true, 32, JSON_THROW_ON_ERROR);
-            if (!$provenance || $provenance === ['userId' => '', 'roles' => null]) {
+            if (! $provenance || $provenance === ['userId' => '', 'roles' => null]) {
                 $this->provenance = null;
             } else {
                 $provenance['roles'] ??= [];
@@ -100,7 +102,7 @@ class Glue
             $this->provenance = null;
         }
 
-        if (!file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
+        if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
             throw new LogicException('Unable to load payload');
         }
 
@@ -185,14 +187,14 @@ class Glue
     {
         // determine access level
 
-        echo 'EVENT~!~' . trim($event->toStream()) . "\n";
+        echo 'EVENT~!~' . mb_trim($event->toStream()) . "\n";
     }
 
     private function startOrchestration(): void
     {
-        if (!$this->target->toOrchestrationInstance()->executionId) {
+        if (! $this->target->toOrchestrationInstance()->executionId) {
             $this->target = StateId::fromInstance(
-                new OrchestrationInstance(
+                OrchestrationInstance(
                     $this->target->toOrchestrationInstance()->instanceId,
                     Uuid::uuid7()->toString(),
                 ),
@@ -202,8 +204,7 @@ class Glue
         header('X-Id: ' . $this->target->id);
         $input = SerializedArray::import($this->payload['input'])->toArray();
 
-        $event =
-            WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
+        $event = WithOrchestration::forInstance($this->target, StartExecution::asParent($input, []/* todo: scheduling */));
         $this->outputEvent(new EventDescription($event));
 
         $actualId = $this->target->toOrchestrationInstance();
@@ -320,7 +321,7 @@ class Glue
                         break;
                     case $attribute->getName() === TimeToLive::class:
                         /** @var TimeToLive $attribute */ $attribute = $attribute->newInstance();
-                        $permissions['ttl'] = $attribute->timeToLive()->as(TimeUnit::Nanoseconds);
+                        $permissions['ttl'] = $attribute->timeToLive()->as(Unit::Nanoseconds);
                         break;
                 }
             }

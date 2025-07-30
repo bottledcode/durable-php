@@ -59,15 +59,16 @@ use Bottledcode\DurablePhp\Proxy\OrchestratorProxy;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\AbstractHistory;
 use Bottledcode\DurablePhp\State\EntityHistory;
-use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationHistory;
-use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\RuntimeStatus;
 use Bottledcode\DurablePhp\State\Status;
 use Bottledcode\DurablePhp\Task;
 use DI\Container;
+
+use function Bottledcode\DurablePhp\EntityId;
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 $_SERVER['SERVER_PROTOCOL'] = 'DPHP/1.0';
 
@@ -77,7 +78,10 @@ expect()->extend('toHaveStatus', function (RuntimeStatus $status) {
     /** @var Status $otherStatus */
     $otherStatus = $this->value->getStatus();
 
-    return expect($otherStatus->runtimeStatus)->toBe($status, "Expected status {$status->name} but got {$otherStatus->runtimeStatus->name}");
+    return expect($otherStatus->runtimeStatus)->toBe(
+        $status,
+        "Expected status {$status->name} but got {$otherStatus->runtimeStatus->name}",
+    );
 });
 
 expect()->extend('toHaveOutput', fn(mixed $output) => expect(getStatusOutput($this->value))->toBe($output));
@@ -166,8 +170,8 @@ function processEvent(Event $event, Closure $processor): array
 function getEntityHistory(?EntityState $withState = null): EntityHistory
 {
     static $id = 0;
-    $withState ??= new class () extends EntityState {};
-    $entityId = new EntityId('test', $id++);
+    $withState ??= new class extends EntityState {};
+    $entityId = EntityId('test', $id++);
     $history = new EntityHistory(StateId::fromEntityId($entityId), new DurableLogger(), new Provenance('', []));
     $reflector = new ReflectionClass($history);
     $reflector->getProperty('state')->setValue($history, $withState);
@@ -196,7 +200,11 @@ function getOrchestration(
             $instance => $orchestration,
         ],
     );
-    $history = new OrchestrationHistory(StateId::fromInstance(new OrchestrationInstance($instance, $id)), new DurableLogger(), new Provenance('', []));
+    $history = new OrchestrationHistory(
+        StateId::fromInstance(OrchestrationInstance($instance, $id)),
+        new DurableLogger(),
+        new Provenance('', []),
+    );
     $history->setContainer($container);
     $startupEvent ??= StartExecution::asParent($input, []);
     $startupEvent = WithOrchestration::forInstance($history->id, $startupEvent);

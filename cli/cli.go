@@ -27,6 +27,7 @@ import (
 	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	di "durable_php/init"
 	"durable_php/lib"
 	"encoding/json"
@@ -44,7 +45,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/pprof"
 	"strings"
 	"sync"
 	"syscall"
@@ -91,14 +91,14 @@ func execute(args []string, options map[string]string) int {
 
 		defer os.RemoveAll(data)
 
-		profile, err := os.CreateTemp("", "")
-		if err != nil {
-			panic(err)
-		}
-		err = pprof.StartCPUProfile(profile)
-		if err != nil {
-			panic(err)
-		}
+		//profile, err := os.CreateTemp("", "")
+		//if err != nil {
+		//	panic(err)
+		//}
+		//err = pprof.StartCPUProfile(profile)
+		//if err != nil {
+		//	panic(err)
+		//}
 
 		go func() {
 			sigs := make(chan os.Signal, 1)
@@ -107,10 +107,10 @@ func execute(args []string, options map[string]string) int {
 
 			<-sigs
 
-			pprof.StopCPUProfile()
-			profile.Close()
+			//pprof.StopCPUProfile()
+			//profile.Close()
 
-			logger.Warn("Profile output", zap.String("Filename", profile.Name()))
+			//logger.Warn("Profile output", zap.String("Filename", profile.Name()))
 
 			os.RemoveAll(data)
 			os.Exit(0)
@@ -181,9 +181,9 @@ func execute(args []string, options map[string]string) int {
 		})
 
 		consumers := []string{
-			string(glue.Activity),
-			string(glue.Entity),
-			string(glue.Orchestration),
+			string(ids.Activity),
+			string(ids.Entity),
+			string(ids.Orchestration),
 		}
 
 		for _, kind := range consumers {
@@ -201,7 +201,7 @@ func execute(args []string, options map[string]string) int {
 		panic(err)
 	}
 
-	opts := []frankenphp.Option{frankenphp.WithNumThreads(runtime.NumCPU() * 2), frankenphp.WithLogger(logger)}
+	opts := []frankenphp.Option{frankenphp.WithNumThreads(runtime.NumCPU() * 2)}
 
 	if err := frankenphp.Init(opts...); err != nil {
 		panic(err)
@@ -212,30 +212,30 @@ func execute(args []string, options map[string]string) int {
 
 	if options["no-activities"] != "true" {
 		logger.Info("Starting activity consumer")
-		go lib.BuildConsumer(stream, ctx, cfg, glue.Activity, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, ids.Activity, logger, js, rm)
 	}
 
 	if options["no-entities"] != "true" {
 		logger.Info("Starting entity consumer")
-		go lib.BuildConsumer(stream, ctx, cfg, glue.Entity, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, ids.Entity, logger, js, rm)
 	}
 
 	if options["no-orchestrations"] != "true" {
 		logger.Info("Starting orchestration consumer")
-		go lib.BuildConsumer(stream, ctx, cfg, glue.Orchestration, logger, js, rm)
+		go lib.BuildConsumer(stream, ctx, cfg, ids.Orchestration, logger, js, rm)
 	}
 
 	if len(cfg.Extensions.Search.Collections) > 0 {
 		for _, collection := range cfg.Extensions.Search.Collections {
 			switch collection {
 			case "entities":
-				err := lib.IndexerListen(ctx, cfg, glue.Entity, js, logger)
+				err := lib.IndexerListen(ctx, cfg, ids.Entity, js, logger)
 				if err != nil {
 					cfg.Extensions.Search.Collections = []string{}
 					logger.Warn("Disabling search extension due to failing to connect to typesense")
 				}
 			case "orchestrations":
-				err := lib.IndexerListen(ctx, cfg, glue.Orchestration, js, logger)
+				err := lib.IndexerListen(ctx, cfg, ids.Orchestration, js, logger)
 				if err != nil {
 					cfg.Extensions.Search.Collections = []string{}
 					logger.Warn("Disabling search extension due to failing to connect to typesense")
@@ -452,13 +452,13 @@ func main() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var store glue.IdKind
+			var store ids.IdKind
 			switch args[0] {
-			case string(glue.Orchestration):
-				store = glue.Orchestration
+			case string(ids.Orchestration):
+				store = ids.Orchestration
 
 				if len(args) == 1 {
-					kv, err := js.KeyValue(ctx, string(glue.Orchestration))
+					kv, err := js.KeyValue(ctx, string(ids.Orchestration))
 					if err != nil {
 						fmt.Println("[]")
 						return 0
@@ -479,10 +479,10 @@ func main() {
 					fmt.Println(string(marshal))
 					return 0
 				}
-			case string(glue.Activity):
-				store = glue.Activity
-			case string(glue.Entity):
-				store = glue.Entity
+			case string(ids.Activity):
+				store = ids.Activity
+			case string(ids.Entity):
+				store = ids.Entity
 			default:
 				panic(fmt.Errorf("invalid type: %s", args[0]))
 			}
@@ -503,14 +503,14 @@ func main() {
 				return 0
 			}
 
-			var id *glue.StateId
+			var id *ids.StateId
 			switch store {
-			case glue.Entity:
+			case ids.Entity:
 				fallthrough
-			case glue.Orchestration:
-				id = glue.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
-			case glue.Activity:
-				id = glue.ParseStateId(fmt.Sprintf("%s:%s", string(glue.Activity), args[0]))
+			case ids.Orchestration:
+				id = ids.ParseStateId(fmt.Sprintf("%s:%s:%s", string(store), args[1], args[2]))
+			case ids.Activity:
+				id = ids.ParseStateId(fmt.Sprintf("%s:%s", string(ids.Activity), args[0]))
 			}
 
 			ctx, cancel = context.WithCancel(ctx)
@@ -530,6 +530,8 @@ func main() {
 	createUser := cli.NewCommand("create-user", "Create a new user").
 		WithArg(cli.NewArg("id", "The user id to assign to the user").WithType(cli.TypeString)).
 		WithOption(cli.NewOption("admin", "Create the user as an admin").WithType(cli.TypeBool)).
+		WithOption(cli.NewOption("roles", "Create with the roles").WithType(cli.TypeString).WithChar('r')).
+		WithOption(cli.NewOption("claims", "Create with the claims as key:value;key:value").WithType(cli.TypeString).WithChar('c')).
 		WithAction(func(args []string, options map[string]string) int {
 			cfg, err := config.GetProjectConfig()
 			if err != nil {
@@ -541,7 +543,28 @@ func main() {
 				rol = append(rol, "admin")
 			}
 
-			user, err := auth.CreateUser(auth.UserId(args[0]), rol, cfg)
+			roles := strings.Split(options["roles"], ",")
+			for _, role := range roles {
+				rol = append(rol, auth.Role(role))
+			}
+
+			extraClaims := make(map[string]interface{})
+			if options["claims"] != "" {
+				claims := strings.Split(options["claims"], ";")
+				for _, claim := range claims {
+					kv := strings.Split(claim, ":")
+					if len(kv) != 2 {
+						panic(fmt.Errorf("invalid claim: %s", claim))
+					}
+					if strings.Contains(kv[1], ",") {
+						extraClaims[kv[0]] = strings.Split(strings.TrimSpace(kv[1]), ",")
+					} else {
+						extraClaims[kv[0]] = strings.TrimSpace(kv[1])
+					}
+				}
+			}
+
+			user, err := auth.CreateUser(auth.UserId(args[0]), rol, extraClaims, cfg)
 			if err != nil {
 				return 1
 			}

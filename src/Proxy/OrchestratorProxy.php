@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -29,14 +30,22 @@ use ReflectionParameter;
 
 class OrchestratorProxy extends Generator
 {
-    protected function pureMethod(ReflectionMethod $method): string
+    protected function pureMethod(ReflectionMethod $method, bool $isHook = false): string
     {
-        return $this->impureCall($method);
+        return $this->impureCall($method, $isHook);
     }
 
-    protected function impureCall(ReflectionMethod $method): string
+    protected function impureCall(ReflectionMethod $method, bool $isHook = false): string
     {
-        $name = $method->getName();
+        $getHook = 'return ';
+        if ($isHook && str_ends_with($method->getName(), 'get')) {
+            $name = 'get';
+        } elseif ($isHook && str_ends_with($method->getName(), 'set')) {
+            $name = 'set';
+            $getHook = '';
+        } else {
+            $name = $method->getName();
+        }
         $params = $method->getParameters();
         $params = array_map(
             function (ReflectionParameter $param) {
@@ -53,11 +62,26 @@ class OrchestratorProxy extends Generator
         $return = $method->getReturnType();
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
+        if ($isHook) {
+            $hookName = $method->getName();
+            if ($getHook) {
+                $value = '[]';
+            } else {
+                $value = '[$value]';
+            }
+            $hookName = str_replace('$', '\$', $hookName);
+            return <<<EOT
+                {$name} {
+                  {$getHook}\$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$hookName}", {$value}));
+                }
+                EOT;
+        }
+
         return <<<EOT
-public function {$name}({$params}){$return} {
-    return \$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$method->getName()}", func_get_args()));
-}
-EOT;
+            public function {$name}({$params}){$return} {
+                return \$this->context->waitOne(\$this->context->callEntity(\$this->id, "{$method->getName()}", func_get_args()));
+            }
+            EOT;
     }
 
     protected function getName(ReflectionClass $class): string
@@ -85,16 +109,16 @@ EOT;
         $return = $return ? ": {$this->getTypes($return)}" : '';
 
         return <<<EOT
-public function {$name}({$params}){$return} {
-    \$this->context->signalEntity(\$this->id, "{$method->getName()}", func_get_args());
-}
-EOT;
+            public function {$name}({$params}){$return} {
+                \$this->context->signalEntity(\$this->id, "{$method->getName()}", func_get_args());
+            }
+            EOT;
     }
 
     protected function preamble(ReflectionClass $class): string
     {
         return <<<EOT
-public function __construct(private \Bottledcode\DurablePhp\OrchestrationContextInterface \$context, private \Bottledcode\DurablePhp\State\EntityId \$id) {}
-EOT;
+            public function __construct(private \Bottledcode\DurablePhp\OrchestrationContextInterface \$context, private \Bottledcode\DurablePhp\State\EntityId \$id) {}
+            EOT;
     }
 }

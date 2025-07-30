@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\EntityId;
 use Closure;
 use Crell\Serde\Attributes\ClassNameTypeMap;
@@ -112,4 +113,16 @@ interface EntityContextInterface
     public function delay(Closure $self, DateTimeInterface $until = new DateTimeImmutable()): void;
 
     public function currentUserId(): string;
+
+    public function shareOwnership(string $withUser): void;
+
+    public function grantUser(string $withUser, Operation ...$operation): void;
+
+    public function grantRole(string $withRole, Operation ...$operation): void;
+
+    public function revokeUser(string $user): void;
+
+    public function revokeRole(string $role): void;
+
+    public function giveOwnership(string $withUser): void;
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	"encoding/json"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
@@ -42,7 +43,7 @@ func StartBillingProcessor(ctx context.Context, config *config.Config, js jetstr
 		return err
 	}
 
-	maybeSendActivityBilling := func(id *glue.StateId) {
+	maybeSendActivityBilling := func(id *ids.StateId) {
 		started, err := activityTracker.Get(ctx, id.ToSubject().String()+"_start")
 		if err != nil {
 			return
@@ -87,9 +88,9 @@ func StartBillingProcessor(ctx context.Context, config *config.Config, js jetstr
 	consume, err := consumer.Consume(func(msg jetstream.Msg) {
 		targetType := msg.Headers().Get(string(glue.HeaderTargetType))
 		eventType := msg.Headers().Get(string(glue.HeaderEventType))
-		id := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
 		nowBytes := []byte(msg.Headers().Get(string(glue.HeaderEmittedAt)))
-		emittedBy := glue.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
+		emittedBy := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
 
 		switch targetType {
 		case "Activity":

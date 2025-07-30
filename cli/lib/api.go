@@ -5,6 +5,7 @@ import (
 	"durable_php/auth"
 	"durable_php/config"
 	"durable_php/glue"
+	"durable_php/ids"
 	"encoding/json"
 	"fmt"
 	"github.com/dunglas/frankenphp"
@@ -101,7 +102,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		request, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestEnv(map[string]string{
 			"LOG_LEVEL": "DEBUG",
-		}), frankenphp.WithRequestLogger(logger))
+		}))
 		if err != nil {
 			logger.Error("Failed to serve request", zap.Error(err))
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
@@ -164,7 +165,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &glue.ActivityId{
+		id := &ids.ActivityId{
 			Id: vars["id"],
 		}
 		err := OutputStatus(ctx, writer, id.ToStateId(), js, logger)
@@ -255,10 +256,21 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	bootstrap := ctx.Value("bootstrap").(string)
 
-	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *glue.StateId, function glue.Method, headers http.Header) {
+	processReq := func(ctx context.Context, writer http.ResponseWriter, request *http.Request, id *ids.StateId, function glue.Method, headers http.Header) {
 		logger.Debug("Processing request to call function", zap.String("function", string(function)), zap.Any("Headers", headers))
 		ctx, cancel := context.WithCancel(context.WithValue(ctx, "bootstrap", bootstrap))
 		defer cancel()
+
+		rm := auth.GetResourceManager(ctx, js)
+		res, err := rm.DiscoverResource(ctx, id, logger, true)
+		if err != nil {
+			logger.Error("DiscoverResource", zap.Error(err))
+			panic(err)
+		}
+		if res != nil {
+			ac, _ := rm.ToAuthContext(ctx, res)
+			headers.Add("DPHP_AUTH_CONTEXT", string(ac))
+		}
 
 		msgs, stateFile, err, responseHeaders, deleteAfter := glue.FromApiRequest(ctx, request, function, logger, js, id, headers)
 		if err != nil {
@@ -315,6 +327,193 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 	}
 
+	// PUT /entity/{name}/{id}/share/{userid}: share ownership of the resource with another user
+	r.HandleFunc("/entity/{name}/{id}/share/{userid}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "PUT" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &ids.EntityId{
+			Name: strings.TrimSpace(vars["name"]),
+			Id:   strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		// verify the user is authorized to access the resource
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.Owner)
+		if done {
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "Not Found", http.StatusNotFound)
+			return
+		}
+
+		newUser := strings.TrimSpace(vars["userid"])
+
+		err = r.ShareOwnership(auth.UserId(newUser), auth.GetUserFromContext(ctx), true)
+		if err != nil {
+			logger.Error("Failed to share ownership", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("Shared ownership", zap.String("id", id.String()), zap.String("newUser", newUser))
+		http.Error(writer, "", http.StatusOK)
+	})
+
+	// PUT /entity/{name}/{id}/grant/{user}/{operation}
+	r.HandleFunc("/entity/{name}/{id}/grant/{type}/{user}/{operation}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "PUT" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &ids.EntityId{
+			Name: strings.TrimSpace(vars["name"]),
+			Id:   strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.SharePlus)
+		if done {
+			return
+		}
+
+		operation := auth.Owner
+		switch strings.ToLower(vars["operation"]) {
+		case "signal":
+			operation = auth.Signal
+			break
+		case "completion":
+			operation = auth.Completion
+			break
+		case "output":
+			operation = auth.Output
+		case "call":
+			operation = auth.Call
+		case "lock":
+			operation = auth.Lock
+		case "sharePlus":
+			operation = auth.SharePlus
+		case "shareMinus":
+			operation = auth.ShareMinus
+		default:
+			http.Error(writer, "", http.StatusBadRequest)
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "", http.StatusNotFound)
+			return
+		}
+
+		switch vars["type"] {
+		case "user":
+			err = r.GrantUser(auth.UserId(vars["user"]), operation, ctx)
+		case "role":
+			err = r.GrantRole(auth.Role(vars["user"]), operation, ctx)
+		}
+		if err != nil {
+			logger.Error("Failed to grant resource", zap.Error(err))
+			http.Error(writer, "", http.StatusForbidden)
+			return
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "", http.StatusInternalServerError)
+			return
+		}
+
+		http.Error(writer, "", http.StatusOK)
+	})
+
+	// DELETE /entity/{name}/{id}/grant/{type}/{user}
+	r.HandleFunc("/entity/{name}/{id}/grant/{type}/{user}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "DELETE" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &ids.EntityId{
+			Name: strings.TrimSpace(vars["name"]),
+			Id:   strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.ShareMinus)
+		if done {
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "", http.StatusNotFound)
+			return
+		}
+
+		switch vars["type"] {
+		case "user":
+			err = r.RevokeUser(auth.UserId(vars["user"]), ctx)
+		case "role":
+			err = r.RevokeRole(auth.Role(vars["user"]), ctx)
+		}
+		if err != nil {
+			logger.Error("Failed to revoke resource", zap.Error(err))
+			http.Error(writer, "", http.StatusForbidden)
+			return
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "", http.StatusInternalServerError)
+			return
+		}
+
+		http.Error(writer, "", http.StatusOK)
+	})
+
 	// GET /entity/{name}/{id}
 	// get an entity state and status
 	// PUT /entity/{name}/{id}
@@ -327,7 +526,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		vars := mux.Vars(request)
-		id := &glue.EntityId{
+		id := &ids.EntityId{
 			Name: strings.TrimSpace(vars["name"]),
 			Id:   strings.TrimSpace(vars["id"]),
 		}
@@ -443,7 +642,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  vars["name"],
 			ExecutionId: execId.String(),
 		}
@@ -454,6 +653,193 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		processReq(ctx, writer, request, id.ToStateId(), glue.StartOrchestration, make(http.Header))
+	})
+
+	// PUT /orchestration/{name}/{id}/share/{userid}: share ownership of the resource with another user
+	r.HandleFunc("/orchestration/{name}/{id}/share/{userid}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "PUT" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &ids.OrchestrationId{
+			InstanceId:  strings.TrimSpace(vars["name"]),
+			ExecutionId: strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		// verify the user is authorized to access the resource
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.Owner)
+		if done {
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "Not Found", http.StatusNotFound)
+			return
+		}
+
+		newUser := strings.TrimSpace(vars["userid"])
+
+		err = r.ShareOwnership(auth.UserId(newUser), auth.GetUserFromContext(ctx), true)
+		if err != nil {
+			logger.Error("Failed to share ownership", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("Shared ownership", zap.String("id", id.String()), zap.String("newUser", newUser))
+		http.Error(writer, "", http.StatusOK)
+	})
+
+	// PUT /orchestration/{name}/{id}/grant/{user}/{operation}
+	r.HandleFunc("/orchestration/{name}/{id}/grant/{type}/{user}/{operation}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "PUT" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &ids.OrchestrationId{
+			InstanceId:  strings.TrimSpace(vars["name"]),
+			ExecutionId: strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.SharePlus)
+		if done {
+			return
+		}
+
+		operation := auth.Owner
+		switch strings.ToLower(vars["operation"]) {
+		case "signal":
+			operation = auth.Signal
+			break
+		case "completion":
+			operation = auth.Completion
+			break
+		case "output":
+			operation = auth.Output
+		case "call":
+			operation = auth.Call
+		case "lock":
+			operation = auth.Lock
+		case "sharePlus":
+			operation = auth.SharePlus
+		case "shareMinus":
+			operation = auth.ShareMinus
+		default:
+			http.Error(writer, "", http.StatusBadRequest)
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "", http.StatusNotFound)
+			return
+		}
+
+		switch vars["type"] {
+		case "user":
+			err = r.GrantUser(auth.UserId(vars["user"]), operation, ctx)
+		case "role":
+			err = r.GrantRole(auth.Role(vars["user"]), operation, ctx)
+		}
+		if err != nil {
+			logger.Error("Failed to grant resource", zap.Error(err))
+			http.Error(writer, "", http.StatusForbidden)
+			return
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "", http.StatusInternalServerError)
+			return
+		}
+
+		http.Error(writer, "", http.StatusOK)
+	})
+
+	// DELETE /orchestration/{name}/{id}/grant/{type}/{user}
+	r.HandleFunc("/orchestration/{name}/{id}/grant/{type}/{user}", func(writer http.ResponseWriter, request *http.Request) {
+		if stop := handleCors(writer, request); stop {
+			return
+		}
+
+		if request.Method != "DELETE" {
+			http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := getCorrelationId(ctx, &request.Header, nil)
+		logRequest(logger, request, ctx)
+
+		vars := mux.Vars(request)
+		id := &ids.OrchestrationId{
+			InstanceId:  strings.TrimSpace(vars["name"]),
+			ExecutionId: strings.TrimSpace(vars["id"]),
+		}
+		stateId := id.ToStateId()
+
+		ctx, done := authorize(writer, request, config, ctx, rm, stateId, logger, true, auth.ShareMinus)
+		if done {
+			return
+		}
+
+		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		if err != nil {
+			logger.Error("Failed to discover resource", zap.Error(err))
+			http.Error(writer, "", http.StatusNotFound)
+			return
+		}
+
+		switch vars["type"] {
+		case "user":
+			err = r.RevokeUser(auth.UserId(vars["user"]), ctx)
+		case "role":
+			err = r.RevokeRole(auth.Role(vars["user"]), ctx)
+		}
+		if err != nil {
+			logger.Error("Failed to revoke resource", zap.Error(err))
+			http.Error(writer, "", http.StatusForbidden)
+			return
+		}
+
+		err = r.Update(ctx, logger)
+		if err != nil {
+			logger.Error("Failed to update resource", zap.Error(err))
+			http.Error(writer, "", http.StatusInternalServerError)
+			return
+		}
+
+		http.Error(writer, "", http.StatusOK)
 	})
 
 	// PUT /orchestration/{name}/{id}
@@ -471,7 +857,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  strings.TrimSpace(vars["name"]),
 			ExecutionId: strings.TrimSpace(vars["id"]),
 		}
@@ -537,7 +923,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			defer cancel()
 
 			bucket, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-				Bucket:      string(glue.Orchestration),
+				Bucket:      string(ids.Orchestration),
 				Description: "Holds orchestration state and history",
 				Compression: true,
 			})
@@ -560,7 +946,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 				logger.Debug("Got change!")
 				status, err := extractStatus(update.Value())
 				if err != nil {
-					http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+					http.Error(writer, "\"Internal Server Error\"", http.StatusInternalServerError)
 					return
 				}
 				if runtimeStatus, ok := status.(map[string]interface{})["runtimeStatus"].(string); ok {
@@ -602,7 +988,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
-		id := &glue.OrchestrationId{
+		id := &ids.OrchestrationId{
 			InstanceId:  vars["name"],
 			ExecutionId: vars["id"],
 		}
@@ -620,7 +1006,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 	})
 
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		logger.Warn("Unkown endpoint")
+		logger.Warn("Unknown endpoint")
 		ctx := getCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 	})
@@ -634,7 +1020,7 @@ func authorize(
 	config *config.Config,
 	ctx context.Context,
 	rm *auth.ResourceManager,
-	id *glue.StateId,
+	id *ids.StateId,
 	logger *zap.Logger,
 	preventCreation bool,
 	operation auth.Operation,
@@ -648,7 +1034,7 @@ func authorize(
 	}
 	resource, err := rm.DiscoverResource(ctx, id, logger, preventCreation)
 	if err != nil {
-		logger.Warn("User attempted to create new resource not authorized to create", zap.Any("id", id.String()), zap.Error(err))
+		logger.Warn("User attempted to create new resource not authorized to create", zap.Any("id", id.String()), zap.Any("user", auth.GetUserFromContext(ctx)), zap.Error(err))
 		http.Error(writer, "Not Authorized", http.StatusForbidden)
 		return nil, true
 	}
@@ -704,7 +1090,7 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 			continue
 		}
 
-		id := glue.ParseStateId(activity.Headers.Get(string(glue.HeaderStateId)))
+		id := ids.ParseStateId(activity.Headers.Get(string(glue.HeaderStateId)))
 		t := id.String()
 		parts := strings.Split(t, ":")[1:]
 		names = append(names, parts)
@@ -716,7 +1102,7 @@ func OutputList(writer http.ResponseWriter, store jetstream.ObjectStore) {
 	}
 }
 
-func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *glue.StateId, stream jetstream.JetStream, logger *zap.Logger) error {
+func OutputStatus(ctx context.Context, writer http.ResponseWriter, id *ids.StateId, stream jetstream.JetStream, logger *zap.Logger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stateFile, _ := glue.GetStateFile(id, stream, ctx, logger)

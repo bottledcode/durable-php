@@ -34,11 +34,17 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 use Exception;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
+use RuntimeException;
+use Stringable;
+use Withinboredom\Record;
+
+use function Bottledcode\DurablePhp\EntityId;
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 #[ClassNameTypeMap('__type')]
-readonly class StateId implements \Stringable
+readonly class StateId extends Record implements Stringable
 {
-    public function __construct(public string $id) {}
+    public protected(set) string $id;
 
     public static function fromState(StateInterface $state): self
     {
@@ -51,22 +57,23 @@ readonly class StateId implements \Stringable
 
     public static function fromInstance(OrchestrationInstance $instance): self
     {
-        return new self("orchestration:{$instance}");
+        return self::fromArgs(id: "orchestration:{$instance}");
     }
 
     public static function fromActivityId(UuidInterface|string $activityId): self
     {
-        return new self("activity:{$activityId}");
+        return self::fromArgs(id: "activity:{$activityId}");
     }
 
     public static function fromEntityId(EntityId $entityId): self
     {
-        return new self("entity:{$entityId}");
+        return self::fromArgs(id: "entity:{$entityId}");
     }
 
     public function toActivityId(): string
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['orchestration', $parts[1]] => throw new Exception('Cannot convert orchestration state to activity id'),
             ['activity', $parts[1]] => Uuid::fromString($parts[1])->toString(),
@@ -76,15 +83,16 @@ readonly class StateId implements \Stringable
 
     public static function fromString(string $id): self
     {
-        return new self($id);
+        return self::fromArgs(id: $id);
     }
 
     public function toOrchestrationInstance(): OrchestrationInstance
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to orchestration instance'),
-            ['orchestration', $parts[1], $parts[2]] => new OrchestrationInstance($parts[1], $parts[2]),
+            ['orchestration', $parts[1], $parts[2]] => OrchestrationInstance($parts[1], $parts[2]),
             ['entity', $parts[1], $parts[2]] => throw new Exception(
                 'Cannot convert entity state to orchestration instance',
             ),
@@ -94,12 +102,13 @@ readonly class StateId implements \Stringable
     public function toEntityId(): EntityId
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['activity', $parts[1]] => throw new Exception('Cannot convert activity state to entity id'),
             ['orchestration', $parts[1], $parts[2]] => throw new Exception(
                 'Cannot convert orchestration state to entity id',
             ),
-            ['entity', $parts[1], $parts[2]] => new EntityId($parts[1], $parts[2]),
+            ['entity', $parts[1], $parts[2]] => EntityId($parts[1], $parts[2]),
         };
     }
 
@@ -114,6 +123,7 @@ readonly class StateId implements \Stringable
     public function getStateType(): string
     {
         $parts = explode(':', $this->id, 3);
+
         return match ($parts) {
             ['activity', $parts[1]] => ActivityHistory::class,
             ['orchestration', $parts[1], $parts[2]] => OrchestrationHistory::class,
@@ -121,7 +131,7 @@ readonly class StateId implements \Stringable
         };
     }
 
-    public function getPartitionKey(int $totalPartitions): int|null
+    public function getPartitionKey(int $totalPartitions): ?int
     {
         return match ($this->isPartitioned()) {
             true => crc32($this->id) % $totalPartitions,
@@ -162,7 +172,7 @@ readonly class StateId implements \Stringable
             return self::fromActivityId($id);
         }
 
-        throw new \RuntimeException("Cannot convert {$id} to StateId");
+        throw new RuntimeException("Cannot convert {$id} to StateId");
     }
 
     public function __toString(): string

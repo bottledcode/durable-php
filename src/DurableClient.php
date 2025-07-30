@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -24,6 +25,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClientBuilder;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -140,5 +142,55 @@ final readonly class DurableClient implements DurableClientInterface
     public function deleteEntity(EntityId $entityId): void
     {
         $this->entityClient->deleteEntity($entityId);
+    }
+
+    public function shareEntityOwnership(EntityId $id, string $with): void
+    {
+        $this->entityClient->shareEntityOwnership($id, $with);
+    }
+
+    public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void
+    {
+        $this->entityClient->grantEntityAccessToUser($id, $user, $operation);
+    }
+
+    public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void
+    {
+        $this->entityClient->grantEntityAccessToRole($id, $role, $operation);
+    }
+
+    public function revokeEntityAccessToUser(EntityId $id, string $user): void
+    {
+        $this->entityClient->revokeEntityAccessToUser($id, $user);
+    }
+
+    public function revokeEntityAccessToRole(EntityId $id, string $role): void
+    {
+        $this->entityClient->revokeEntityAccessToRole($id, $role);
+    }
+
+    public function shareOrchestrationOwnership(OrchestrationInstance $id, string $with): void
+    {
+        $this->orchestrationClient->shareOrchestrationOwnership($id, $with);
+    }
+
+    public function grantOrchestrationAccessToUser(OrchestrationInstance $id, string $user, Operation $operation): void
+    {
+        $this->orchestrationClient->grantOrchestrationAccessToUser($id, $user, $operation);
+    }
+
+    public function grantOrchestrationAccessToRole(OrchestrationInstance $id, string $role, Operation $operation): void
+    {
+        $this->orchestrationClient->grantOrchestrationAccessToRole($id, $role, $operation);
+    }
+
+    public function revokeOrchestrationAccessToUser(OrchestrationInstance $id, string $user): void
+    {
+        $this->orchestrationClient->revokeOrchestrationAccessToUser($id, $user);
+    }
+
+    public function revokeOrchestrationAccessToRole(OrchestrationInstance $id, string $role): void
+    {
+        $this->orchestrationClient->revokeOrchestrationAccessToRole($id, $role);
     }
 }

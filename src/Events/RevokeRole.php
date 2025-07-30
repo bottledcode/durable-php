@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -30,18 +31,18 @@ use Ramsey\Uuid\Uuid;
 #[NeedsTarget(Operation::ShareMinus)]
 class RevokeRole extends Event implements External
 {
-    private function __construct(public string $role, public Operation|null $operation)
+    private function __construct(public string $role, public ?Operation $operation)
     {
         parent::__construct(Uuid::uuid7());
     }
 
-    public function Completely(string $role): self
+    public static function completely(string $role): self
     {
         return new self($role, null);
     }
 
     public function __toString()
     {
-        return sprintf('Revoke(role: %s)', $this->role, );
+        return sprintf('Revoke(role: %s)', $this->role);
     }
 }

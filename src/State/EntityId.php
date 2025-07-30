@@ -25,17 +25,24 @@
 namespace Bottledcode\DurablePhp\State;
 
 use Stringable;
+use Withinboredom\Record;
 
 /**
  * @template T
  */
-readonly class EntityId implements Stringable
+readonly class EntityId extends Record implements Stringable
 {
+    public protected(set) string $name;
+
+    public protected(set) string $id;
+
     /**
-     * @param class-string<T> $name
-     * @param string $id
+     * @param  class-string<T>  $name
      */
-    public function __construct(public string $name, public string $id) {}
+    public static function from(string $name, string $id): static
+    {
+        return self::fromArgs(name: $name, id: $id);
+    }
 
     public function __toString(): string
     {

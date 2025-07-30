@@ -25,7 +25,8 @@
 namespace Bottledcode\DurablePhp\Tests\PerformanceTests\Bank;
 
 use Bottledcode\DurablePhp\OrchestrationContextInterface;
-use Bottledcode\DurablePhp\State\EntityId;
+
+use function Bottledcode\DurablePhp\EntityId;
 
 class BankTransaction
 {
@@ -36,13 +37,13 @@ class BankTransaction
 
         // generate the source account
         $sourceId = "src{$target}";
-        $sourceEntity = new EntityId(Account::class, $sourceId);
+        $sourceEntity = EntityId(Account::class, $sourceId);
 
         // generate the destination account
         $destinationId = "dst{$target}";
-        $destinationEntity = new EntityId(Account::class, $destinationId);
+        $destinationEntity = EntityId(Account::class, $destinationId);
         $feeId = "fee{$target}";
-        $feeEntity = new EntityId(Account::class, $feeId);
+        $feeEntity = EntityId(Account::class, $feeId);
 
         // the amount to transfer
         $transferAmount = 1000;

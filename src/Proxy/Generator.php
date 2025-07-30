@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -23,6 +24,12 @@
 
 namespace Bottledcode\DurablePhp\Proxy;
 
+use PropertyHookType;
+use ReflectionClass;
+use ReflectionIntersectionType;
+use ReflectionMethod;
+use ReflectionNamedType;
+use ReflectionProperty;
 use ReflectionUnionType;
 
 abstract class Generator
@@ -31,7 +38,7 @@ abstract class Generator
 
     public function define(string $interface): string
     {
-        $name = $this->getName($class = new \ReflectionClass($interface));
+        $name = $this->getName($class = new ReflectionClass($interface));
         $namespace = $this->getInterfaceNamespace($class);
         $cacheFile = null;
         if ($this->cacheDir) {
@@ -42,7 +49,7 @@ abstract class Generator
             }
         }
 
-        $reflection = new \ReflectionClass($interface);
+        $reflection = new ReflectionClass($interface);
         $fullname = $this->getInterfaceNamespace($reflection) . '\\' . $this->getName($reflection);
 
         if (!class_exists($fullname)) {
@@ -55,21 +62,21 @@ abstract class Generator
         return '\\' . $namespace . '\\' . $name;
     }
 
-    protected function getInterfaceNamespace(\ReflectionClass $class): string
+    abstract protected function getName(ReflectionClass $class): string;
+
+    protected function getInterfaceNamespace(ReflectionClass $class): string
     {
         return $class->getNamespaceName();
     }
 
-    abstract protected function getName(\ReflectionClass $class): string;
-
     public function generate(string $interface): string
     {
-        $reflection = new \ReflectionClass($interface);
+        $reflection = new ReflectionClass($interface);
         $methods = $reflection->getMethods();
         $namespace = $reflection->getNamespaceName();
         $className = $reflection->getShortName();
         $methods = array_map(
-            function (\ReflectionMethod $method) {
+            function (ReflectionMethod $method) {
                 if ($method->getAttributes(Pure::class)) {
                     return $this->pureMethod($method);
                 }
@@ -79,7 +86,7 @@ abstract class Generator
                 }
 
                 $return = $method->getReturnType();
-                if (($return instanceof \ReflectionNamedType) && $return->getName() === 'void') {
+                if (($return instanceof ReflectionNamedType) && $return->getName() === 'void') {
                     return $this->impureSignal($method);
                 }
 
@@ -89,42 +96,62 @@ abstract class Generator
         );
         $methods = implode("\n", $methods);
         $namespace = $namespace ? "namespace {$namespace};" : '';
-
+        $props = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $props = array_map(function (ReflectionProperty $prop) {
+            $hooks = ['public ' . $this->getTypes($prop->getType()) . ' $' . $prop->getName() . ' {'];
+            if ($hook = $prop->getHook(PropertyHookType::Get)) {
+                $hooks[] = $this->impureCall($hook, true);
+            }
+            if ($hook = $prop->getHook(PropertyHookType::Set)) {
+                $hooks[] = $this->pureMethod($hook, true);
+            }
+            $hooks[] = '}';
+            return implode(
+                "\n",
+                array_filter(
+                    $hooks,
+                    fn($hook) => $hook !== '',
+                ),
+            );
+        }, $props);
+        $props = implode("\n", $props);
         return <<<EOT
-{$namespace}
-
-class {$this->getName($reflection)} implements {$className} {
-  {$this->preamble($reflection)}
-  {$methods}
-}
-EOT;
+            {$namespace}
+            
+            class {$this->getName($reflection)} implements {$className} {
+              {$this->preamble($reflection)}
+              {$props}
+              {$methods}
+            }
+            EOT;
     }
 
-    abstract protected function pureMethod(\ReflectionMethod $method): string;
+    abstract protected function pureMethod(ReflectionMethod $method, bool $isHook = false): string;
 
-    abstract protected function impureSignal(\ReflectionMethod $method): string;
+    abstract protected function impureSignal(ReflectionMethod $method): string;
 
-    abstract protected function impureCall(\ReflectionMethod $method): string;
+    abstract protected function impureCall(ReflectionMethod $method, bool $isHook = false): string;
 
-    abstract protected function preamble(\ReflectionClass $class): string;
-
-    protected function getTypes(\ReflectionNamedType|ReflectionUnionType|\ReflectionIntersectionType|null $type): string
+    protected function getTypes(ReflectionNamedType|ReflectionUnionType|ReflectionIntersectionType|null $type): string
     {
-        if ($type instanceof \ReflectionNamedType) {
-            if($type->isBuiltin()) {
-                return $type->getName();
+        if ($type instanceof ReflectionNamedType) {
+            $nullable = $type->allowsNull() ? '?' : '';
+            if ($type->isBuiltin()) {
+                return $nullable . $type->getName();
             }
-            return '\\' . $type->getName();
+            return $nullable . '\\' . $type->getName();
         }
 
         if ($type instanceof ReflectionUnionType) {
             return implode('|', array_map($this->getTypes(...), $type->getTypes()));
         }
 
-        if ($type instanceof \ReflectionIntersectionType) {
+        if ($type instanceof ReflectionIntersectionType) {
             return implode('&', array_map($this->getTypes(...), $type->getTypes()));
         }
 
         return '';
     }
+
+    abstract protected function preamble(ReflectionClass $class): string;
 }

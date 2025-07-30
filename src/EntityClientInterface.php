@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -80,4 +81,14 @@ interface EntityClientInterface
      * Deletes an entity
      */
     public function deleteEntity(EntityId $entityId): void;
+
+    public function shareEntityOwnership(EntityId $id, string $with): void;
+
+    public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void;
+
+    public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void;
+
+    public function revokeEntityAccessToUser(EntityId $id, string $user): void;
+
+    public function revokeEntityAccessToRole(EntityId $id, string $role): void;
 }

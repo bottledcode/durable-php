@@ -1,5 +1,5 @@
-FROM golang:1.24.0-alpine AS golang-base
-FROM php:8.4.3-zts AS php-base
+FROM golang:1.24.5-alpine AS golang-base
+FROM php:8.4.10-zts AS php-base
 FROM golang-base AS cli-base-alpine
 
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
@@ -29,21 +29,21 @@ RUN apk update; \
 		m4 \
 		make \
 		pkgconfig \
-		php83 \
-		php83-common \
-		php83-ctype \
-		php83-curl \
-		php83-dom \
-		php83-mbstring \
-		php83-openssl \
-		php83-pcntl \
-		php83-phar \
-		php83-posix \
-		php83-session \
-		php83-sodium \
-		php83-tokenizer \
-		php83-xml \
-		php83-xmlwriter \
+		php84 \
+		php84-common \
+		php84-ctype \
+		php84-curl \
+		php84-dom \
+		php84-mbstring \
+		php84-openssl \
+		php84-pcntl \
+		php84-phar \
+		php84-posix \
+		php84-session \
+		php84-sodium \
+		php84-tokenizer \
+		php84-xml \
+		php84-xmlwriter \
 		upx \
 		wget \
 		xz ; \
@@ -54,6 +54,7 @@ ENV PHP_EXTENSIONS="apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,exif,fileinfo,fi
 ENV PHP_EXTENSION_LIBS="bzip2,freetype,libavif,libjpeg,libwebp,libzip"
 
 WORKDIR /go/src/app
+COPY .git /go/src/app/.git
 COPY cli/build-php.sh .
 RUN --mount=type=secret,id=github-token GITHUB_TOKEN=$(cat /run/secrets/github-token) BUILD=no ./build-php.sh
 RUN --mount=type=secret,id=github-token GITHUB_TOKEN=$(cat /run/secrets/github-token) ./build-php.sh
@@ -107,7 +108,7 @@ ENV GOBIN=/usr/local/bin
 RUN go get durable_php
 #RUN go test ./...
 
-RUN go install -ldflags "-w -s -X 'main.version=$VERSION'"
+RUN  CGO_CFLAGS=$(php-config --includes) CGO_LDFLAGS="$(php-config --ldflags) $(php-config --libs)" go install --tags nowatcher -ldflags "-w -s -X 'main.version=$VERSION'"
 
 FROM common AS durable-php
 COPY --from=builder /usr/local/bin/durable_php /usr/local/bin/dphp
