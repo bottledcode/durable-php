@@ -91,7 +91,7 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *ids.StateId,
 }
 
 func (r *ResourceManager) ToAuthContext(ctx context.Context, resource *Resource) ([]byte, error) {
-	var owners []map[string]interface{}
+	owners := []map[string]interface{}{}
 
 	for o, _ := range resource.Owners {
 		owners = append(owners, map[string]interface{}{
@@ -101,7 +101,7 @@ func (r *ResourceManager) ToAuthContext(ctx context.Context, resource *Resource)
 		})
 	}
 
-	var shares []map[string]interface{}
+	shares := []map[string]interface{}{}
 
 	for _, s := range resource.Shares {
 		if u, ok := s.(*UserShare); ok {

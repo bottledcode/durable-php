@@ -118,7 +118,7 @@ func CreateUser(userId UserId, role []Role, claims map[string]string, config *co
 	claimMap := jwt.MapClaims{
 		"sub":   userId,
 		"exp":   time.Now().Add(72 * time.Hour).Unix(),
-		"iat":   time.Now(),
+		"iat":   time.Now().Add(-5 * time.Minute).Unix(),
 		"nbf":   time.Now().Add(-5 * time.Minute).Unix(),
 		"roles": role,
 	}
