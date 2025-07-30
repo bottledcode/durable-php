@@ -37,12 +37,10 @@ class SpyProxy extends Generator
 
     protected function impureCall(ReflectionMethod $method, bool $isHook = false): string
     {
-        $getHook = true;
         if ($isHook && str_ends_with($method->getName(), 'get')) {
             $name = 'get';
         } elseif ($isHook && str_ends_with($method->getName(), 'set')) {
             $name = 'set';
-            $getHook = false;
         } else {
             $name = $method->getName();
         }
