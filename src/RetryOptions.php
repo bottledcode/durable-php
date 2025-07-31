@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -23,7 +24,7 @@
 
 namespace Bottledcode\DurablePhp;
 
-use Withinboredom\Time\Time;
+use Withinboredom\Time;
 
 use function Withinboredom\Time\Hours;
 
@@ -32,9 +33,9 @@ class RetryOptions
     public function __construct(
         public Time $firstRetryInterval,
         public int $maxNumberAttempts,
-        public Time|null $maxRetryInterval = null,
+        public ?Time $maxRetryInterval = null,
         public float $backoffCoefficient = 1.0,
-        public Time|null $retryTimeout = null,
+        public ?Time $retryTimeout = null,
     ) {
         $this->maxRetryInterval = Hours(1);
         $this->retryTimeout = Hours(1);
