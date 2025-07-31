@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -24,7 +25,7 @@
 namespace Bottledcode\DurablePhp\State\Attributes;
 
 use Attribute;
-use Withinboredom\Time\Time;
+use Withinboredom\Time;
 
 #[Attribute(Attribute::TARGET_CLASS)]
 readonly class TimeToLive
