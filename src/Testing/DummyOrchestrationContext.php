@@ -106,8 +106,9 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     public function callActivity(
         string $name,
-        array $args = [],
+        ?string $returnType = null,
         ?RetryOptions $retryOptions = null,
+        mixed ...$args,
     ): DurableFuture {
         $future = new DeferredFuture();
         if ($this->activities[$name] ?? false) {
@@ -118,7 +119,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
                 $future->complete($result);
             }
 
-            return new DurableFuture($future);
+            return new DurableFuture($future, $returnType);
         }
 
         throw new LogicException('Failed to find registered activity: ' . $name);
