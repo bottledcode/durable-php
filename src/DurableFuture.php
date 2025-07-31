@@ -25,6 +25,8 @@
 namespace Bottledcode\DurablePhp;
 
 use Amp\DeferredFuture;
+use Bottledcode\DurablePhp\State\Serializer;
+use LogicException;
 
 /**
  * @template T
@@ -32,9 +34,10 @@ use Amp\DeferredFuture;
 class DurableFuture
 {
     /**
-     * @param DeferredFuture<T> $future
+     * @param  DeferredFuture<T>  $future
+     * @param  class-string<T>|null  $resultType
      */
-    public function __construct(public readonly DeferredFuture $future) {}
+    public function __construct(public readonly DeferredFuture $future, public readonly ?string $resultType = null) {}
 
     /**
      * @return T
@@ -42,10 +45,14 @@ class DurableFuture
     public function getResult(): mixed
     {
         if ($this->future->isComplete()) {
-            return $this->future->getFuture()->await();
+            if ($this->resultType === null) {
+                return $this->future->getFuture()->await();
+            }
+
+            return Serializer::deserialize($this->future->getFuture()->await(), $this->resultType);
         }
 
-        throw new \LogicException('Future is not complete');
+        throw new LogicException('Future is not complete');
     }
 
     public function hasResult(): bool

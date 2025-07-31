@@ -41,11 +41,12 @@ interface OrchestrationContextInterface
      * @template T
      *
      * @param  string  $name  The name of the function to remotely invoke
-     * @param  array  $args  The arguments to pass to the function
+     * @param  class-string<T>|null  $returnType
      * @param  RetryOptions|null  $retryOptions  How to retry on failure
+     * @param  array  $args  The arguments to pass to the function
      * @return DurableFuture<T>
      */
-    public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture;
+    public function callActivity(string $name, ?string $returnType = null, ?RetryOptions $retryOptions = null, mixed ...$args): DurableFuture;
 
     /**
      * Calls an activity inline. There are no retries and exceptions will cause an immediate failure.
@@ -94,9 +95,9 @@ interface OrchestrationContextInterface
 
     public function callSubOrchestrator(
         string $name,
-        array $args = [],
         ?string $instanceId = null,
         ?RetryOptions $retryOptions = null,
+        mixed ...$args,
     ): DurableFuture;
 
     public function continueAsNew(array $args = []): never;
@@ -133,9 +134,10 @@ interface OrchestrationContextInterface
      *
      * @template T
      *
+     * @param  class-string<T>|null  $resultType
      * @return DurableFuture<T>
      */
-    public function waitForExternalEvent(string $name): DurableFuture;
+    public function waitForExternalEvent(string $name, ?string $resultType = null): DurableFuture;
 
     /**
      * Gets the current time in a deterministic way. (always the time the execution started)
@@ -190,11 +192,20 @@ interface OrchestrationContextInterface
 
     /**
      * Returns once all futures have completed.
+     *
+     * @template-covariant T
+     *
+     * @return array<DurableFuture<T>>
      */
     public function waitAll(DurableFuture ...$tasks): array;
 
     /**
      * Returns the result (or throws on failure) once a single future has completed.
+     *
+     * @template T
+     *
+     * @param  DurableFuture<T>  $task
+     * @return T
      */
     public function waitOne(DurableFuture $task): mixed;
 
