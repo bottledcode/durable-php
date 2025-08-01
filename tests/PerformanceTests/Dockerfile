@@ -1,4 +1,4 @@
-FROM php:8.3-zts
+FROM php:8.4-zts
 
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
 
