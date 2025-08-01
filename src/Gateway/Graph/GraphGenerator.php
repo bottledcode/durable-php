@@ -48,7 +48,7 @@ class GraphGenerator extends MetaParser
                     return $this->uses[$name] ?? $name;
                 }
 
-                private function extractValue(Node\Arg $arg): string|int|float
+                private function extractValue(Node\Arg $arg): float|int|string
                 {
                     $value = $arg->value;
                     return match (true) {
@@ -79,7 +79,7 @@ class GraphGenerator extends MetaParser
                 }
 
                 private function extractTypes(
-                    null|Node|Node\ComplexType|Node\Identifier|Node\Name|string $node,
+                    Node|Node\ComplexType|Node\Identifier|Node\Name|string|null $node,
                     bool $deuse = true,
                 ): string {
                     $uses = $deuse ? $this->deUse(...) : static fn($x) => $x;

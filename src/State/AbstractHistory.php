@@ -39,7 +39,7 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Psr\Container\ContainerInterface;
 
-abstract class AbstractHistory implements StateInterface, ApplyStateInterface
+abstract class AbstractHistory implements ApplyStateInterface, StateInterface
 {
     public Status|null $status = null;
     #[Field(exclude: true)]

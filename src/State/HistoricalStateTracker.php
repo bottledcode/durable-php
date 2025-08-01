@@ -145,7 +145,7 @@ class HistoricalStateTracker
      * @param TaskCompleted|TaskFailed $event
      * @return void
      */
-    public function receivedEvent(TaskCompleted|TaskFailed|RaiseEvent $event): void
+    public function receivedEvent(RaiseEvent|TaskCompleted|TaskFailed $event): void
     {
         // ok, we've received an event, so add it to the received list
         $received = new ReceivedSet($event);
@@ -182,7 +182,7 @@ class HistoricalStateTracker
         // now we hunt for unsolved futures
         foreach ($futures as $idx => $future) {
             // see if we have a match already
-            if($this->results[$this->getReadKey()] ?? false and $this->results[$this->getReadKey()]->match[$idx] ?? false) {
+            if ($this->results[$this->getReadKey()] ?? false and $this->results[$this->getReadKey()]->match[$idx] ?? false) {
                 continue;
             }
 
@@ -212,7 +212,7 @@ class HistoricalStateTracker
         $completedInOrder = [];
 
         if (array_key_exists($this->readKey, $this->results)) {
-            foreach($this->results[$this->readKey]->order as $idx) {
+            foreach ($this->results[$this->readKey]->order as $idx) {
                 /** @var DurableFuture $handler */
                 $handler = $futures[$idx];
                 $result = $this->results[$this->readKey]->match[$idx];
@@ -253,7 +253,7 @@ class HistoricalStateTracker
     public function isReading(): bool
     {
         $this->currentRead ??= 0;
-        if(++$this->currentRead > $this->readHead) {
+        if (++$this->currentRead > $this->readHead) {
             $this->readHead = $this->currentRead;
             return false;
         }

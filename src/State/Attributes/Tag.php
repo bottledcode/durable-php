@@ -11,7 +11,7 @@ abstract class Tag
         if ($name === null) {
             return;
         }
-        $this->name = trim($name);
+        $this->name = mb_trim($name);
 
         if (empty($this->name)) {
             throw new LogicException('Orchestration name must not be empty');

@@ -117,7 +117,7 @@ class TypeManager
             foreach ($mutationTypes as $type => $part) {
                 $lines = implode("\n\t", $part);
                 $typeType = explode(':', $type);
-                $typeType = trim(end($typeType));
+                $typeType = mb_trim(end($typeType));
                 $final[] = <<<QQL
                     type {$typeType} {
                     \t{$lines}
@@ -144,7 +144,7 @@ class TypeManager
             foreach ($queryTypes as $type => $part) {
                 $lines = implode("\n\t", $part);
                 $typeType = explode(':', $type);
-                $typeType = trim(end($typeType));
+                $typeType = mb_trim(end($typeType));
                 if ($this->knownTypes[$typeType] ?? false) {
                     $type =
                         str_replace($typeType, $this->lookupType($typeType)?->getGraphQlType(nullable: true), $type);
@@ -164,7 +164,7 @@ class TypeManager
                 GQL;
         }
 
-        return trim(implode("\n", array_filter($final))) . "\n";
+        return mb_trim(implode("\n", array_filter($final))) . "\n";
     }
 
     public function lookupType(string|Union $type): SchemaRendererInterface|null

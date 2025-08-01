@@ -76,7 +76,7 @@ interface OrchestrationContextInterface
      * @param  Closure(T): V  $operation
      * @return V
      */
-    public function entityOp(string|EntityId $id, Closure $operation): mixed;
+    public function entityOp(EntityId|string $id, Closure $operation): mixed;
 
     /**
      * Determines if an entity is locked. Returns true if the entity is locked.

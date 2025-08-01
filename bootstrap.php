@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -23,7 +24,7 @@
 
 // example bootstrap file
 
-return new class () implements \Psr\Container\ContainerInterface {
+return new class implements \Psr\Container\ContainerInterface {
     public function get(string $id)
     {
         return new $id();

@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -97,55 +98,55 @@ class DurableLogger implements LoggerInterface
     }
 
     #[\Override]
-    public function info(\Stringable|string $message, array $context = []): void
+    public function info(string|\Stringable $message, array $context = []): void
     {
         $this->logger->info($message, $context);
     }
 
     #[\Override]
-    public function error(\Stringable|string $message, array $context = []): void
+    public function error(string|\Stringable $message, array $context = []): void
     {
         $this->logger->error($message, $context);
     }
 
     #[\Override]
-    public function emergency(\Stringable|string $message, array $context = []): void
+    public function emergency(string|\Stringable $message, array $context = []): void
     {
         $this->logger->emergency($message, $context);
     }
 
     #[\Override]
-    public function alert(\Stringable|string $message, array $context = []): void
+    public function alert(string|\Stringable $message, array $context = []): void
     {
         $this->logger->alert($message, $context);
     }
 
     #[\Override]
-    public function critical(\Stringable|string $message, array $context = []): void
+    public function critical(string|\Stringable $message, array $context = []): void
     {
         $this->logger->critical($message, $context);
     }
 
     #[\Override]
-    public function warning(\Stringable|string $message, array $context = []): void
+    public function warning(string|\Stringable $message, array $context = []): void
     {
         $this->logger->warning($message, $context);
     }
 
     #[\Override]
-    public function notice(\Stringable|string $message, array $context = []): void
+    public function notice(string|\Stringable $message, array $context = []): void
     {
         $this->logger->notice($message, $context);
     }
 
     #[\Override]
-    public function debug(\Stringable|string $message, array $context = []): void
+    public function debug(string|\Stringable $message, array $context = []): void
     {
         $this->logger->debug($message, $context);
     }
 
     #[\Override]
-    public function log($level, \Stringable|string $message, array $context = []): void
+    public function log($level, string|\Stringable $message, array $context = []): void
     {
         $this->logger->log($level, $message, $context);
     }

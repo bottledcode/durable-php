@@ -288,7 +288,7 @@ class EntityHistory extends AbstractHistory
         $this->history[$event->eventId] = $this->debugHistory ? $event : $now;
         $this->history = array_filter(
             $this->history,
-            static fn(int|bool|Event $value) => is_int($value) ? $value > $cutoff : $value,
+            static fn(bool|Event|int $value) => is_int($value) ? $value > $cutoff : $value,
         );
         $this->status = $this->status->with(lastUpdated: MonotonicClock::current()->now());
 
