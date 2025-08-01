@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -33,11 +34,11 @@ class HelloSequence
     public function __invoke(OrchestrationContextInterface $context): array
     {
         $outputs = [
-            $context->callActivity(SayHello::class, ['Tokyo']),
-            $context->callActivity(SayHello::class, ['Seattle']),
-            $context->callActivity(SayHello::class, ['London']),
-            $context->callActivity(SayHello::class, ['Amsterdam']),
-            $context->callActivity(SayHello::class, ['Seoul']),
+            $context->callActivity(SayHello::class, null, null, 'Tokyo'),
+            $context->callActivity(SayHello::class, null, null, 'Seattle'),
+            $context->callActivity(SayHello::class, null, null, 'London'),
+            $context->callActivity(SayHello::class, null, null, 'Amsterdam'),
+            $context->callActivity(SayHello::class, null, null, 'Seoul'),
         ];
 
         return $context->waitAll(...$outputs);

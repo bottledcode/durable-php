@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -35,7 +36,7 @@ class Sequence
         $sequence = $context->getInput();
         $results = [];
         foreach ($sequence as $value) {
-            $results[] = $context->waitOne($context->callActivity(SayHello::class, ['name' => $value]));
+            $results[] = $context->waitOne($context->callActivity(SayHello::class, null, null, $value));
         }
 
         return $results;
