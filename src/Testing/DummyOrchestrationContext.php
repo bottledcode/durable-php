@@ -106,8 +106,9 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     public function callActivity(
         string $name,
-        array $args = [],
+        ?string $returnType = null,
         ?RetryOptions $retryOptions = null,
+        mixed ...$args,
     ): DurableFuture {
         $future = new DeferredFuture();
         if ($this->activities[$name] ?? false) {
@@ -118,7 +119,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
                 $future->complete($result);
             }
 
-            return new DurableFuture($future);
+            return new DurableFuture($future, $returnType);
         }
 
         throw new LogicException('Failed to find registered activity: ' . $name);
@@ -147,7 +148,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         }
 
         $name = $type->getName();
-        if (!interface_exists($name)) {
+        if (! interface_exists($name)) {
             throw new LogicException('Unable to load interface: ' . $name);
         }
 
@@ -230,9 +231,9 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
 
     public function callSubOrchestrator(
         string $name,
-        array $args = [],
         ?string $instanceId = null,
         ?RetryOptions $retryOptions = null,
+        mixed ...$args,
     ): DurableFuture {
         throw new LogicException('Not implemented');
     }
@@ -260,13 +261,13 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         $this->status = $this->status->with(customStatus: $customStatus);
     }
 
-    public function waitForExternalEvent(string $name): DurableFuture
+    public function waitForExternalEvent(string $name, ?string $resultType = null): DurableFuture
     {
         $future = new DeferredFuture();
         $value = $this->events[$name] ?? throw new LogicException('Event not found: ' . $name);
         $future->complete($value);
 
-        return new DurableFuture($future);
+        return new DurableFuture($future, $resultType);
     }
 
     public function getCurrentTime(): DateTimeImmutable
@@ -358,7 +359,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
     {
         $results = [];
         foreach ($tasks as $task) {
-            if (!$task->future->isComplete()) {
+            if (! $task->future->isComplete()) {
                 throw new LogicException('Not all futures are completed');
             }
             $results[] = $task->getResult();
@@ -376,7 +377,7 @@ class DummyOrchestrationContext implements OrchestrationContextInterface
         }
 
         $class = new ReflectionClass($className);
-        if (!$class->isInterface()) {
+        if (! $class->isInterface()) {
             throw new LogicException('Only interfaces can be proxied');
         }
 

@@ -70,19 +70,18 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     private int $randomKey = 0;
 
-    public function callActivity(string $name, array $args = [], ?RetryOptions $retryOptions = null): DurableFuture
+    public function callActivity(string $name, ?string $returnType = null, ?RetryOptions $retryOptions = null, mixed ...$args): DurableFuture
     {
         $this->durableLogger->debug('Calling activity', ['name' => $name]);
         $identity = $this->newGuid();
 
         return $this->createFuture(
-            fn()
-                => $this->taskController->fire(
-                    AwaitResult::forEvent(
-                        StateId::fromInstance($this->id),
-                        WithActivity::forEvent($identity, ScheduleTask::forName($name, $args)),
-                    ),
+            fn() => $this->taskController->fire(
+                AwaitResult::forEvent(
+                    StateId::fromInstance($this->id),
+                    WithActivity::forEvent($identity, ScheduleTask::forName($name, $args)),
                 ),
+            ),
             function (Event $event, string $eventIdentity) use ($identity): array {
                 if (($event instanceof TaskCompleted || $event instanceof TaskFailed) &&
                     $eventIdentity === $identity->toString()) {
@@ -92,6 +91,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 return [null, false];
             },
             $identity->toString(),
+            $returnType,
         );
     }
 
@@ -113,9 +113,10 @@ final class OrchestrationContext implements OrchestrationContextInterface
         Closure $onSent,
         Closure $onReceived,
         ?string $identity = null,
+        ?string $resultType = null,
     ): DurableFuture {
         $identity ??= $this->history->historicalTaskResults->getIdentity();
-        if (!$this->history->historicalTaskResults->hasSentIdentity($identity)) {
+        if (! $this->history->historicalTaskResults->hasSentIdentity($identity)) {
             $this->durableLogger->debug('Future requested for an unsent identity', [$identity]);
             [$eventId] = $onSent();
             $deferred = new DeferredFuture();
@@ -129,7 +130,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $this->durableLogger->debug('Future requested for a sent identity, processing future', [$identity]);
 
         $deferred = new DeferredFuture();
-        $future = new DurableFuture($deferred);
+        $future = new DurableFuture($deferred, $resultType);
         $this->history->historicalTaskResults->trackFuture($onReceived, $future);
 
         return $future;
@@ -177,9 +178,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function callSubOrchestrator(
         string $name,
-        array $args = [],
         ?string $instanceId = null,
         ?RetryOptions $retryOptions = null,
+        mixed ...$args,
     ): DurableFuture {
         throw new LogicException('Not implemented');
     }
@@ -214,13 +215,12 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $identity = sha1($fireAt->format('c'));
 
         return $this->createFuture(
-            fn()
-                => $this->taskController->fire(
-                    WithOrchestration::forInstance(
-                        StateId::fromInstance($this->id),
-                        WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity)),
-                    ),
+            fn() => $this->taskController->fire(
+                WithOrchestration::forInstance(
+                    StateId::fromInstance($this->id),
+                    WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity)),
                 ),
+            ),
             function (Event $event) use ($identity): array {
                 if ($event instanceof RaiseEvent && $event->eventName === $identity) {
                     return [$event, true];
@@ -236,10 +236,10 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return $this->history->historicalTaskResults->getCurrentTime();
     }
 
-    public function waitForExternalEvent(string $name): DurableFuture
+    public function waitForExternalEvent(string $name, ?string $resultType = null): DurableFuture
     {
         $this->durableLogger->debug('Waiting for external event', ['name' => $name]);
-        $future = new DurableFuture(new DeferredFuture());
+        $future = new DurableFuture(new DeferredFuture(), $resultType);
         $this->history->historicalTaskResults->trackFuture(function (Event $event) use ($name): array {
             $found = false;
             $result = null;
@@ -370,7 +370,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     public function lockEntity(EntityId ...$entityId): EntityLock
     {
         $this->durableLogger->debug('Locking entities', ['entityId' => $entityId]);
-        if (!empty($this->history->locks ?? []) && !$this->isReplaying()) {
+        if (! empty($this->history->locks ?? []) && ! $this->isReplaying()) {
             throw new LogicException('Cannot lock an entity while holding locks');
         }
 
@@ -447,7 +447,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
     /**
      * @template T
      *
-     * @param class-string<T> $className
+     * @param  class-string<T>  $className
      * @return T
      */
     public function createEntityProxy(string $className, ?EntityId $entityId = null): object
@@ -457,7 +457,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         }
 
         $class = new ReflectionClass($className);
-        if (!$class->isInterface()) {
+        if (! $class->isInterface()) {
             throw new LogicException('Only interfaces can be proxied');
         }
 
@@ -577,7 +577,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         }
 
         $name = $type->getName();
-        if (!interface_exists($name)) {
+        if (! interface_exists($name)) {
             throw new LogicException('Unable to load interface: ' . $name);
         }
 
