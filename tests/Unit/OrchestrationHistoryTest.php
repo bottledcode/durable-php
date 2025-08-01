@@ -196,7 +196,7 @@ it('can wait for a signal after starting (example)', function (): void {
 it('can call an activity with a successful result', function (): void {
     $instance = getOrchestration(
         'test',
-        fn(OrchestrationContext $context) => $context->waitOne($context->callActivity('test', ['hello world'])),
+        fn(OrchestrationContext $context) => $context->waitOne($context->callActivity('test', null, null, args: 'hello world')),
         [],
         $nextEvent,
     );
@@ -215,16 +215,14 @@ it('can call an activity with a successful result', function (): void {
 });
 
 it('can call an activity with a successful result (example)', function (): void {
-    $instance = fn(OrchestrationContextInterface $context)
-        => $context->waitOne($context->callActivity('test', ['hello world']));
+    $instance = fn(OrchestrationContextInterface $context) => $context->waitOne($context->callActivity('test', args: 'hello world'));
     $context = new DummyOrchestrationContext($instance, []);
     $context->handleActivities(new ActivityMock('test', 'pretty colors'));
     expect($instance($context))->toBe(['pretty colors']);
 });
 
 it('can call an activity with a failed result (example)', function (): void {
-    $instance = fn(OrchestrationContextInterface $context)
-        => $context->waitOne($context->callActivity('test', ['hello world']));
+    $instance = fn(OrchestrationContextInterface $context) => $context->waitOne($context->callActivity('test', args: 'hello world'));
     $context = new DummyOrchestrationContext($instance, []);
     $context->handleActivities(new ActivityMock('test', new Exception('hello world')));
     expect(fn() => $instance($context))->toThrow(Exception::class, 'hello world');
@@ -233,7 +231,7 @@ it('can call an activity with a failed result (example)', function (): void {
 it('can call an activity with a failed result', function (): void {
     $instance = getOrchestration(
         'test',
-        fn(OrchestrationContext $context) => $context->waitOne($context->callActivity('test', ['hello world'])),
+        fn(OrchestrationContext $context) => $context->waitOne($context->callActivity('test', args: 'hello world')),
         [],
         $nextEvent,
     );
