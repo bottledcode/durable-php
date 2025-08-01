@@ -178,9 +178,9 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     public function callSubOrchestrator(
         string $name,
-        array $args = [],
         ?string $instanceId = null,
         ?RetryOptions $retryOptions = null,
+        mixed ...$args,
     ): DurableFuture {
         throw new LogicException('Not implemented');
     }
