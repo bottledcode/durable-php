@@ -195,7 +195,7 @@ interface OrchestrationContextInterface
      *
      * @template-covariant T
      *
-     * @return array<DurableFuture<T>>
+     * @return array<T>
      */
     public function waitAll(DurableFuture ...$tasks): array;
 
