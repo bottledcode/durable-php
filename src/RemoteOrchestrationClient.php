@@ -35,7 +35,9 @@ use Bottledcode\DurablePhp\State\Serializer;
 use Bottledcode\DurablePhp\State\Status;
 use Exception;
 use Generator;
+use JsonException;
 use Override;
+use RuntimeException;
 use Withinboredom\Time\Unit;
 
 use function Withinboredom\Time\Hours;
@@ -94,7 +96,11 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
         while ($result->getBody()->isReadable()) {
             $body .= $result->getBody()->buffer();
         }
-        $result = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        try {
+            $result = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Failed to decode JSON: ' . $body, previous: $exception);
+        }
 
         return Serializer::deserialize($result, Status::class);
     }
