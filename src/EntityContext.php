@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp;
 
+use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\GiveOwnership;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\RevokeRole;
@@ -36,6 +37,7 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Events\WithFrom;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\Glue\Provenance;
@@ -59,6 +61,8 @@ class EntityContext implements EntityContextInterface
 {
     private static ?EntityContextInterface $current = null;
 
+    private readonly StateId $from;
+
     public function __construct(
         private readonly EntityId $id,
         private readonly string $operation,
@@ -72,6 +76,7 @@ class EntityContext implements EntityContextInterface
         private readonly Provenance $user,
     ) {
         self::$current = $this;
+        $this->from = StateId::fromEntityId($this->id);
     }
 
     public static function current(): static
@@ -112,14 +117,21 @@ class EntityContext implements EntityContextInterface
         array $input = [],
         ?DateTimeImmutable $scheduledTime = null,
     ): void {
-        $event = WithEntity::forInstance(
-            StateId::fromEntityId($entityId),
-            RaiseEvent::forOperation($operation, $input),
+        $event = $this->addFrom(
+            WithEntity::forInstance(
+                StateId::fromEntityId($entityId),
+                RaiseEvent::forOperation($operation, $input),
+            ),
         );
         if ($scheduledTime) {
             $event = WithDelay::forEvent($scheduledTime, $event);
         }
         $this->eventDispatcher->fire($event);
+    }
+
+    private function addFrom(Event $event): Event
+    {
+        return WithFrom::forEvent($this->from, $event);
     }
 
     public function getId(): EntityId
@@ -140,9 +152,11 @@ class EntityContext implements EntityContextInterface
 
         $instance = StateId::fromInstance(OrchestrationInstance($orchestration, $id));
         $this->eventDispatcher->fire(
-            WithOrchestration::forInstance(
-                $instance,
-                StartExecution::asParent($input, []),
+            $this->addFrom(
+                WithOrchestration::forInstance(
+                    $instance,
+                    StartExecution::asParent($input, []),
+                ),
             ),
         );
     }
@@ -184,9 +198,11 @@ class EntityContext implements EntityContextInterface
         DateTimeInterface $until = new DateTimeImmutable(),
     ): void {
         $this->eventDispatcher->fire(
-            WithDelay::forEvent(
-                $until,
-                WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args)),
+            $this->addFrom(
+                WithDelay::forEvent(
+                    $until,
+                    WithEntity::forInstance(StateId::fromEntityId($this->id), RaiseEvent::forOperation($operation, $args)),
+                ),
             ),
         );
     }
@@ -199,9 +215,11 @@ class EntityContext implements EntityContextInterface
     public function shareOwnership(string $withUser): void
     {
         $this->eventDispatcher->fire(
-            WithEntity::forInstance(
-                StateId::fromEntityId($this->id),
-                ShareOwnership::withUser($withUser),
+            $this->addFrom(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($this->id),
+                    ShareOwnership::withUser($withUser),
+                ),
             ),
         );
     }
@@ -209,9 +227,11 @@ class EntityContext implements EntityContextInterface
     public function giveOwnership(string $withUser): void
     {
         $this->eventDispatcher->fire(
-            WithEntity::forInstance(
-                StateId::fromEntityId($this->id),
-                GiveOwnership::withUser($withUser),
+            $this->addFrom(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($this->id),
+                    GiveOwnership::withUser($withUser),
+                ),
             ),
         );
     }
@@ -219,9 +239,11 @@ class EntityContext implements EntityContextInterface
     public function grantUser(string $withUser, Operation ...$operation): void
     {
         $this->eventDispatcher->fire(
-            WithEntity::forInstance(
-                StateId::fromEntityId($this->id),
-                ShareWithUser::For($withUser, ...$operation),
+            $this->addFrom(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($this->id),
+                    ShareWithUser::For($withUser, ...$operation),
+                ),
             ),
         );
     }
@@ -229,9 +251,11 @@ class EntityContext implements EntityContextInterface
     public function grantRole(string $withRole, Operation ...$operation): void
     {
         $this->eventDispatcher->fire(
-            WithEntity::forInstance(
-                StateId::fromEntityId($this->id),
-                ShareWithRole::For($withRole, ...$operation),
+            $this->addFrom(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($this->id),
+                    ShareWithRole::For($withRole, ...$operation),
+                ),
             ),
         );
     }
@@ -239,9 +263,11 @@ class EntityContext implements EntityContextInterface
     public function revokeUser(string $user): void
     {
         $this->eventDispatcher->fire(
-            WithEntity::forInstance(
-                StateId::fromEntityId($this->id),
-                RevokeUser::completely($user),
+            $this->addFrom(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($this->id),
+                    RevokeUser::completely($user),
+                ),
             ),
         );
     }
@@ -249,9 +275,11 @@ class EntityContext implements EntityContextInterface
     public function revokeRole(string $role): void
     {
         $this->eventDispatcher->fire(
-            WithEntity::forInstance(
-                StateId::fromEntityId($this->id),
-                RevokeRole::completely($role),
+            $this->addFrom(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($this->id),
+                    RevokeRole::completely($role),
+                ),
             ),
         );
     }

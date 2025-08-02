@@ -24,8 +24,11 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use Bottledcode\DurablePhp\Events\Shares\NeedsSource;
+use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Ramsey\Uuid\Uuid;
 
+#[NeedsSource(Operation::Owner)]
 class ShareOwnership extends Event implements External
 {
     private function __construct(public string $userId)
@@ -38,7 +41,7 @@ class ShareOwnership extends Event implements External
         return new self($userId);
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return sprintf('ShareOwnership(%s)', $this->userId);
     }
