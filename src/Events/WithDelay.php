@@ -31,7 +31,7 @@ class WithDelay extends Event implements HasInnerEventInterface
 {
     public function __construct(string $eventId, public DateTimeImmutable $fireAt, public Event $innerEvent)
     {
-        parent::__construct($this->innerEvent ?: Uuid::uuid7());
+        parent::__construct($this->innerEvent->eventId ?: Uuid::uuid7());
     }
 
     public static function forEvent(DateTimeImmutable $fireAt, Event $innerEvent): static
