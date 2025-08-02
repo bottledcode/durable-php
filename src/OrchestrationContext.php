@@ -71,6 +71,8 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     private int $randomKey = 0;
 
+    private StateId $from;
+
     public function callActivity(string $name, ?string $returnType = null, ?RetryOptions $retryOptions = null, mixed ...$args): DurableFuture
     {
         $this->durableLogger->debug('Calling activity', ['name' => $name]);
@@ -141,10 +143,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
     private function addFrom(Event $event): Event
     {
-        static $from = null;
-        $from ??= StateId::fromInstance($this->id);
-
-        return WithFrom::forEvent($from, $event);
+        return WithFrom::forEvent($this->from, $event);
     }
 
     public function callActivityInline(Closure $activity): DurableFuture
@@ -583,6 +582,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         private readonly Provenance $user,
     ) {
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
+        $this->from = StateId::fromInstance($this->id);
     }
 
     public function entityOp(EntityId|string $id, Closure $operation): mixed
