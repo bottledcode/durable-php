@@ -145,19 +145,19 @@ class MockExternalEvent extends Event implements External
 
 class MockWrapperEvent extends Event implements HasInnerEventInterface
 {
-    public function __construct(string $eventId = '', private Event $inner = new SimpleEvent())
+    public function __construct(string $eventId = '', public Event $innerEvent = new SimpleEvent())
     {
         parent::__construct($eventId ?: Uuid::uuid7()->toString());
     }
 
     public function getInnerEvent(): Event
     {
-        return $this->inner;
+        return $this->innerEvent;
     }
 
     public function __toString(): string
     {
-        return 'MockWrapperEvent(' . $this->inner . ')';
+        return 'MockWrapperEvent(' . $this->innerEvent . ')';
     }
 }
 

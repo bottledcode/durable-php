@@ -27,16 +27,26 @@ namespace Bottledcode\DurablePhp\Events;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Crell\fp\Evolvable;
 use Crell\Serde\Attributes\ClassNameTypeMap;
+use DateTimeImmutable;
 use Ramsey\Uuid\Uuid;
+use Stringable;
 
 #[ClassNameTypeMap(key: 'eventType')]
-abstract class Event implements \Stringable
+abstract class Event implements Stringable
 {
     use Evolvable;
 
-    public \DateTimeImmutable $timestamp;
+    public DateTimeImmutable $timestamp;
 
-    public function __construct(public string $eventId)
+    public function __construct(public string $eventId {
+        set(string $value) {
+            if ($this instanceof HasInnerEventInterface && ($this->innerEvent ?? null)) {
+                $this->innerEvent->eventId = $value;
+            }
+            $this->eventId = $value;
+        }
+        get => $this->eventId;
+    })
     {
         $this->eventId = $this->eventId ?: Uuid::uuid7();
         $this->timestamp = MonotonicClock::current()->now();

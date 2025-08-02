@@ -24,16 +24,17 @@
 
 namespace Bottledcode\DurablePhp\Events;
 
+use DateTimeImmutable;
 use Ramsey\Uuid\Uuid;
 
 class WithDelay extends Event implements HasInnerEventInterface
 {
-    public function __construct(string $eventId, public \DateTimeImmutable $fireAt, public Event $innerEvent)
+    public function __construct(string $eventId, public DateTimeImmutable $fireAt, public Event $innerEvent)
     {
         parent::__construct($this->innerEvent ?: Uuid::uuid7());
     }
 
-    public static function forEvent(\DateTimeImmutable $fireAt, Event $innerEvent): static
+    public static function forEvent(DateTimeImmutable $fireAt, Event $innerEvent): static
     {
         return new static(
             $innerEvent->eventId,
@@ -44,7 +45,6 @@ class WithDelay extends Event implements HasInnerEventInterface
 
     public function getInnerEvent(): Event
     {
-        $this->innerEvent->eventId = $this->eventId;
         return $this->innerEvent;
     }
 

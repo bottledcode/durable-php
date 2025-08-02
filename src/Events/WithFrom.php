@@ -6,7 +6,7 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class WithFrom extends Event implements HasInnerEventInterface
 {
-    public function __construct(string $eventId, public StateId $from, private readonly Event $innerEvent)
+    public function __construct(string $eventId, public StateId $from, public readonly Event $innerEvent)
     {
         parent::__construct($eventId);
     }

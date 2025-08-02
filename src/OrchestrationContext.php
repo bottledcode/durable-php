@@ -35,6 +35,7 @@ use Bottledcode\DurablePhp\Events\TaskFailed;
 use Bottledcode\DurablePhp\Events\WithActivity;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Events\WithFrom;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
@@ -77,9 +78,11 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
         return $this->createFuture(
             fn() => $this->taskController->fire(
-                AwaitResult::forEvent(
-                    StateId::fromInstance($this->id),
-                    WithActivity::forEvent($identity, ScheduleTask::forName($name, $args)),
+                $this->addFrom(
+                    AwaitResult::forEvent(
+                        StateId::fromInstance($this->id),
+                        WithActivity::forEvent($identity, ScheduleTask::forName($name, $args)),
+                    ),
                 ),
             ),
             function (Event $event, string $eventIdentity) use ($identity): array {
@@ -136,6 +139,14 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return $future;
     }
 
+    private function addFrom(Event $event): Event
+    {
+        static $from = null;
+        $from ??= StateId::fromInstance($this->id);
+
+        return WithFrom::forEvent($from, $event);
+    }
+
     public function callActivityInline(Closure $activity): DurableFuture
     {
         $identity = $this->newGuid();
@@ -144,22 +155,26 @@ final class OrchestrationContext implements OrchestrationContextInterface
             try {
                 $result = $activity();
                 $this->taskController->fire(
-                    WithOrchestration::forInstance(
-                        StateId::fromInstance($this->id),
-                        TaskCompleted::forId($identity->toString(), $result),
+                    $this->addFrom(
+                        WithOrchestration::forInstance(
+                            StateId::fromInstance($this->id),
+                            TaskCompleted::forId($identity->toString(), $result),
+                        ),
                     ),
                 );
 
                 return [$identity];
             } catch (Throwable $exception) {
                 $this->taskController->fire(
-                    WithOrchestration::forInstance(
-                        StateId::fromInstance($this->id),
-                        TaskFailed::forTask(
-                            $identity->toString(),
-                            $exception->getMessage(),
-                            $exception->getTraceAsString(),
-                            $exception::class,
+                    $this->addFrom(
+                        WithOrchestration::forInstance(
+                            StateId::fromInstance($this->id),
+                            TaskFailed::forTask(
+                                $identity->toString(),
+                                $exception->getMessage(),
+                                $exception->getTraceAsString(),
+                                $exception::class,
+                            ),
                         ),
                     ),
                 );
@@ -197,9 +212,11 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
         $this->history->restartAsNew($args);
         $this->taskController->fire(
-            WithOrchestration::forInstance(
-                StateId::fromInstance($this->id),
-                StartOrchestration::forInstance($this->id),
+            $this->addFrom(
+                WithOrchestration::forInstance(
+                    StateId::fromInstance($this->id),
+                    StartOrchestration::forInstance($this->id),
+                ),
             ),
         );
         throw new Unwind();
@@ -216,9 +233,11 @@ final class OrchestrationContext implements OrchestrationContextInterface
 
         return $this->createFuture(
             fn() => $this->taskController->fire(
-                WithOrchestration::forInstance(
-                    StateId::fromInstance($this->id),
-                    WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity)),
+                $this->addFrom(
+                    WithOrchestration::forInstance(
+                        StateId::fromInstance($this->id),
+                        WithDelay::forEvent($fireAt, RaiseEvent::forTimer($identity)),
+                    ),
                 ),
             ),
             function (Event $event) use ($identity): array {
@@ -385,7 +404,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         );
         $identity = $this->newGuid()->toString();
         $future = $this->createFuture(
-            fn() => $this->taskController->fire(WithLock::onEntity($owner, $event, ...$entityId)),
+            fn() => $this->taskController->fire($this->addFrom(WithLock::onEntity($owner, $event, ...$entityId))),
             fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
             $identity,
         );
@@ -396,9 +415,11 @@ final class OrchestrationContext implements OrchestrationContextInterface
         return new EntityLock(function () use ($owner): void {
             foreach ($this->history->locks as $lock) {
                 $this->taskController->fire(
-                    WithLock::onEntity(
-                        $owner,
-                        WithEntity::forInstance($lock, RaiseEvent::forUnlock($owner->id, null, null)),
+                    $this->addFrom(
+                        WithLock::onEntity(
+                            $owner,
+                            WithEntity::forInstance($lock, RaiseEvent::forUnlock($owner->id, null, null)),
+                        ),
                     ),
                 );
             }
@@ -624,7 +645,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $identity = $this->newGuid()->toString();
 
         return $this->createFuture(
-            fn() => $this->taskController->fire($event),
+            fn() => $this->taskController->fire($this->addFrom($event)),
             fn(Event $event, string $eventIdentity) => [$event, $identity === $eventIdentity],
             $identity,
         );
@@ -645,7 +666,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
             $event = WithLock::onEntity($id, $event);
         }
 
-        $this->taskController->fire($event);
+        $this->taskController->fire($this->addFrom($event));
     }
 
     public function getCurrentUserId(): string
