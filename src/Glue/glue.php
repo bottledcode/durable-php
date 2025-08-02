@@ -330,6 +330,7 @@ class Glue
                         $permissions['ttl'] = $attribute->timeToLive()->as(Unit::Nanoseconds);
                         break;
                     case $attribute->getName() === AllowCreateFrom::class:
+                        /** @var AllowCreateFrom $attribute */ $attribute = $attribute->newInstance();
                         if ($attribute->type) {
                             $permissions['from-type'][] = $attribute->type;
                         } else {
