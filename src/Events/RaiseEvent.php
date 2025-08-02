@@ -43,7 +43,7 @@ class RaiseEvent extends Event
 
     public static function forCustom(string $name, array $eventData): static
     {
-        return new static(Uuid::uuid7(), ltrim($name, '_'), $eventData);
+        return new static(Uuid::uuid7(), mb_ltrim($name, '_'), $eventData);
     }
 
     public static function forLock(string $owner): static

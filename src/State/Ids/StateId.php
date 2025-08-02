@@ -60,7 +60,7 @@ readonly class StateId extends Record implements Stringable
         return self::fromArgs(id: "orchestration:{$instance}");
     }
 
-    public static function fromActivityId(UuidInterface|string $activityId): self
+    public static function fromActivityId(string|UuidInterface $activityId): self
     {
         return self::fromArgs(id: "activity:{$activityId}");
     }
@@ -154,7 +154,7 @@ readonly class StateId extends Record implements Stringable
         return str_starts_with($this->id, 'orchestration:');
     }
 
-    public function __invoke(string|StateId|OrchestrationInstance|EntityId|UuidInterface $id): self
+    public function __invoke(EntityId|OrchestrationInstance|StateId|string|UuidInterface $id): self
     {
         if (is_string($id)) {
             return new self($id);

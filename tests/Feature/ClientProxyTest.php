@@ -39,7 +39,7 @@ if (!interface_exists(orchProxy::class)) {
         public function signalExample(int $a): void;
 
         #[Pure]
-        public function pureExample(int|float $number): string;
+        public function pureExample(float|int $number): string;
     }
 }
 
@@ -56,7 +56,7 @@ it('is actually callable', function (): void {
     $instance = new class {
         public string $prop = 'test';
 
-        public function pureExample(int|float $number): string
+        public function pureExample(float|int $number): string
         {
             return "Hello {$number}";
         }

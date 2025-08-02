@@ -12,7 +12,7 @@ class AstType
         return new self(array_filter($types, static fn($s) => $s !== 'null'), $isNullable);
     }
 
-    public function getUnionOrType(): Union|string
+    public function getUnionOrType(): string|Union
     {
         if (count($this->types) > 1) {
             return new Union($this->types);

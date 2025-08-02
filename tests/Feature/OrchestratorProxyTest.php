@@ -42,7 +42,7 @@ if (!interface_exists(orchProxy::class)) {
         public function signalExample(int $a): void;
 
         #[Pure]
-        public function pureExample(int|float $number): string;
+        public function pureExample(float|int $number): string;
     }
 }
 

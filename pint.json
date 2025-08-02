@@ -1,8 +1,14 @@
 {
   "preset": "per",
-  "exclude": ["cli"],
+  "exclude": [
+    "cli"
+  ],
   "rules": {
     "array_push": true,
+    "attribute_empty_parentheses": {
+      "use_parentheses": false
+    },
+    "backtick_to_shell_exec": true,
     "combine_consecutive_issets": true,
     "combine_consecutive_unsets": true,
     "combine_nested_dirname": true,
@@ -22,6 +28,12 @@
     "single_quote": true,
     "strict_param": true,
     "use_arrow_functions": true,
-    "void_return": true
+    "void_return": true,
+    "no_unused_imports": true,
+    "ordered_interfaces": true,
+    "ordered_types": {
+      "null_adjustment": "always_last"
+    },
+    "simplified_if_return": true
   }
 }

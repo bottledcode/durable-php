@@ -74,7 +74,7 @@ it('can render an entity', function (): void {
     $tm = new TypeManager();
     $tm->addType($newer->getPhpType(), $newer);
 
-    expect(trim($tm->renderTypes()))->toBe(
+    expect(mb_trim($tm->renderTypes()))->toBe(
         <<<'GQL'
             scalar DateTime
             scalar Void
@@ -180,7 +180,7 @@ it('can render an orchestration', function (): void {
     $tm = new TypeManager();
     $tm->addType($newer->getPhpType(), $newer);
 
-    expect(trim($tm->renderTypes()))->toBe(
+    expect(mb_trim($tm->renderTypes()))->toBe(
         <<<'GQL'
             scalar DateTime
             type Status {
@@ -240,7 +240,7 @@ it('can render more than one', function (): void {
     $tm->addType($file1->getPhpType(), $file1);
     $tm->addType($file2->getPhpType(), $file2);
 
-    expect(trim($tm->renderTypes()))->toBe(
+    expect(mb_trim($tm->renderTypes()))->toBe(
         <<<'GQL'
             scalar DateTime
             scalar Void

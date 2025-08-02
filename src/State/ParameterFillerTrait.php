@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright ©2024 Robert Landers
  *
@@ -25,22 +26,22 @@ namespace Bottledcode\DurablePhp\State;
 
 trait ParameterFillerTrait
 {
-    private function fillParameters(array $arguments, \ReflectionMethod|\ReflectionFunction $method): array
+    private function fillParameters(array $arguments, \ReflectionFunction|\ReflectionMethod $method): array
     {
-        foreach($arguments as $name => &$entry) {
-            if(!is_array($entry)) {
+        foreach ($arguments as $name => &$entry) {
+            if (!is_array($entry)) {
                 continue;
             }
-            if(is_numeric($name)) {
+            if (is_numeric($name)) {
                 $parameter = $method->getParameters()[$name];
-                if($parameter->getType()?->isBuiltin()) {
+                if ($parameter->getType()?->isBuiltin()) {
                     continue;
                 }
                 $entry = Serializer::deserialize($entry, $parameter->getType());
             } else {
-                foreach($method->getParameters() as $parameter) {
+                foreach ($method->getParameters() as $parameter) {
                     if ($parameter->getName() === $name) {
-                        if($parameter->getType()?->isBuiltin() && $parameter->getType()?->getName() === 'array') {
+                        if ($parameter->getType()?->isBuiltin() && $parameter->getType()?->getName() === 'array') {
                             // todo: deserialize arrays
                             break;
                         }

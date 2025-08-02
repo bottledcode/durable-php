@@ -132,7 +132,7 @@ abstract class Generator
 
     abstract protected function impureCall(ReflectionMethod $method, bool $isHook = false): string;
 
-    protected function getTypes(ReflectionNamedType|ReflectionUnionType|ReflectionIntersectionType|null $type): string
+    protected function getTypes(ReflectionIntersectionType|ReflectionNamedType|ReflectionUnionType|null $type): string
     {
         if ($type instanceof ReflectionNamedType) {
             $nullable = $type->allowsNull() ? '?' : '';

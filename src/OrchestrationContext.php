@@ -205,7 +205,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         throw new Unwind();
     }
 
-    public function createTimer(DateTimeImmutable|DateInterval $fireAt): DurableFuture
+    public function createTimer(DateInterval|DateTimeImmutable $fireAt): DurableFuture
     {
         if ($fireAt instanceof DateInterval) {
             $fireAt = $this->getCurrentTime()->add($fireAt);
@@ -488,7 +488,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::__construct($logger);
             }
 
-            public function debug(Stringable|string $message, array $context = []): void
+            public function debug(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -497,7 +497,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::debug($message, $context);
             }
 
-            public function critical(Stringable|string $message, array $context = []): void
+            public function critical(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -505,7 +505,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::critical($message, $context);
             }
 
-            public function warning(Stringable|string $message, array $context = []): void
+            public function warning(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -514,7 +514,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::warning($message, $context);
             }
 
-            public function info(Stringable|string $message, array $context = []): void
+            public function info(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -523,7 +523,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::info($message, $context);
             }
 
-            public function alert(Stringable|string $message, array $context = []): void
+            public function alert(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -532,7 +532,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::alert($message, $context);
             }
 
-            public function emergency(Stringable|string $message, array $context = []): void
+            public function emergency(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -541,7 +541,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
                 parent::emergency($message, $context);
             }
 
-            public function notice(Stringable|string $message, array $context = []): void
+            public function notice(string|Stringable $message, array $context = []): void
             {
                 if ($this->context->isReplaying()) {
                     return;
@@ -564,7 +564,7 @@ final class OrchestrationContext implements OrchestrationContextInterface
         $this->history->historicalTaskResults->setCurrentTime(MonotonicClock::current()->now());
     }
 
-    public function entityOp(string|EntityId $id, Closure $operation): mixed
+    public function entityOp(EntityId|string $id, Closure $operation): mixed
     {
         $func = new ReflectionFunction($operation);
         if ($func->getNumberOfParameters() !== 1) {

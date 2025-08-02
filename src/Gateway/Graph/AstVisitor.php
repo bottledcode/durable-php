@@ -308,7 +308,7 @@ class AstVisitor extends NodeVisitorAbstract
         return $attributes;
     }
 
-    private function extractValue(Node\Arg $arg): string|int|float
+    private function extractValue(Node\Arg $arg): float|int|string
     {
         $value = $arg->value;
         return match (true) {
@@ -337,7 +337,7 @@ class AstVisitor extends NodeVisitorAbstract
     }
 
     private function extractTypes(
-        null|Node|Node\ComplexType|Node\Identifier|Node\Name|string $node,
+        Node|Node\ComplexType|Node\Identifier|Node\Name|string|null $node,
     ): array {
         $types = match (true) {
             is_string($node) => [$this->deUse($node)],
