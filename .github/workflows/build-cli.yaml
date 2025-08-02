@@ -97,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          dphp composer install --ignore-platform-reqs
+          composer install --ignore-platform-reqs
       - run: |
           echo "Running perf test"
           dphp exec tests/PerformanceTests/PerformanceClient.php
