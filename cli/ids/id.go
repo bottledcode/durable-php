@@ -12,6 +12,8 @@ const (
 	Activity      IdKind = "activity"
 	Entity        IdKind = "entity"
 	Orchestration IdKind = "orchestration"
+	API           IdKind = "--api--"
+	SYSTEM        IdKind = "--system--"
 )
 
 var ApiSource *StateId = &StateId{
