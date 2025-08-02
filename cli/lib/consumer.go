@@ -208,7 +208,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "RevokeUser":
 				if !resource.WantTo(auth.ShareMinus, ctx) {
-					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeUser"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
 					msg.Ack()
 					return nil
 				}
@@ -225,7 +225,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "ShareWithRole":
 				if !resource.WantTo(auth.SharePlus, ctx) {
-					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "shareWithRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
 					msg.Ack()
 					return nil
 				}
@@ -246,7 +246,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "ShareWithUser":
 				if !resource.WantTo(auth.SharePlus, ctx) {
-					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "shareWithUser"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
 					msg.Ack()
 					return nil
 				}
@@ -267,7 +267,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "ShareOwnership":
 				if !resource.WantTo(auth.Owner, ctx) {
-					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "shareOwnership"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
 					msg.Ack()
 					return nil
 				}
@@ -285,7 +285,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				return nil
 			case "GiveOwnership":
 				if !resource.WantTo(auth.Owner, ctx) {
-					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "giveOwnership"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
 					msg.Ack()
 					return nil
 				}
