@@ -148,8 +148,26 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
             return true;
         }
 
-        foreach ($accessControls as $attr) {
-            $accessControl = $attr->newInstance();
+        $controls = array_map(fn(ReflectionAttribute $attr) => $attr->newInstance(), $accessControls);
+        // put deny before allow
+        usort($controls, fn($left, $right) => get_class($right) <=> get_class($left));
+
+        foreach ($controls as $accessControl) {
+            if ($accessControl instanceof DenyAnyOperation) {
+                if ($accessControl->fromUser && $user->userId === $accessControl->fromUser) {
+                    return false;
+                }
+                if ($accessControl->fromRole && array_any($user->roles, fn($role) => $role === $accessControl->fromRole)) {
+                    return false;
+                }
+                if ($accessControl->fromId && ($from->isEntityId() ? $from->toEntityId() : $from->toOrchestrationInstance()) === $accessControl->fromId) {
+                    return false;
+                }
+                if (($accessControl->fromType) && (($from->isEntityId() && $from->toEntityId()->name === $accessControl->fromType) || ($from->isOrchestrationId() && $from->toOrchestrationInstance()->instanceId === $accessControl->fromType))) {
+                    return false;
+                }
+            }
+
             if ($accessControl instanceof AllowCreateAll) {
                 return true;
             }
@@ -195,20 +213,6 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
                 }
                 if (($accessControl->fromType) && (($from->isEntityId() && $from->toEntityId()->name === $accessControl->fromType) || ($from->isOrchestrationId() && $from->toOrchestrationInstance()->instanceId === $accessControl->fromType))) {
                     return true;
-                }
-            }
-            if ($accessControl instanceof DenyAnyOperation) {
-                if ($accessControl->fromUser && $user->userId === $accessControl->fromUser) {
-                    return false;
-                }
-                if ($accessControl->fromRole && array_any($user->roles, fn($role) => $role === $accessControl->fromRole)) {
-                    return false;
-                }
-                if ($accessControl->fromId && ($from->isEntityId() ? $from->toEntityId() : $from->toOrchestrationInstance()) === $accessControl->fromId) {
-                    return false;
-                }
-                if (($accessControl->fromType) && (($from->isEntityId() && $from->toEntityId()->name === $accessControl->fromType) || ($from->isOrchestrationId() && $from->toOrchestrationInstance()->instanceId === $accessControl->fromType))) {
-                    return false;
                 }
             }
         }
