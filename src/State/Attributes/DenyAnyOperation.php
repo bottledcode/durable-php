@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2024 Robert Landers
+ * Copyright ©2025 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -25,9 +25,16 @@
 namespace Bottledcode\DurablePhp\State\Attributes;
 
 use Attribute;
+use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
 #[Attribute(Attribute::IS_REPEATABLE)]
-readonly class AllowCreateForRole implements AccessControl
+class DenyAnyOperation implements AccessControl
 {
-    public function __construct(public string $role) {}
+    public function __construct(
+        public ?string $fromType = null,
+        public EntityId|OrchestrationInstance|null $fromId = null,
+        public ?string $fromUser = null,
+        public ?string $fromRole = null,
+    ) {}
 }

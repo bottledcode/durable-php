@@ -8,8 +8,8 @@ use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use LogicException;
 
-#[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
-class AllowCreateFrom
+#[Attribute(Attribute::IS_REPEATABLE)]
+class AllowCreateFrom implements AccessControl
 {
     /**
      * @template T of EntityState

@@ -336,7 +336,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		headers.Add("DPHP_AUTH_CONTEXT", string(ac))
 	}
 
-	msgs, headers, _, deleteAfter := glu.Execute(ctx, headers, logger, env, js, id)
+	msgs, headers, _, deleteAfter := glu.Execute(ctx, headers, logger, env, js, id, sourceId)
 
 	// now update the stored state, if this fails due to optimistic concurrency, we immediately nak and fail
 	err = update()

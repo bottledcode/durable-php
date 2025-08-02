@@ -70,6 +70,8 @@ class Glue
 
     public StateId $target;
 
+    public StateId $source;
+
     public $payloadHandle;
 
     public array $payload = [];
@@ -102,6 +104,7 @@ class Glue
             );
             $this->provenance = null;
         }
+        $this->source = StateId::fromString($_SERVER['HTTP_DPHP_SOURCE']);
 
         if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
             throw new LogicException('Unable to load payload');

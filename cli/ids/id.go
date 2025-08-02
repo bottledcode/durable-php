@@ -19,6 +19,11 @@ var ApiSource *StateId = &StateId{
 	Kind: "--api--",
 }
 
+var SystemSource *StateId = &StateId{
+	Id:   "--system--",
+	Kind: "--system--",
+}
+
 // subjects
 
 type Subject struct {

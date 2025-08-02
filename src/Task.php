@@ -92,6 +92,7 @@ class Task
         $this->container = $this->glue->bootstrap();
         $state->setContainer($this->container);
         $state->setLogger($this->logger);
+        $state->from = $this->glue->source;
 
         if ($state->hasAppliedEvent($event->event)) {
             $this->emitError(200, 'event already applied', ['event' => $event]);

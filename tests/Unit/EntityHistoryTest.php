@@ -22,7 +22,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-//namespace Bottledcode\DurablePhp\Tests\Unit;
+// namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
@@ -61,6 +61,7 @@ it('processes signals', function (): void {
             }
         },
     );
+    $history->from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
 
     processEvent(
         new RaiseEvent('id', '__signal', ['operation' => 'signal', 'input' => []]),
@@ -84,6 +85,7 @@ it('only processes locked events', function (): void {
             }
         },
     );
+    $history->from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
 
     $owner = StateId::fromInstance(OrchestrationInstance('owner', 'owner'));
     $other = StateId::fromInstance(OrchestrationInstance('other', 'other'));
@@ -136,6 +138,7 @@ it('properly locks in a chain', function (): void {
             }
         },
     );
+    $history->from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
 
     $owner = StateId::fromInstance(OrchestrationInstance('owner', 'owner'));
     $other = StateId::fromInstance(OrchestrationInstance('other', 'other'));

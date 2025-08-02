@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Contexts\AuthContext\SecurityException;
 use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\EntityContext;
 use Bottledcode\DurablePhp\EntityContextInterface;
@@ -41,11 +42,14 @@ use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\SerializedArray;
+use Bottledcode\DurablePhp\State\Attributes\AccessControl;
 use Bottledcode\DurablePhp\State\Attributes\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Generator;
 use Override;
+use PropertyHookType;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionNamedType;
@@ -203,6 +207,10 @@ class EntityHistory extends AbstractHistory
 
         if (is_object($this->state)) {
             $reflector = new ReflectionClass($this->state);
+            $attributes = $reflector->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF);
+            if (! $this->checkAccessControl($this->user, $this->from, ...$attributes)) {
+                throw new SecurityException('Access denied');
+            }
             $properties = $reflector->getProperties();
             foreach ($properties as $property) {
                 $type = $property->getType();
@@ -214,12 +222,16 @@ class EntityHistory extends AbstractHistory
                 if (str_contains($operation, '::')) {
                     [$property, $operation] = explode('::', $operation);
                     $property = str_replace('$', '', $property);
-                    $result = match ($operation) {
-                        'get' => $this->state->{$property},
-                        'set' => $this->state->{$property} = $input[0],
+                    $operationReflection = $reflector->getProperty($property);
+                    if (! $this->checkAccessControl($this->user, $this->from, ...$operationReflection->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF))) {
+                        throw new SecurityException('Access denied');
+                    }
+                    $operationReflection = match ($operation) {
+                        'get' => $operationReflection->getHook(PropertyHookType::Get),
+                        'set' => $operationReflection->getHook(PropertyHookType::Set),
                         default => throw new ReflectionException('Unknown operation'),
                     };
-                    goto finalize;
+                    goto done;
                 }
 
                 $operationReflection = $reflector->getMethod($operation);
@@ -241,6 +253,11 @@ class EntityHistory extends AbstractHistory
                 return;
             }
             done:
+
+            if (! $this->checkAccessControl($this->user, $this->from, ...$operationReflection->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF))) {
+                throw new SecurityException('Access denied');
+            }
+
             $input = $this->fillParameters($input, $operationReflection);
             try {
                 $result = $operationReflection->getClosure($this->state);
@@ -263,8 +280,6 @@ class EntityHistory extends AbstractHistory
                 return;
             }
         }
-
-        finalize:
 
         if ($replyTo) {
             foreach ($replyTo as $reply) {

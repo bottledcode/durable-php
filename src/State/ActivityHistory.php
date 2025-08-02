@@ -24,6 +24,7 @@
 
 namespace Bottledcode\DurablePhp\State;
 
+use Bottledcode\DurablePhp\Contexts\AuthContext\SecurityException;
 use Bottledcode\DurablePhp\DurableLogger;
 use Bottledcode\DurablePhp\Events\Event;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
@@ -35,11 +36,13 @@ use Bottledcode\DurablePhp\Exceptions\ExternalException;
 use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\MonotonicClock;
 use Bottledcode\DurablePhp\SerializedArray;
+use Bottledcode\DurablePhp\State\Attributes\AccessControl;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Generator;
 use LogicException;
 use Override;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionFunction;
 use RuntimeException;
@@ -85,11 +88,24 @@ class ActivityHistory extends AbstractHistory
 
         try {
             if (is_callable($task)) {
+                $refl = new ReflectionFunction($task);
+                $attrs = $refl->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF);
+                if (! $this->checkAccessControl($this->user, $this->from, ...$attrs)) {
+                    throw new SecurityException(sprintf('Access denied to activity %s', $this->activityId));
+                }
                 $arguments = $this->fillParameters($event->input, new ReflectionFunction($task));
             } elseif (! is_object($task)) {
                 $task = $this->container->get($task);
                 $reflection = new ReflectionClass($task);
+                $attrs = $reflection->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF);
+                if (! $this->checkAccessControl($this->user, $this->from, ...$attrs)) {
+                    throw new SecurityException(sprintf('Access denied to activity %s', $this->activityId));
+                }
                 $entrypoint = $this->locateEntrypoint($reflection) ?? throw new RuntimeException("Unable to locate entrypoint for {$event->name}");
+                $attrs = $entrypoint->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF);
+                if (! $this->checkAccessControl($this->user, $this->from, ...$attrs)) {
+                    throw new SecurityException(sprintf('Access denied to activity %s', $this->activityId));
+                }
                 $arguments = $this->fillParameters($event->input, $entrypoint);
             } else {
                 throw new LogicException('Activity must be callable or a class');

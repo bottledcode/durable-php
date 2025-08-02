@@ -34,7 +34,6 @@ use Crell\Serde\Attributes\ClassNameTypeMap;
 use Exception;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
-use RuntimeException;
 use Stringable;
 use Withinboredom\Record;
 
@@ -152,27 +151,6 @@ readonly class StateId extends Record implements Stringable
     public function isOrchestrationId(): bool
     {
         return str_starts_with($this->id, 'orchestration:');
-    }
-
-    public function __invoke(EntityId|OrchestrationInstance|StateId|string|UuidInterface $id): self
-    {
-        if (is_string($id)) {
-            return new self($id);
-        }
-        if ($id instanceof self) {
-            return $id;
-        }
-        if ($id instanceof OrchestrationInstance) {
-            return self::fromInstance($id);
-        }
-        if ($id instanceof EntityId) {
-            return self::fromEntityId($id);
-        }
-        if ($id instanceof UuidInterface) {
-            return self::fromActivityId($id);
-        }
-
-        throw new RuntimeException("Cannot convert {$id} to StateId");
     }
 
     public function __toString(): string

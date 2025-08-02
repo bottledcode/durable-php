@@ -22,7 +22,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-//namespace Bottledcode\DurablePhp\Tests\Unit;
+// namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\ScheduleTask;
@@ -65,6 +65,7 @@ it('real: fails on an exception', function (): void {
 
 it('succeeds on no exception', function (): void {
     $history = new ActivityHistory(StateId::fromActivityId(Uuid::uuid7()), null, new Provenance('', []));
+    $history->from = StateId::fromEntityId(EntityId('test', 'test'));
     $container = new Container([__NAMESPACE__ . '\activity' => activity(...)]);
     $history->setContainer($container);
     $event = AwaitResult::forEvent(

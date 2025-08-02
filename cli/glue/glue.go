@@ -73,7 +73,7 @@ func NewGlue(bootstrap string, function Method, input []any, payload string) *Gl
 	}
 }
 
-func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *ids.StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header, bool) {
+func FromApiRequest(ctx context.Context, r *http.Request, function Method, logger *zap.Logger, stream jetstream.JetStream, id *ids.StateId, from *ids.StateId, headers http.Header) ([]*nats.Msg, string, error, *http.Header, bool) {
 	temp, err := os.CreateTemp("", "reqbody")
 	if err != nil {
 		return nil, "", err, nil, false
@@ -103,7 +103,7 @@ func FromApiRequest(ctx context.Context, r *http.Request, function Method, logge
 	remoteAddr := strings.Split(r.RemoteAddr, ":")[0]
 	env["REMOTE_ADDR"] = remoteAddr
 
-	msgs, responseHeaders, _, deleteAfter := glu.Execute(ctx, headers, logger, env, stream, id)
+	msgs, responseHeaders, _, deleteAfter := glu.Execute(ctx, headers, logger, env, stream, id, from)
 
 	for _, msg := range msgs {
 		msg.Header.Add("Remote-Addr", remoteAddr)
@@ -112,7 +112,7 @@ func FromApiRequest(ctx context.Context, r *http.Request, function Method, logge
 	return msgs, temp.Name(), nil, &responseHeaders, deleteAfter
 }
 
-func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *ids.StateId) ([]*nats.Msg, http.Header, int, bool) {
+func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Logger, env map[string]string, stream jetstream.JetStream, id *ids.StateId, from *ids.StateId) ([]*nats.Msg, http.Header, int, bool) {
 	var dir string
 	var ok bool
 	if dir, ok = GetLibraryDir("glue.php"); !ok {
@@ -126,6 +126,7 @@ func (g *Glue) Execute(ctx context.Context, headers http.Header, logger *zap.Log
 	headers.Add("DPHP_BOOTSTRAP", g.bootstrap)
 	headers.Add("DPHP_FUNCTION", string(g.function))
 	headers.Add("DPHP_PAYLOAD", g.payload)
+	headers.Add("DPHP_SOURCE", from.String())
 
 	provenance := ctx.Value(appcontext.CurrentUserKey)
 	if provenance != nil {

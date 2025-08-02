@@ -120,12 +120,19 @@ func (r *ResourceManager) ToAuthContext(ctx context.Context, resource *Resource)
 		}
 	}
 
+	fromIds := []string{}
+	for _, f := range resource.AllowedFromIds {
+		fromIds = append(fromIds, f.String())
+	}
+
 	c := map[string]interface{}{
 		"contextId": map[string]string{
 			"id": resource.id.String(),
 		},
-		"owners": owners,
-		"shares": shares,
+		"owners":    owners,
+		"shares":    shares,
+		"fromTypes": resource.AllowedFromTypes,
+		"fromIds":   fromIds,
 	}
 
 	return json.Marshal(c)
