@@ -41,6 +41,8 @@ readonly class EventDescription
 
     public ?StateId $destination;
 
+    public ?StateId $from;
+
     public string $eventId;
 
     public int $priority;
@@ -94,6 +96,9 @@ readonly class EventDescription
             }
             if ($event instanceof External) {
                 $this->meta = Serializer::serialize($event);
+            }
+            if ($event instanceof WithFrom) {
+                $this->from = $event->from;
             }
 
             $reflection = new ReflectionClass($event);

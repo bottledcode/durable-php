@@ -47,7 +47,7 @@ func GetResourceManager(ctx context.Context, stream jetstream.JetStream) *Resour
 
 // DiscoverResource is a method of the ResourceManager struct that is responsible for discovering a resource based on
 // the provided context, state ID, logger, and preventCreation flag
-func (r *ResourceManager) DiscoverResource(ctx context.Context, id *ids.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
+func (r *ResourceManager) DiscoverResource(ctx context.Context, id *ids.StateId, from *ids.StateId, logger *zap.Logger, preventCreation bool) (*Resource, error) {
 	currentUser, _ := ctx.Value(appcontext.CurrentUserKey).(*User)
 
 	data, err := r.kv.Get(ctx, id.ToSubject().String())
@@ -58,7 +58,7 @@ func (r *ResourceManager) DiscoverResource(ctx context.Context, id *ids.StateId,
 		resource.kv = r.kv
 		resource.id = id
 		resource.revision = 0
-		if resource.CanCreate(id, ctx, logger) {
+		if resource.CanCreate(id, from, ctx, logger) {
 			err = resource.Update(ctx, logger)
 			if err != nil {
 				return nil, err

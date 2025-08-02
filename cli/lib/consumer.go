@@ -125,31 +125,35 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 		ctx = auth.DecorateContextWithUser(ctx, currentUser)
 	}
 
+	// retrieve the source
+	sourceId := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
+
 	if config.Extensions.Authz.Enabled {
 		// extract the source operations
 		sourceOps := strings.Split(msg.Headers().Get(string(glue.HeaderSourceOps)), ",")
-		// retrieve the source
-		sourceId := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
-		if sourceR, err := rm.DiscoverResource(ctx, sourceId, logger, true); err != nil {
-			if sourceR == nil {
-				logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
-				msg.Ack()
-				return nil
-			}
-
-			for _, op := range sourceOps {
-				if !sourceR.WantTo(auth.Operation(op), ctx) {
-					// user isn't allowed to do this, so warn
-					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", op), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+		// it isn't clear why we need to check the source, so the following is commented out
+		/*
+			if sourceR, err := rm.DiscoverResource(ctx, sourceId, logger, true); err != nil {
+				if sourceR == nil {
+					logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
 					msg.Ack()
 					return nil
 				}
+
+				for _, op := range sourceOps {
+					if !sourceR.WantTo(auth.Operation(op), ctx) {
+						// user isn't allowed to do this, so warn
+						logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", op), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+						msg.Ack()
+						return nil
+					}
+				}
 			}
-		}
+		*/
 
 		// extract the target operations
 		targetOps := strings.Split(msg.Headers().Get(string(glue.HeaderTargetOps)), ",")
-		shouldCreate := false
+		preventCreation := true
 		for _, op := range targetOps {
 			switch auth.Operation(op) {
 			case auth.Signal:
@@ -159,11 +163,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 			case auth.Lock:
 				fallthrough
 			case auth.Output:
-				shouldCreate = true
+				preventCreation = false
 			}
 		}
 
-		resource, err := rm.DiscoverResource(ctx, id, logger, !shouldCreate)
+		resource, err := rm.DiscoverResource(ctx, id, sourceId, logger, preventCreation)
 		if err != nil {
 			logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "create"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
 			msg.Ack()
@@ -185,6 +189,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 			switch msg.Headers().Get(string(glue.HeaderEventType)) {
 			case "RevokeRole":
+				if !resource.WantTo(auth.ShareMinus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
 				role := meta["role"].(string)
 
 				err := resource.RevokeRole(auth.Role(role), ctx)
@@ -198,6 +207,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				msg.Ack()
 				return nil
 			case "RevokeUser":
+				if !resource.WantTo(auth.ShareMinus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
 				user := meta["userId"].(string)
 				err := resource.RevokeUser(auth.UserId(user), ctx)
 				if err != nil {
@@ -210,6 +224,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				msg.Ack()
 				return nil
 			case "ShareWithRole":
+				if !resource.WantTo(auth.SharePlus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
 				role := meta["role"].(auth.Role)
 				operations := meta["allowedOperations"].([]auth.Operation)
 
@@ -226,6 +245,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				msg.Ack()
 				return nil
 			case "ShareWithUser":
+				if !resource.WantTo(auth.SharePlus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
 				role := meta["userId"].(auth.UserId)
 				operations := meta["allowedOperations"].([]auth.Operation)
 
@@ -242,6 +266,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				msg.Ack()
 				return nil
 			case "ShareOwnership":
+				if !resource.WantTo(auth.Owner, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
 				userId := meta["userId"].(auth.UserId)
 				user := ctx.Value(appcontext.CurrentUserKey).(*auth.User)
 				err := resource.ShareOwnership(userId, user, true)
@@ -255,6 +284,11 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 				msg.Ack()
 				return nil
 			case "GiveOwnership":
+				if !resource.WantTo(auth.Owner, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return nil
+				}
 				userId := meta["userId"].(auth.UserId)
 				user := ctx.Value(appcontext.CurrentUserKey).(*auth.User)
 				err := resource.ShareOwnership(userId, user, true)
@@ -292,7 +326,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	env["STATE_ID"] = msg.Headers().Get(string(glue.HeaderStateId))
 	env["REMOTE_ADDR"] = msg.Headers().Get("Remote-Addr")
 
-	res, err := rm.DiscoverResource(ctx, id, logger, true)
+	res, err := rm.DiscoverResource(ctx, id, sourceId, logger, true)
 	if err != nil {
 		logger.Error("DiscoverResource", zap.Error(err))
 		panic(err)
@@ -332,7 +366,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	}
 
 	if deleteAfter {
-		resource, err := rm.DiscoverResource(ctx, id, logger, false)
+		resource, err := rm.DiscoverResource(ctx, id, sourceId, logger, false)
 		if err != nil {
 			return err
 		}

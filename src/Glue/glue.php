@@ -36,6 +36,7 @@ use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateForAuth;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateForRole;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateForUser;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateFrom;
 use Bottledcode\DurablePhp\State\Attributes\TimeToLive;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -258,6 +259,8 @@ class Glue
             'mode' => 'explicit',
             'users' => [],
             'roles' => [],
+            'from' => [],
+            'from-type' => [],
             'limits' => [
                 'user' => -1,
                 'role' => -1,
@@ -322,6 +325,13 @@ class Glue
                     case $attribute->getName() === TimeToLive::class:
                         /** @var TimeToLive $attribute */ $attribute = $attribute->newInstance();
                         $permissions['ttl'] = $attribute->timeToLive()->as(Unit::Nanoseconds);
+                        break;
+                    case $attribute->getName() === AllowCreateFrom::class:
+                        if ($attribute->type) {
+                            $permissions['from-type'][] = $attribute->type;
+                        } else {
+                            $permissions['from'][] = $attribute->id;
+                        }
                         break;
                 }
             }

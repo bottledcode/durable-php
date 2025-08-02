@@ -14,6 +14,11 @@ const (
 	Orchestration IdKind = "orchestration"
 )
 
+var ApiSource *StateId = &StateId{
+	Id:   "--api--",
+	Kind: "--api--",
+}
+
 // subjects
 
 type Subject struct {
@@ -73,12 +78,12 @@ func (id StateId) String() string {
 	return fmt.Sprintf("%s:%s", id.Kind, id.Id)
 }
 
-func (id StateId) Name() string {
+func (id StateId) Name() IdKind {
 	if before, _, found := strings.Cut(id.Id, ":"); found {
-		return before
+		return IdKind(before)
 	}
 
-	return string(Activity)
+	return Activity
 }
 
 func (id StateId) ToEntityId() (*EntityId, bool) {
@@ -174,6 +179,6 @@ func (id *OrchestrationId) ToStateId() *StateId {
 }
 
 type StateId struct {
-	Id   string
-	Kind IdKind
+	Id   string `json:"id,omitempty"`
+	Kind IdKind `json:"kind,omitempty"`
 }
