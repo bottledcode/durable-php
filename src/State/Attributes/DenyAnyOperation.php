@@ -28,7 +28,7 @@ use Attribute;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
-#[Attribute(Attribute::IS_REPEATABLE)]
+#[Attribute(Attribute::IS_REPEATABLE | Attribute::TARGET_ALL)]
 class DenyAnyOperation implements AccessControl
 {
     public function __construct(

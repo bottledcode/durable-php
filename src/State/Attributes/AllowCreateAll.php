@@ -26,7 +26,7 @@ namespace Bottledcode\DurablePhp\State\Attributes;
 
 use Attribute;
 
-#[Attribute]
+#[Attribute(Attribute::TARGET_ALL)]
 class AllowCreateAll implements AccessControl
 {
     public function __construct() {}

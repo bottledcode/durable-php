@@ -26,7 +26,7 @@ namespace Bottledcode\DurablePhp\State\Attributes;
 
 use Attribute;
 
-#[Attribute(Attribute::IS_REPEATABLE)]
+#[Attribute(Attribute::IS_REPEATABLE | Attribute::TARGET_ALL)]
 class AllowCreateForUser implements AccessControl
 {
     public function __construct(public string $user) {}
