@@ -19,9 +19,6 @@
       "Bottledcode\\DurablePhp\\Tests\\": "tests/"
     }
   },
-  "bin": [
-    "bin/dphp"
-  ],
   "config": {
     "allow-plugins": {
       "pestphp/pest-plugin": true
