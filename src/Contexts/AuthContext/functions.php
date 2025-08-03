@@ -6,6 +6,7 @@ use Bottledcode\DurablePhp\Contexts\AuthContext\Share\Owner;
 use Bottledcode\DurablePhp\Contexts\AuthContext\Share\Role;
 use Bottledcode\DurablePhp\Contexts\AuthContext\Share\User;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 use ReflectionClass;
 
 function Owner(string $subject): Owner
@@ -28,3 +29,6 @@ function User(string $subject, Operation ...$allowed): User
 
     return $ref->getMethod('fromArgs')->invoke(null, subject: $subject, allowed: $allowed);
 }
+
+define('ApiSource', StateId::fromString('--api--:--api--'));
+define('SystemSource', StateId::fromString('--system--:--system--'));

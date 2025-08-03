@@ -24,8 +24,10 @@
 
 namespace Bottledcode\DurablePhp\State\Attributes;
 
-#[\Attribute(\Attribute::IS_REPEATABLE | \Attribute::TARGET_CLASS)]
-readonly class AllowCreateForRole
+use Attribute;
+
+#[Attribute(Attribute::IS_REPEATABLE)]
+readonly class AllowCreateForRole implements AccessControl
 {
     public function __construct(public string $role) {}
 }

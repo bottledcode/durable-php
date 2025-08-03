@@ -25,6 +25,12 @@ readonly class AuthContext extends Record
     #[SequenceField(arrayType: Share::class)]
     public array $shares;
 
+    #[SequenceField(arrayType: 'string')]
+    public array $fromTypes;
+
+    #[SequenceField(arrayType: StateId::class)]
+    public array $fromIds;
+
     public static function fromCurrentContext(): ?AuthContext
     {
         if (isset($_SERVER['HTTP_DPHP_AUTH_CONTEXT'])) {

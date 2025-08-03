@@ -42,7 +42,7 @@ class ShareWithRole extends Event implements External
         return new self($role, $allowedOperations);
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return sprintf('Share(role: %s, %s)', $this->role, implode(', ', $this->allowedOperations));
     }

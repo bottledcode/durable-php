@@ -28,7 +28,7 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 
 class WithEntity extends Event implements HasInnerEventInterface, StateTargetInterface
 {
-    public function __construct(string $eventId, public StateId $target, private readonly Event $innerEvent)
+    public function __construct(string $eventId, public StateId $target, public Event $innerEvent)
     {
         parent::__construct($eventId);
     }

@@ -22,12 +22,14 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-//namespace Bottledcode\DurablePhp\Tests\Unit;
+// namespace Bottledcode\DurablePhp\Tests\Unit;
 
 use Bottledcode\DurablePhp\OrchestrationContext;
 use Bottledcode\DurablePhp\State\EntityState;
+use Bottledcode\DurablePhp\State\Ids\StateId;
 
 use function Bottledcode\DurablePhp\EntityId;
+use function Bottledcode\DurablePhp\OrchestrationInstance;
 
 test('multilock example', function (): void {
     $instance = getOrchestration('test', function (OrchestrationContext $context) {
@@ -49,6 +51,7 @@ test('multilock example', function (): void {
             }
         },
     );
+    $entity->from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
 
     $result = processEvent($nextEvent, $instance->applyStartOrchestration(...));
     $instance->resetState();

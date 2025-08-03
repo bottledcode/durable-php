@@ -26,5 +26,7 @@ namespace Bottledcode\DurablePhp\Events;
 
 interface HasInnerEventInterface
 {
+    public Event $innerEvent { get; }
+
     public function getInnerEvent(): Event;
 }

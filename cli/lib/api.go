@@ -262,7 +262,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		defer cancel()
 
 		rm := auth.GetResourceManager(ctx, js)
-		res, err := rm.DiscoverResource(ctx, id, logger, true)
+		res, err := rm.DiscoverResource(ctx, id, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("DiscoverResource", zap.Error(err))
 			panic(err)
@@ -272,7 +272,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			headers.Add("DPHP_AUTH_CONTEXT", string(ac))
 		}
 
-		msgs, stateFile, err, responseHeaders, deleteAfter := glue.FromApiRequest(ctx, request, function, logger, js, id, headers)
+		msgs, stateFile, err, responseHeaders, deleteAfter := glue.FromApiRequest(ctx, request, function, logger, js, id, ids.ApiSource, headers)
 		if err != nil {
 			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 			logger.Error("Failed to glue", zap.Error(err))
@@ -312,7 +312,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 
 		if deleteAfter {
-			resource, err := rm.DiscoverResource(ctx, id, logger, false)
+			resource, err := rm.DiscoverResource(ctx, id, ids.ApiSource, logger, false)
 			if err != nil {
 				logger.Error("Unable to delete resource", zap.Error(err))
 				http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
@@ -354,7 +354,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		r, err := rm.DiscoverResource(ctx, stateId, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "Not Found", http.StatusNotFound)
@@ -430,7 +430,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		r, err := rm.DiscoverResource(ctx, stateId, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
@@ -485,7 +485,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		r, err := rm.DiscoverResource(ctx, stateId, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
@@ -571,7 +571,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			}
 
 			logger.Debug("Delete entity", zap.String("id", id.String()))
-			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), logger, true)
+			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), ids.ApiSource, logger, true)
 			if err != nil {
 				logger.Error("Failed to discover resource", zap.Error(err))
 				http.Error(writer, "Not Found", http.StatusNotFound)
@@ -682,7 +682,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		r, err := rm.DiscoverResource(ctx, stateId, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "Not Found", http.StatusNotFound)
@@ -758,7 +758,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		r, err := rm.DiscoverResource(ctx, stateId, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
@@ -813,7 +813,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		r, err := rm.DiscoverResource(ctx, stateId, logger, true)
+		r, err := rm.DiscoverResource(ctx, stateId, ids.ApiSource, logger, true)
 		if err != nil {
 			logger.Error("Failed to discover resource", zap.Error(err))
 			http.Error(writer, "", http.StatusNotFound)
@@ -878,7 +878,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 				return
 			}
 
-			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), logger, true)
+			rs, err := rm.DiscoverResource(ctx, id.ToStateId(), ids.ApiSource, logger, true)
 			if err != nil {
 				logger.Error("Failed to discover a resource for deletion", zap.Error(err))
 				http.Error(writer, "Not Found", http.StatusNotFound)
@@ -1032,7 +1032,7 @@ func authorize(
 		logger.Info("Authenticating with user", zap.Any("user", user))
 		ctx = auth.DecorateContextWithUser(ctx, user)
 	}
-	resource, err := rm.DiscoverResource(ctx, id, logger, preventCreation)
+	resource, err := rm.DiscoverResource(ctx, id, ids.ApiSource, logger, preventCreation)
 	if err != nil {
 		logger.Warn("User attempted to create new resource not authorized to create", zap.Any("id", id.String()), zap.Any("user", auth.GetUserFromContext(ctx)), zap.Error(err))
 		http.Error(writer, "Not Authorized", http.StatusForbidden)

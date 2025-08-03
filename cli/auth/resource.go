@@ -46,14 +46,16 @@ import (
 // - WantTo: checks if the current user can perform the given operation on the resource.
 // - Grant: grants a share to the resource.
 type Resource struct {
-	Owners   map[UserId]struct{} `json:"owner"`
-	Shares   []Share             `json:"Shares"`
-	Mode     Mode                `json:"mode"`
-	mu       sync.RWMutex
-	kv       jetstream.KeyValue
-	id       *ids.StateId
-	Expires  time.Time
-	revision uint64
+	Owners           map[UserId]struct{} `json:"owner"`
+	Shares           []Share             `json:"Shares"`
+	Mode             Mode                `json:"mode"`
+	mu               sync.RWMutex
+	kv               jetstream.KeyValue
+	id               *ids.StateId
+	AllowedFromTypes []string       `json:"allowed_from_types"`
+	AllowedFromIds   []*ids.StateId `json:"allowed_from_ids"`
+	Expires          time.Time
+	revision         uint64
 }
 
 // NewResourcePermissions creates a new Resource with the specified owner and mode. If the owner is nil, the resource
@@ -101,7 +103,7 @@ func (r *Resource) ShareOwnership(newUser UserId, currentUser *User, keepPermiss
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if currentUser != nil && !keepPermissions {
+	if !keepPermissions {
 		delete(r.Owners, currentUser.UserId)
 	}
 	r.Owners[newUser] = struct{}{}
@@ -123,13 +125,13 @@ func (r *Resource) ApplyPerms(id *ids.StateId, ctx context.Context, logger *zap.
 }
 
 // CanCreate Load permissions from cache if available, otherwise fetch from external source
-func (r *Resource) CanCreate(id *ids.StateId, ctx context.Context, logger *zap.Logger) bool {
+func (r *Resource) CanCreate(id *ids.StateId, from *ids.StateId, ctx context.Context, logger *zap.Logger) bool {
 	perms, err := r.getOrCreatePermissions(id, ctx, logger)
 	if err != nil {
 		logger.Error("failed to create permissions", zap.Error(err))
 		return false
 	}
-	return r.isUserPermitted(perms, ctx)
+	return r.isUserPermitted(perms, ctx) && r.AllowedFrom(from)
 }
 
 func (r *Resource) getOrCreatePermissions(id *ids.StateId, ctx context.Context, logger *zap.Logger) (CreatePermissions, error) {
@@ -146,7 +148,7 @@ func (r *Resource) getOrCreatePermissions(id *ids.StateId, ctx context.Context, 
 
 		glu := glue.NewGlue(ctx.Value("bootstrap").(string), glue.GetPermissions, make([]any, 0), result.Name())
 		env := map[string]string{"STATE_ID": id.String()}
-		_, headers, _, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id)
+		_, headers, _, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id, ids.SystemSource)
 		data := headers.Get("Permissions")
 		if err = json.Unmarshal([]byte(data), &perms); err != nil {
 			return perms, err
@@ -158,6 +160,10 @@ func (r *Resource) getOrCreatePermissions(id *ids.StateId, ctx context.Context, 
 
 func (r *Resource) isUserPermitted(perms CreatePermissions, ctx context.Context) bool {
 	r.Mode = perms.Mode
+	for _, p := range perms.FromId {
+		r.AllowedFromIds = append(r.AllowedFromIds, ids.ParseStateId(p))
+	}
+	r.AllowedFromTypes = perms.FromType
 	r.Expires = time.Now().Add(time.Duration(perms.TimeToLive) * time.Nanosecond)
 	switch perms.Mode {
 	case AnonymousMode:
@@ -216,6 +222,29 @@ func (r *Resource) IsOwner(ctx context.Context) bool {
 			return true
 		}
 	}
+	return false
+}
+
+func (r *Resource) AllowedFrom(from *ids.StateId) bool {
+	if len(r.AllowedFromIds) == 0 && len(r.AllowedFromTypes) == 0 {
+		return true
+	}
+
+	for _, id := range r.AllowedFromIds {
+		if id.Kind == from.Kind && id.Id == from.Id {
+			return true
+		}
+	}
+
+	for _, t := range r.AllowedFromTypes {
+		if ent, found := from.ToEntityId(); found && ent.Name == t {
+			return true
+		}
+		if orch, found := from.ToOrchestrationId(); found && orch.InstanceId == t {
+			return true
+		}
+	}
+
 	return false
 }
 

@@ -25,6 +25,8 @@ type CreatePermissions struct {
 	Limits     Limits   `json:"limits"`
 	Users      []UserId `json:"users"`
 	Roles      []Role   `json:"roles"`
+	FromId     []string `json:"from"`
+	FromType   []string `json:"from-type"`
 	TimeToLive uint64   `json:"ttl"`
 }
 

@@ -35,13 +35,27 @@ use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\TaskFailed;
+use Bottledcode\DurablePhp\Glue\Provenance;
+use Bottledcode\DurablePhp\State\Attributes\AllowAnyOperation;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForAuth;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForRole;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateForUser;
+use Bottledcode\DurablePhp\State\Attributes\AllowCreateFrom;
+use Bottledcode\DurablePhp\State\Attributes\DenyAnyOperation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
+use Generator;
 use Psr\Container\ContainerInterface;
+use ReflectionAttribute;
 
 abstract class AbstractHistory implements ApplyStateInterface, StateInterface
 {
-    public Status|null $status = null;
+    public ?Status $status = null;
+
+    #[Field(exclude: true)]
+    public StateId $from;
+
     #[Field(exclude: true)]
     protected ContainerInterface $container;
 
@@ -50,7 +64,7 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
         $this->container = $container;
     }
 
-    public function applyAwaitResult(AwaitResult $event, Event $original): \Generator
+    public function applyAwaitResult(AwaitResult $event, Event $original): Generator
     {
         yield null;
     }
@@ -60,37 +74,37 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
         return $this->status;
     }
 
-    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): \Generator
+    public function applyExecutionTerminated(ExecutionTerminated $event, Event $original): Generator
     {
         yield null;
     }
 
-    public function applyRaiseEvent(RaiseEvent $event, Event $original): \Generator
+    public function applyRaiseEvent(RaiseEvent $event, Event $original): Generator
     {
         yield null;
     }
 
-    public function applyScheduleTask(ScheduleTask $event, Event $original): \Generator
+    public function applyScheduleTask(ScheduleTask $event, Event $original): Generator
     {
         yield null;
     }
 
-    public function applyStartExecution(StartExecution $event, Event $original): \Generator
+    public function applyStartExecution(StartExecution $event, Event $original): Generator
     {
         yield null;
     }
 
-    public function applyStartOrchestration(StartOrchestration $event, Event $original): \Generator
+    public function applyStartOrchestration(StartOrchestration $event, Event $original): Generator
     {
         yield null;
     }
 
-    public function applyTaskCompleted(TaskCompleted $event, Event $original): \Generator
+    public function applyTaskCompleted(TaskCompleted $event, Event $original): Generator
     {
         yield null;
     }
 
-    public function applyTaskFailed(TaskFailed $event, Event $original): \Generator
+    public function applyTaskFailed(TaskFailed $event, Event $original): Generator
     {
         yield null;
     }
@@ -112,7 +126,6 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
     }
 
     /**
-     * @param Event $event
      * @return array<StateId>
      */
     protected function getReplyTo(Event $event): array
@@ -124,6 +137,86 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
             }
             $event = $event->getInnerEvent();
         }
+
         return $reply;
+    }
+
+    protected function checkAccessControl(?Provenance $user, StateId $from, ReflectionAttribute ...$accessControls): bool
+    {
+        if (empty($accessControls)) {
+            // delegate to runtime
+            return true;
+        }
+
+        $controls = array_map(fn(ReflectionAttribute $attr) => $attr->newInstance(), $accessControls);
+        // put deny before allow
+        usort($controls, fn($left, $right) => get_class($right) <=> get_class($left));
+
+        foreach ($controls as $accessControl) {
+            if ($accessControl instanceof DenyAnyOperation) {
+                if ($accessControl->fromUser && $user->userId === $accessControl->fromUser) {
+                    return false;
+                }
+                if ($accessControl->fromRole && array_any($user->roles, fn($role) => $role === $accessControl->fromRole)) {
+                    return false;
+                }
+                if ($accessControl->fromId && ($from->isEntityId() ? $from->toEntityId() : $from->toOrchestrationInstance()) === $accessControl->fromId) {
+                    return false;
+                }
+                if (($accessControl->fromType) && (($from->isEntityId() && $from->toEntityId()->name === $accessControl->fromType) || ($from->isOrchestrationId() && $from->toOrchestrationInstance()->instanceId === $accessControl->fromType))) {
+                    return false;
+                }
+            }
+
+            if ($accessControl instanceof AllowCreateAll) {
+                return true;
+            }
+            if ($accessControl instanceof AllowCreateForAuth) {
+                if ($user !== null && $user->userId !== '') {
+                    return true;
+                }
+            }
+            if ($accessControl instanceof AllowCreateForRole) {
+                if (array_any($user->roles, fn($role) => $role === $accessControl->role)) {
+                    return true;
+                }
+            }
+            if ($accessControl instanceof AllowCreateForUser) {
+                if ($user !== null && $user->userId === $accessControl->user) {
+                    return true;
+                }
+            }
+            if ($accessControl instanceof AllowCreateFrom) {
+                if ($accessControl->id !== null) {
+                    if (($from->isEntityId() ? $from->toEntityId() : $from->toOrchestrationInstance()) === $accessControl->id) {
+                        return true;
+                    }
+                }
+                if ($accessControl->type !== null) {
+                    if ($from->isEntityId() && $from->toEntityId()->name === $accessControl->type) {
+                        return true;
+                    }
+                    if ($from->isOrchestrationId() && $from->toOrchestrationInstance()->instanceId === $accessControl->type) {
+                        return true;
+                    }
+                }
+            }
+            if ($accessControl instanceof AllowAnyOperation) {
+                if ($accessControl->fromUser && $user->userId === $accessControl->fromUser) {
+                    return true;
+                }
+                if ($accessControl->fromRole && array_any($user->roles, fn($role) => $role === $accessControl->fromRole)) {
+                    return true;
+                }
+                if ($accessControl->fromId && ($from->isEntityId() ? $from->toEntityId() : $from->toOrchestrationInstance()) === $accessControl->fromId) {
+                    return true;
+                }
+                if (($accessControl->fromType) && (($from->isEntityId() && $from->toEntityId()->name === $accessControl->fromType) || ($from->isOrchestrationId() && $from->toOrchestrationInstance()->instanceId === $accessControl->fromType))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

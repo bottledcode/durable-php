@@ -28,7 +28,7 @@ use Ramsey\Uuid\Uuid;
 
 class WithPriority extends Event implements HasInnerEventInterface
 {
-    private function __construct(public string $eventId, public int $priority, private Event $innerEvent)
+    private function __construct(public string $eventId, public int $priority, public Event $innerEvent)
     {
         parent::__construct($this->eventId ?? Uuid::uuid7()->toString());
     }
@@ -58,7 +58,8 @@ class WithPriority extends Event implements HasInnerEventInterface
         return sprintf('WithPriority(%d, %s)', $this->priority, $this->innerEvent);
     }
 
-    #[\Override] public function getInnerEvent(): Event
+    #[\Override]
+    public function getInnerEvent(): Event
     {
         return $this->innerEvent;
     }

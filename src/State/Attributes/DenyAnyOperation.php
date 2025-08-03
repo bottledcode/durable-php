@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2024 Robert Landers
+ * Copyright ©2025 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -22,28 +22,19 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-namespace Bottledcode\DurablePhp\Events;
+namespace Bottledcode\DurablePhp\State\Attributes;
 
-use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
-use Bottledcode\DurablePhp\Events\Shares\Operation;
-use Crell\Serde\Attributes\SequenceField;
-use Ramsey\Uuid\Uuid;
+use Attribute;
+use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\OrchestrationInstance;
 
-#[NeedsTarget(Operation::SharePlus)]
-class ShareWithUser extends Event implements External
+#[Attribute(Attribute::IS_REPEATABLE)]
+class DenyAnyOperation implements AccessControl
 {
-    private function __construct(public string $userId, #[SequenceField(arrayType: Operation::class)] public array $allowedOperations)
-    {
-        parent::__construct(Uuid::uuid7());
-    }
-
-    public static function For(string $userId, Operation ...$allowedOperations): self
-    {
-        return new self($userId, $allowedOperations);
-    }
-
-    public function __toString(): string
-    {
-        return sprintf('Share(user: %s, %s)', $this->userId, implode(', ', $this->allowedOperations));
-    }
+    public function __construct(
+        public ?string $fromType = null,
+        public EntityId|OrchestrationInstance|null $fromId = null,
+        public ?string $fromUser = null,
+        public ?string $fromRole = null,
+    ) {}
 }

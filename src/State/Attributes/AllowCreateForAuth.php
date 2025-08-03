@@ -24,8 +24,10 @@
 
 namespace Bottledcode\DurablePhp\State\Attributes;
 
-#[\Attribute(\Attribute::TARGET_CLASS)]
-readonly class AllowCreateForAuth
+use Attribute;
+
+#[Attribute]
+readonly class AllowCreateForAuth implements AccessControl
 {
     public function __construct(public int $userLimit = -1, public int $roleLimit = -1, public int $globalLimit = -1) {}
 }
