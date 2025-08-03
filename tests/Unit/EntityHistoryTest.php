@@ -24,8 +24,10 @@
 
 // namespace Bottledcode\DurablePhp\Tests\Unit;
 
+use Bottledcode\DurablePhp\Contexts\AuthContext\SecurityException;
 use Bottledcode\DurablePhp\Events\AwaitResult;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\TaskCompleted;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithLock;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -192,4 +194,70 @@ it('properly locks in a chain', function (): void {
     // process the final lock notification
     $finalResult = processEvent($secondResult[1], $otherEntity->applyRaiseEvent(...));
     expect($finalResult)->toBeEmpty();
+});
+
+it('can get a property value using get signal', function (): void {
+    // Create an entity state with a property
+    $history = getEntityHistory(
+        new class extends EntityState {
+            public string $testProperty = 'test value';
+        },
+    );
+    $history->from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
+
+    // Create a signal to get the property value
+    $event = RaiseEvent::forOperation('$testProperty::get', []);
+    $event = AwaitResult::forEvent(StateId::fromInstance(OrchestrationInstance('test', 'test')), $event);
+
+    // Process the event
+    $result = processEvent($event, $history->applyRaiseEvent(...));
+
+    // Verify the result contains a TaskCompleted event with the property value
+    expect($result)->toHaveCount(1);
+    expect($result[0]->getInnerEvent()->getInnerEvent())->toBeInstanceOf(TaskCompleted::class);
+    expect($result[0]->getInnerEvent()->getInnerEvent()->result)->toBe(['value' => 'test value']);
+});
+
+it('can set a property value using set signal', function (): void {
+    // Create an entity state with a property
+    $history = getEntityHistory(
+        new class extends EntityState {
+            public string $testProperty = 'initial value';
+        },
+    );
+    $history->from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
+
+    // Create a signal to set the property value
+    $event = RaiseEvent::forOperation('$testProperty::set', ['new value']);
+    $event = AwaitResult::forEvent(StateId::fromInstance(OrchestrationInstance('test', 'test')), $event);
+
+    // Process the event
+    $result = processEvent($event, $history->applyRaiseEvent(...));
+
+    // Verify the property was updated
+    expect($history->getState()->testProperty)->toBe('new value');
+
+    // Verify the result contains a TaskCompleted event
+    expect($result)->toHaveCount(1);
+    expect($result[0]->getInnerEvent()->getInnerEvent())->toBeInstanceOf(TaskCompleted::class);
+});
+
+it('handles access control for property signals', function (): void {
+    // Create a mock class with an AccessControl attribute on a property
+    $from = StateId::fromInstance(OrchestrationInstance('test', 'test'));
+    $mockClass = new class extends EntityState {
+        #[Bottledcode\DurablePhp\State\Attributes\DenyAnyOperation(fromType: 'test')]
+        public string $restrictedProperty = 'restricted value';
+
+        public string $publicProperty = 'public value';
+    };
+
+    $history = getEntityHistory($mockClass);
+    $history->from = $from;
+
+    // Try to access the restricted property
+    $restrictedEvent = RaiseEvent::forOperation('$restrictedProperty::get', []);
+
+    // This should throw a SecurityException, which is caught in the execute method
+    expect(fn() => processEvent($restrictedEvent, $history->applyRaiseEvent(...)))->toThrow(SecurityException::class);
 });
