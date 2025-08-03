@@ -34,8 +34,13 @@ use ReflectionUnionType;
 
 abstract class Generator
 {
-    public function __construct(protected string|null $cacheDir = null) {}
+    public function __construct(protected ?string $cacheDir = null) {}
 
+    /**
+     * Ensures that the given interface is implemented
+     *
+     * @throws \ReflectionException
+     */
     public function define(string $interface): string
     {
         $name = $this->getName($class = new ReflectionClass($interface));
@@ -45,6 +50,7 @@ abstract class Generator
             $cacheFile = $this->cacheDir . DIRECTORY_SEPARATOR . $name . '.php';
             if (file_exists($cacheFile)) {
                 require_once $cacheFile;
+
                 return '\\' . $namespace . '\\' . $name;
             }
         }
@@ -52,7 +58,7 @@ abstract class Generator
         $reflection = new ReflectionClass($interface);
         $fullname = $this->getInterfaceNamespace($reflection) . '\\' . $this->getName($reflection);
 
-        if (!class_exists($fullname)) {
+        if (! class_exists($fullname)) {
             eval($output = $this->generate($interface));
             if ($cacheFile) {
                 file_put_contents($cacheFile, "<?php\n{$output}");
@@ -106,6 +112,7 @@ abstract class Generator
                 $hooks[] = $this->pureMethod($hook, true);
             }
             $hooks[] = '}';
+
             return implode(
                 "\n",
                 array_filter(
@@ -115,6 +122,7 @@ abstract class Generator
             );
         }, $props);
         $props = implode("\n", $props);
+
         return <<<EOT
             {$namespace}
             
@@ -139,6 +147,7 @@ abstract class Generator
             if ($type->isBuiltin()) {
                 return $nullable . $type->getName();
             }
+
             return $nullable . '\\' . $type->getName();
         }
 
