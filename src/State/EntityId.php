@@ -28,10 +28,13 @@ use Stringable;
 use Withinboredom\Record;
 
 /**
- * @template T
+ * @template T of EntityState
  */
 readonly class EntityId extends Record implements Stringable
 {
+    /**
+     * @var class-string<T>
+     */
     public protected(set) string $name;
 
     public protected(set) string $id;

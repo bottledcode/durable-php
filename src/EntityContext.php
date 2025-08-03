@@ -41,9 +41,11 @@ use Bottledcode\DurablePhp\Events\WithFrom;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Exceptions\Unwind;
 use Bottledcode\DurablePhp\Glue\Provenance;
+use Bottledcode\DurablePhp\Proxy\SpyException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\EntityHistory;
 use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\EntityState;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Closure;
 use Crell\Serde\Attributes\ClassSettings;
@@ -111,29 +113,6 @@ class EntityContext implements EntityContextInterface
         $this->state = $value;
     }
 
-    public function signalEntity(
-        EntityId $entityId,
-        string $operation,
-        array $input = [],
-        ?DateTimeImmutable $scheduledTime = null,
-    ): void {
-        $event = $this->addFrom(
-            WithEntity::forInstance(
-                StateId::fromEntityId($entityId),
-                RaiseEvent::forOperation($operation, $input),
-            ),
-        );
-        if ($scheduledTime) {
-            $event = WithDelay::forEvent($scheduledTime, $event);
-        }
-        $this->eventDispatcher->fire($event);
-    }
-
-    private function addFrom(Event $event): Event
-    {
-        return WithFrom::forEvent($this->from, $event);
-    }
-
     public function getId(): EntityId
     {
         return $this->id;
@@ -159,6 +138,11 @@ class EntityContext implements EntityContextInterface
                 ),
             ),
         );
+    }
+
+    private function addFrom(Event $event): Event
+    {
+        return WithFrom::forEvent($this->from, $event);
     }
 
     public function delay(Closure $self, DateTimeInterface $until = new DateTimeImmutable()): void
@@ -282,5 +266,48 @@ class EntityContext implements EntityContextInterface
                 ),
             ),
         );
+    }
+
+    public function signal(EntityId $entityId, callable $signal): void
+    {
+        $proxy = $this->spyProxy->define($entityId->name);
+        $operationName = null;
+        $arguments = null;
+        $proxy = new $proxy($operationName, $arguments);
+        try {
+            $proxy($signal);
+
+            if ($operationName === null || $arguments === null) {
+                return;
+            }
+        } catch (SpyException) {
+            $this->signalEntity($entityId, $operationName, $arguments ?? []);
+        }
+    }
+
+    public function signalEntity(
+        EntityId $entityId,
+        string $operation,
+        array $input = [],
+        ?DateTimeImmutable $scheduledTime = null,
+    ): void {
+        $event = $this->addFrom(
+            WithEntity::forInstance(
+                StateId::fromEntityId($entityId),
+                RaiseEvent::forOperation($operation, $input),
+            ),
+        );
+        if ($scheduledTime) {
+            $event = WithDelay::forEvent($scheduledTime, $event);
+        }
+        $this->eventDispatcher->fire($event);
+    }
+
+    public function getSnapshot(EntityId $entityId): EntityState
+    {
+        $state = $this->eventDispatcher->getState(StateId::fromEntityId($entityId));
+        assert($state instanceof EntityHistory);
+
+        return $state->getState();
     }
 }

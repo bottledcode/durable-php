@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\EntityId;
+use Bottledcode\DurablePhp\State\EntityState;
 use Closure;
 use Crell\Serde\Attributes\ClassNameTypeMap;
 use DateTimeImmutable;
@@ -101,6 +102,26 @@ interface EntityContextInterface
      * Get the current operation.
      */
     public function getOperation(): string;
+
+    /**
+     * Call the entity with a single signal
+     *
+     * @template T of EntityState
+     *
+     * @param  EntityId<T>  $entityId
+     * @param  callable(T): void  $signal
+     */
+    public function signal(EntityId $entityId, callable $signal): void;
+
+    /**
+     * Retrieve a snapshot of the remote entity state
+     *
+     * @template T of EntityState
+     *
+     * @param  EntityId<T>  $entityId
+     * @return EntityState<T>
+     */
+    public function getSnapshot(EntityId $entityId): EntityState;
 
     public function startNewOrchestration(string $orchestration, array $input = [], ?string $id = null): void;
 
