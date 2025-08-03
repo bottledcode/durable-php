@@ -154,6 +154,10 @@ abstract class AbstractHistory implements ApplyStateInterface, StateInterface
 
         foreach ($controls as $accessControl) {
             if ($accessControl instanceof DenyAnyOperation) {
+                if ($accessControl->fromType === null && $accessControl->fromId === null && $accessControl->fromRole === null && $accessControl->fromUser === null) {
+                    return false;
+                }
+
                 if ($accessControl->fromUser && $user->userId === $accessControl->fromUser) {
                     return false;
                 }
