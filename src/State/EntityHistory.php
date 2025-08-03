@@ -48,7 +48,6 @@ use Bottledcode\DurablePhp\State\Ids\StateId;
 use Crell\Serde\Attributes\Field;
 use Generator;
 use Override;
-use PropertyHookType;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
@@ -226,12 +225,12 @@ class EntityHistory extends AbstractHistory
                     if (! $this->checkAccessControl($this->user, $this->from, ...$operationReflection->getAttributes(AccessControl::class, ReflectionAttribute::IS_INSTANCEOF))) {
                         throw new SecurityException('Access denied');
                     }
-                    $operationReflection = match ($operation) {
-                        'get' => $operationReflection->getHook(PropertyHookType::Get),
-                        'set' => $operationReflection->getHook(PropertyHookType::Set),
+                    $result = match ($operation) {
+                        'get' => $this->state->{$property},
+                        'set' => $this->state->{$property} = $input[0],
                         default => throw new ReflectionException('Unknown operation'),
                     };
-                    goto done;
+                    goto finalize;
                 }
 
                 $operationReflection = $reflector->getMethod($operation);
@@ -280,6 +279,8 @@ class EntityHistory extends AbstractHistory
                 return;
             }
         }
+
+        finalize:
 
         if ($replyTo) {
             foreach ($replyTo as $reply) {
