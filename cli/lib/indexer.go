@@ -2,10 +2,10 @@ package lib
 
 import (
 	"context"
-	"durable_php/config"
-	"durable_php/glue"
-	"durable_php/ids"
 	"encoding/json"
+	"github.com/bottledcode/durable-php/cli/config"
+	"github.com/bottledcode/durable-php/cli/glue"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/typesense/typesense-go/typesense"
 	"github.com/typesense/typesense-go/typesense/api"

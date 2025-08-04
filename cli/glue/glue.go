@@ -3,10 +3,10 @@ package glue
 import (
 	"bytes"
 	"context"
-	"durable_php/appcontext"
-	"durable_php/ids"
 	"encoding/json"
 	"fmt"
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/dunglas/frankenphp"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"

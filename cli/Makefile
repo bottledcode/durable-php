@@ -1,17 +1,25 @@
-TARGET := dphp-linux-*
-BIN_PATH := ../bin
-DOCKER_IMAGE := builder
-DOCKER_TARGET := cli-base-alpine
-BUILD_PATH := /go/src/app/cli/dist
+# Variables
+PHP_INCLUDES := $(shell php-config --includes)
+PHP_LDFLAGS  := $(shell php-config --ldflags)
+PHP_LIBS     := $(shell php-config --libs)
 
-${BIN_PATH}/${TARGET}: cli.go */* go.mod build.sh build-php.sh ../Dockerfile
-	mkdir -p ${BIN_PATH}
-	cd .. && docker buildx build --pull --load --target ${DOCKER_TARGET} -t ${DOCKER_IMAGE} .
-	docker create --name ${DOCKER_IMAGE} ${DOCKER_IMAGE} || ( docker rm -f ${DOCKER_IMAGE} && false )
-	docker cp ${DOCKER_IMAGE}:${BUILD_PATH}/dphp ${BIN_PATH}/ || ( docker rm -f ${DOCKER_IMAGE} && false )
-	docker rm -f ${DOCKER_IMAGE}
-	upx -9 --force-pie ../bin/dphp-*
+XCADDY_FLAGS := -ldflags='-w -s' -tags=nobadger,nomysql,nopgx,nodphp,nobrotli
 
-../dist: ${BIN_PATH}/${TARGET}
-	docker create --name builder builder
-	docker cp ${DOCKER_IMAGE}:${BUILD_PATH} ../dist
+LOCAL_MODULE := /home/withinboredom/code/durable-php/cli
+
+# Targets
+frankenphp: ext/build/ext.go
+	CGO_ENABLED=1 \
+	XCADDY_GO_BUILD_FLAGS="$(XCADDY_FLAGS)" \
+	CGO_CFLAGS="$(PHP_INCLUDES)" \
+	CGO_LDFLAGS="$(PHP_LDFLAGS) $(PHP_LIBS)" \
+	xcaddy build \
+		--output frankenphp \
+		--with github.com/dunglas/frankenphp/caddy \
+		--with github.com/bottledcode/durable-php/cli=$(LOCAL_MODULE)
+
+ext/build/ext.go: ext/ext.go
+	GEN_STUB_SCRIPT=/home/withinboredom/code/php-src/build/gen_stub.php \
+	frankenphp extension-init ext/ext.go
+
+.PHONY: frankenphp

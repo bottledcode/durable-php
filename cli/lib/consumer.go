@@ -2,13 +2,13 @@ package lib
 
 import (
 	"context"
-	"durable_php/appcontext"
-	"durable_php/auth"
-	"durable_php/config"
-	"durable_php/glue"
-	"durable_php/ids"
 	"encoding/json"
 	"fmt"
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/auth"
+	"github.com/bottledcode/durable-php/cli/config"
+	"github.com/bottledcode/durable-php/cli/glue"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"net/http"

@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
-	"durable_php/appcontext"
-	"durable_php/glue"
-	"durable_php/ids"
 	"encoding/json"
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/glue"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/modern-go/concurrent"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"

@@ -2,8 +2,8 @@ package auth
 
 import (
 	"context"
-	"durable_php/appcontext"
 	"errors"
+	"github.com/bottledcode/durable-php/cli/appcontext"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"

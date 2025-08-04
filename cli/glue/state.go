@@ -2,7 +2,7 @@ package glue
 
 import (
 	"context"
-	"durable_php/ids"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
