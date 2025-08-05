@@ -386,6 +386,7 @@ func emit_event(userVal *C.zval, event *C.zval, fromStr *C.zend_string) int64 {
 	}
 	if !authd {
 		helpers.ThrowPHPException("Resource not found")
+		return 0
 	}
 	replyTo := ""
 	if ev.ReplyTo != "" {
