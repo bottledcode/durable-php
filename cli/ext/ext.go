@@ -31,7 +31,11 @@ This is a php extension that operates as a client for durable php
 
 // export_php:namespace Bottledcode\DurablePhp\Ext
 
+// export_php:module shutdown
 func go_shutdown_module() {
+	if helpers.NatServer != nil {
+		helpers.NatServer.Shutdown()
+	}
 	os.RemoveAll(helpers.NatsState)
 }
 
@@ -56,7 +60,7 @@ func go_init_module() {
 			panic(err)
 		}
 
-		s := test.RunServer(&server.Options{
+		helpers.NatServer = test.RunServer(&server.Options{
 			Host:           "localhost",
 			Port:           4222,
 			NoLog:          true,
@@ -66,7 +70,6 @@ func go_init_module() {
 			StoreDir:       helpers.NatsState,
 			HTTPPort:       8222,
 		})
-		defer s.Shutdown()
 		boostrapNats = true
 	}
 
@@ -259,7 +262,7 @@ func go_init_module() {
 			if err != nil {
 				panic(err)
 			}
-			defer consume.Drain()
+			//defer consume.Drain()
 
 			orchestrationConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 				Durable:       "orchestrationAggregator",
@@ -276,7 +279,7 @@ func go_init_module() {
 			if err != nil {
 				panic(err)
 			}
-			defer consume.Drain()
+			//defer consume.Drain()
 
 			activityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 				Durable:       "activityAggregator",
@@ -299,7 +302,7 @@ func go_init_module() {
 			if err != nil {
 				panic(err)
 			}
-			defer consume.Drain()
+			//defer consume.Drain()
 		}
 
 		err := lib.StartBillingProcessor(ctx, cfg, helpers.Js, logger)

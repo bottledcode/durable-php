@@ -14,6 +14,7 @@ import (
 	"github.com/bottledcode/durable-php/cli/config"
 	"github.com/bottledcode/durable-php/cli/glue"
 	"github.com/dunglas/frankenphp"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -41,6 +42,7 @@ var Logger *zap.Logger
 var NatsState string
 var Js jetstream.JetStream
 var Config *config.Config
+var NatServer *server.Server
 
 func ParseEvent(arr *frankenphp.Array) (ev *glue.EventMessage, err error) {
 	ev = &glue.EventMessage{}
