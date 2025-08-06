@@ -1,9 +1,14 @@
-# Variables
+DEBUG ?= 0
+
 PHP_INCLUDES := $(shell php-config --includes)
 PHP_LDFLAGS  := $(shell php-config --ldflags)
 PHP_LIBS     := $(shell php-config --libs)
 
-XCADDY_FLAGS := -ldflags='-w -s' -tags=nobadger,nomysql,nopgx,nodphp,nobrotli
+ifeq ($(DEBUG),1)
+	XCADDY_FLAGS := -gcflags='all=-N -l' -tags=nobadger,nomysql,nopgx,nodphp,nobrotli
+else
+	XCADDY_FLAGS := -ldflags='-w -s' -tags=nobadger,nomysql,nopgx,nodphp,nobrotli
+endif
 
 LOCAL_MODULE := /home/withinboredom/code/durable-php/cli
 

@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"runtime"
+	"strings"
+	"time"
+
 	"github.com/bottledcode/durable-php/cli/appcontext"
 	"github.com/bottledcode/durable-php/cli/auth"
 	"github.com/bottledcode/durable-php/cli/config"
@@ -11,11 +16,23 @@ import (
 	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
-	"net/http"
-	"runtime"
-	"strings"
-	"time"
 )
+
+func StartConsumer(ctx context.Context, config *config.Config, stream jetstream.Stream, logger *zap.Logger, kind ids.IdKind) jetstream.MessagesContext {
+	logger.Debug("Starting consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
+
+	consumer, err := stream.Consumer(ctx, config.Stream+"-"+string(kind))
+	if err != nil {
+		panic(err)
+	}
+
+	iter, err := consumer.Messages(jetstream.PullMaxMessages(10), jetstream.WithMessagesErrOnMissingHeartbeat(false))
+	if err != nil {
+		panic(err)
+	}
+
+	return iter
+}
 
 func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.Config, kind ids.IdKind, logger *zap.Logger, js jetstream.JetStream, rm *auth.ResourceManager) {
 	logger.Debug("Creating consumer", zap.String("stream", config.Stream), zap.String("kind", string(kind)))
@@ -64,7 +81,7 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 					return
 				}
 
-				ctx := getCorrelationId(ctx, nil, &headers)
+				ctx := GetCorrelationId(ctx, nil, &headers)
 
 				// spawn a thread to process the message, but rate limit
 				go func() {
@@ -93,20 +110,267 @@ func BuildConsumer(stream jetstream.Stream, ctx context.Context, config *config.
 	}()
 }
 
+func getStateId(msg jetstream.Msg) *ids.StateId {
+	return ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+}
+
+func lockStateId(ctx context.Context, id *ids.StateId, js jetstream.JetStream, logger *zap.Logger) (func() error, error) {
+	if id.Kind != ids.Entity {
+		return func() error { return nil }, nil
+	}
+
+	unlocker, err := lockSubject(ctx, id.ToSubject(), js, logger)
+	if err != nil {
+		return func() error { return nil }, err
+	}
+	return unlocker, nil
+}
+
+func getUserFromHeader(msg jetstream.Msg) (*auth.User, error) {
+	r := &auth.User{}
+	b := msg.Headers().Get(string(glue.HeaderProvenance))
+	err := json.Unmarshal([]byte(b), r)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+// ProcessMessage takes a message and some references and returns:
+// 1. an auth context
+// 2. the destination id
+// 3. the state
+// 4. or an error
+func ProcessMessage(
+	ctx context.Context,
+	logger *zap.Logger,
+	msg jetstream.Msg,
+	rm *auth.ResourceManager,
+	config *config.Config,
+	js jetstream.JetStream,
+) ([]byte, *ids.StateId, *glue.StateArray, error) {
+	logger.Debug("Processing message", zap.Any("msg", msg))
+
+	id := getStateId(msg)
+	unlocker, err := lockStateId(ctx, id, nil, logger)
+	if err != nil {
+		return []byte{}, nil, nil, err
+	}
+	defer unlocker()
+
+	ctx, cancelCtx := context.WithCancel(ctx)
+	defer cancelCtx()
+
+	currentUser, err := getUserFromHeader(msg)
+	if err != nil {
+		logger.Warn("Failed to unmarshal event provenance",
+			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
+			zap.Error(err),
+		)
+		currentUser = nil
+	} else {
+		ctx = auth.DecorateContextWithUser(ctx, currentUser)
+	}
+
+	// retrieve the source
+	sourceId := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderEmittedBy)))
+	var authContext []byte
+
+	if config.Extensions.Authz.Enabled {
+		// extract the source operations
+		sourceOps := strings.Split(msg.Headers().Get(string(glue.HeaderSourceOps)), ",")
+
+		// extract the target operations
+		targetOps := strings.Split(msg.Headers().Get(string(glue.HeaderTargetOps)), ",")
+		preventCreation := true
+		for _, op := range targetOps {
+			switch auth.Operation(op) {
+			case auth.Signal:
+				fallthrough
+			case auth.Call:
+				fallthrough
+			case auth.Lock:
+				fallthrough
+			case auth.Output:
+				preventCreation = false
+			}
+		}
+
+		resource, err := rm.DiscoverResource(ctx, id, sourceId, logger, preventCreation)
+		if err != nil {
+			logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "create"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+			msg.Ack()
+			return []byte{}, nil, nil, err
+		}
+		if resource == nil {
+			logger.Warn("User accessed missing object", zap.Any("operation", sourceOps), zap.String("from", sourceId.Id), zap.String("to", id.Id), zap.String("user", string(currentUser.UserId)))
+			msg.Ack()
+			return []byte{}, nil, nil, nil
+		}
+
+		authContext, err = rm.ToAuthContext(ctx, resource)
+		if err != nil {
+			logger.Warn("Failed to retrieve auth context", zap.Error(err))
+			msg.Ack()
+			return []byte{}, nil, nil, err
+		}
+
+		m := msg.Headers().Get(string(glue.HeaderMeta))
+		var meta map[string]interface{}
+		if m != "[]" {
+			err = json.Unmarshal([]byte(m), &meta)
+			if err != nil {
+				return []byte{}, nil, nil, err
+			}
+
+			switch msg.Headers().Get(string(glue.HeaderEventType)) {
+			case "RevokeRole":
+				if !resource.WantTo(auth.ShareMinus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return []byte{}, nil, nil, nil
+				}
+				role := meta["role"].(string)
+
+				err := resource.RevokeRole(auth.Role(role), ctx)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				err = resource.Update(ctx, logger)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			case "RevokeUser":
+				if !resource.WantTo(auth.ShareMinus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "revokeUser"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return []byte{}, nil, nil, nil
+				}
+				user := meta["userId"].(string)
+				err := resource.RevokeUser(auth.UserId(user), ctx)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				err = resource.Update(ctx, logger)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			case "ShareWithRole":
+				if !resource.WantTo(auth.SharePlus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "shareWithRole"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return []byte{}, nil, nil, nil
+				}
+				role := meta["role"].(auth.Role)
+				operations := meta["allowedOperations"].([]auth.Operation)
+
+				for _, op := range operations {
+					err := resource.GrantRole(role, op, ctx)
+					if err != nil {
+						return []byte{}, nil, nil, err
+					}
+				}
+				err = resource.Update(ctx, logger)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			case "ShareWithUser":
+				if !resource.WantTo(auth.SharePlus, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "shareWithUser"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return []byte{}, nil, nil, nil
+				}
+				role := meta["userId"].(auth.UserId)
+				operations := meta["allowedOperations"].([]auth.Operation)
+
+				for _, op := range operations {
+					err := resource.GrantUser(role, op, ctx)
+					if err != nil {
+						return []byte{}, nil, nil, err
+					}
+				}
+				err = resource.Update(ctx, logger)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			case "ShareOwnership":
+				if !resource.WantTo(auth.Owner, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "shareOwnership"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return []byte{}, nil, nil, nil
+				}
+				userId := meta["userId"].(auth.UserId)
+				user := ctx.Value(appcontext.CurrentUserKey).(*auth.User)
+				err := resource.ShareOwnership(userId, user, true)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				err = resource.Update(ctx, logger)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			case "GiveOwnership":
+				if !resource.WantTo(auth.Owner, ctx) {
+					logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", "giveOwnership"), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+					msg.Ack()
+					return []byte{}, nil, nil, nil
+				}
+				userId := meta["userId"].(auth.UserId)
+				user := ctx.Value(appcontext.CurrentUserKey).(*auth.User)
+				err := resource.ShareOwnership(userId, user, true)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				err = resource.Update(ctx, logger)
+				if err != nil {
+					return []byte{}, nil, nil, err
+				}
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			}
+		}
+
+		for _, op := range targetOps {
+			if !resource.WantTo(auth.Operation(op), ctx) {
+				logger.Warn("User attempted to perform an unauthorized operation", zap.String("operation", op), zap.String("From", sourceId.Id), zap.String("To", id.Id), zap.String("User", string(currentUser.UserId)))
+				msg.Ack()
+				return []byte{}, nil, nil, nil
+			}
+		}
+	}
+
+	state, err := glue.GetStateArray(id, js, ctx, logger)
+	if err != nil {
+		logger.Warn("Failed to retrieve state", zap.Error(err))
+		msg.Ack()
+		return []byte{}, nil, nil, err
+	}
+
+	return authContext, id, state, nil
+}
+
 // processMsg is responsible for processing a message received from JetStream.
 // It takes a logger, msg, and JetStream as parameters. Do not panic!
 func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js jetstream.JetStream, config *config.Config, rm *auth.ResourceManager) error {
 	logger.Debug("Received message", zap.Any("msg", msg))
 
 	// lock the Subject, if it is a lockable Subject
-	id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
-	if id.Kind == ids.Entity {
-		unlocker, err := lockSubject(ctx, id.ToSubject(), js, logger)
-		if err != nil {
-			return err
-		}
-		defer unlocker()
+	id := getStateId(msg)
+	unlocker, err := lockStateId(ctx, id, nil, logger)
+	if err != nil {
+		return err
 	}
+	defer unlocker()
 
 	ctx, cancelCtx := context.WithCancel(ctx)
 	defer cancelCtx()
@@ -114,7 +378,7 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 	// configure the current user
 	currentUser := &auth.User{}
 	b := msg.Headers().Get(string(glue.HeaderProvenance))
-	err := json.Unmarshal([]byte(b), currentUser)
+	err = json.Unmarshal([]byte(b), currentUser)
 	if err != nil {
 		logger.Warn("Failed to unmarshal event provenance",
 			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),

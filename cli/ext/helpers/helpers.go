@@ -10,6 +10,12 @@ static inline void throw_exception(const char* msg) {
 */
 import "C"
 import (
+	"context"
+	"errors"
+	"os"
+	"time"
+	"unsafe"
+
 	"github.com/bottledcode/durable-php/cli/auth"
 	"github.com/bottledcode/durable-php/cli/config"
 	"github.com/bottledcode/durable-php/cli/glue"
@@ -18,9 +24,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"os"
-	"time"
-	"unsafe"
 )
 
 func ThrowPHPException(msg string) {
@@ -38,11 +41,29 @@ func GetLogger(level zapcore.Level) *zap.Logger {
 	return zap.New(core)
 }
 
+type Consumer struct {
+	Context context.Context
+	Done    context.CancelFunc
+	Msg     jetstream.MessagesContext
+}
+
 var Logger *zap.Logger
 var NatsState string
 var Js jetstream.JetStream
 var Config *config.Config
 var NatServer *server.Server
+var Ctx context.Context
+
+func ParseStateId(arr *frankenphp.Array) (id string, err error) {
+	_, idx := arr.At(0)
+	ok := false
+	if id, ok = idx.(string); ok {
+		return
+	}
+	Logger.Warn("Failed to parse state id", zap.Any("id", idx))
+	ThrowPHPException("Failed to parse state id")
+	return "", errors.New("Failed to parse state id")
+}
 
 func ParseEvent(arr *frankenphp.Array) (ev *glue.EventMessage, err error) {
 	ev = &glue.EventMessage{}
@@ -72,9 +93,12 @@ func ParseEvent(arr *frankenphp.Array) (ev *glue.EventMessage, err error) {
 		case "targetType":
 			ev.TargetType = v.(string)
 		case "scheduleAt":
-			ev.ScheduleAt, err = time.Parse(time.RFC3339, v.(string))
+			if str, ok := v.(string); ok {
+				ev.ScheduleAt, err = time.Parse(time.RFC3339, str)
+			}
 		default:
 			ThrowPHPException("Unknown event key: " + k.Str)
+			return nil, errors.New("Unknown event key: " + k.Str)
 		}
 	}
 	return

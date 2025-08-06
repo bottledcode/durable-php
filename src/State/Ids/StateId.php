@@ -31,6 +31,7 @@ use Bottledcode\DurablePhp\State\OrchestrationHistory;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\StateInterface;
 use Crell\Serde\Attributes\ClassNameTypeMap;
+use Crell\Serde\Attributes\Field;
 use Exception;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
@@ -43,7 +44,8 @@ use function Bottledcode\DurablePhp\OrchestrationInstance;
 #[ClassNameTypeMap('__type')]
 readonly class StateId extends Record implements Stringable
 {
-    public protected(set) string $id;
+    #[Field(flatten: true)]
+    public string $id;
 
     public static function fromState(StateInterface $state): self
     {

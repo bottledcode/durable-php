@@ -5,12 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bottledcode/durable-php/cli/appcontext"
-	"github.com/bottledcode/durable-php/cli/ids"
-	"github.com/dunglas/frankenphp"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,6 +12,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/ids"
+	"github.com/dunglas/frankenphp"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	"go.uber.org/zap"
 )
 
 type Method string
@@ -246,6 +247,144 @@ func DeleteState(ctx context.Context, stream jetstream.JetStream, logger *zap.Lo
 	}
 
 	err = obj.Delete(ctx, id.ToSubject().String())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type Array struct {
+	*frankenphp.Array
+}
+
+func (a *Array) GetStringKey(key string) interface{} {
+	for i := uint32(0); i < a.Len(); i++ {
+		k, v := a.At(i)
+		if k.Type == frankenphp.PHPStringKey && k.Str == key {
+			return v
+		}
+	}
+
+	return nil
+}
+
+func (a *Array) Unmarshall(j []byte) error {
+	result := Array{}
+	err := json.Unmarshal(j, &result.Array)
+	if err != nil {
+		return err
+	}
+	a.Array = result.Array
+	return nil
+}
+
+func (a *Array) Marshal() ([]byte, error) {
+	data, err := json.Marshal(a.Array)
+	return data, err
+}
+
+type StateArray struct {
+	Creating bool
+	Data     *Array
+	Revision uint64
+}
+
+func GetStateArray(id *ids.StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) (*StateArray, error) {
+	if id.Kind == ids.Orchestration {
+		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket:      string(ids.Orchestration),
+			Description: "Holds orchestration state and history",
+			Compression: true,
+		})
+		if err != nil {
+			return nil, err
+		}
+		arr := &StateArray{
+			Data: &Array{},
+		}
+
+		get, err := bucket.Get(ctx, id.ToSubject().String())
+		if err == nil {
+			result := &Array{}
+			err = result.Unmarshall(get.Value())
+			if err != nil {
+				return nil, err
+			}
+			arr.Data = result
+			arr.Revision = get.Revision()
+			return arr, nil
+		}
+		arr.Creating = true
+		return arr, nil
+	}
+
+	obj, err := GetObjectStore(id.Kind, stream, ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := &StateArray{
+		Data: &Array{},
+	}
+
+	res, err := obj.GetBytes(ctx, id.ToSubject().String())
+	if err != nil {
+		result.Creating = true
+		return result, nil
+	}
+
+	err = result.Data.Unmarshall(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (arr *StateArray) Update(id *ids.StateId, stream jetstream.JetStream, ctx context.Context, logger *zap.Logger) error {
+	if id.Kind == ids.Orchestration {
+		bucket, err := stream.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket:      string(ids.Orchestration),
+			Description: "Holds orchestration state and history",
+			Compression: true,
+		})
+		if err != nil {
+			return err
+		}
+		dataBytes, err := arr.Data.Marshal()
+		if err != nil {
+			return err
+		}
+
+		if arr.Creating {
+			_, err = bucket.Create(ctx, id.ToSubject().String(), dataBytes)
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = bucket.Update(ctx, id.ToSubject().String(), dataBytes, arr.Revision)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	obj, err := GetObjectStore(id.Kind, stream, ctx)
+	if err != nil {
+		return err
+	}
+	dataBytes, err := arr.Data.Marshal()
+	if err != nil {
+		return err
+	}
+	info, err := obj.PutBytes(ctx, id.ToSubject().String(), dataBytes)
+	if err != nil {
+		return err
+	}
+
+	_, err = obj.AddLink(ctx, id.ToSubject().String(), info)
 	if err != nil {
 		return err
 	}

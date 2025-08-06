@@ -29,18 +29,23 @@ use Bottledcode\DurablePhp\Events\Shares\NeedsTarget;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\Serializer;
+use Crell\Serde\Attributes\Field;
 use DateTimeImmutable;
 use JsonException;
 use ReflectionClass;
 
 readonly class EventDescription
 {
+    #[Field(default: null, omitIfNull: true)]
     public ?StateId $replyTo;
 
+    #[Field(serializedName: 'scheduleAt', default: null, omitIfNull: true)]
     public ?DateTimeImmutable $scheduledAt;
 
+    #[Field(default: null, omitIfNull: true)]
     public ?StateId $destination;
 
+    #[Field(default: null, omitIfNull: true)]
     public ?StateId $from;
 
     public string $eventId;
@@ -181,6 +186,11 @@ readonly class EventDescription
 
     public function toStream(): string
     {
+        return json_encode($this->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    }
+
+    public function toArray(): array
+    {
         $serialized = Serializer::serialize($this->event);
 
         $serialized =
@@ -189,7 +199,7 @@ readonly class EventDescription
 
         $event = base64_encode($serialized);
 
-        return json_encode([
+        return [
             'destination' => $this->destination?->id ?? null,
             'replyTo' => $this->replyTo?->id ?? '',
             'scheduleAt' => $this->scheduledAt?->format(DATE_ATOM) ?? gmdate(DATE_ATOM, time() - 30),
@@ -200,7 +210,7 @@ readonly class EventDescription
             'targetOps' => implode(',', array_map(static fn($x) => $x->value, $this->targetOperations)),
             'meta' => json_encode($this->meta ?? [], JSON_THROW_ON_ERROR),
             'event' => $event,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        ];
     }
 
     /**
