@@ -1,48 +1,63 @@
-package ext
+package build
 
-import "C"
-
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"os"
-	"strings"
-	"sync"
-	"time"
-	"unsafe"
-
-	"github.com/bottledcode/durable-php/cli/appcontext"
-	"github.com/bottledcode/durable-php/cli/auth"
-	"github.com/bottledcode/durable-php/cli/config"
-	"github.com/bottledcode/durable-php/cli/ext/helpers"
-	"github.com/bottledcode/durable-php/cli/glue"
-	"github.com/bottledcode/durable-php/cli/ids"
-	"github.com/bottledcode/durable-php/cli/lib"
-	"github.com/dunglas/frankenphp"
-	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats-server/v2/test"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
-	"go.uber.org/zap"
-)
-
-/**
-This is a php extension that operates as a client for durable php
+/*
+#include <stdlib.h>
+#include "ext.h"
 */
+import "C"
+import "runtime/cgo"
+import "unsafe"
+import "github.com/dunglas/frankenphp"
+import "context"
+import "encoding/json"
+import "errors"
+import "os"
+import "strings"
+import "sync"
+import "time"
+import "github.com/bottledcode/durable-php/cli/appcontext"
+import "github.com/bottledcode/durable-php/cli/auth"
+import "github.com/bottledcode/durable-php/cli/config"
+import "github.com/bottledcode/durable-php/cli/ext/helpers"
+import "github.com/bottledcode/durable-php/cli/glue"
+import "github.com/bottledcode/durable-php/cli/ids"
+import "github.com/bottledcode/durable-php/cli/lib"
+import "github.com/nats-io/nats-server/v2/server"
+import "github.com/nats-io/nats-server/v2/test"
+import "github.com/nats-io/nats.go"
+import "github.com/nats-io/nats.go/jetstream"
+import "go.uber.org/zap"
 
-// export_php:namespace Bottledcode\DurablePhp\Ext
-
-// export_php:module shutdown
-func go_shutdown_module() {
-	if helpers.NatServer != nil {
-		helpers.NatServer.Shutdown()
-	}
-	// remove nats state directory
-	os.RemoveAll(helpers.NatsState)
+func init() {
+	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
 }
 
-// export_php:module init
+func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
+	if !helpers.Config.Extensions.Authz.Enabled {
+		return true, nil
+	}
+
+	rm := auth.GetResourceManager(ctx, helpers.Js)
+	r, err := rm.DiscoverResource(ctx, ids.ParseStateId(ev.Destination), from, helpers.Logger, preventCreation)
+	if err != nil {
+		err = errors.Join(errors.New("user is not authorised"), err)
+		helpers.ThrowPHPException(err.Error())
+		return false, err
+	}
+	if r == nil {
+		return false, nil
+	}
+
+	if !r.WantTo(operation, ctx) {
+		err = errors.New("user is not authorised")
+		helpers.ThrowPHPException(err.Error())
+		return false, err
+	}
+
+	return true, nil
+}
+
+//export go_init_module
 func go_init_module() {
 	cfg, err := config.GetProjectConfig()
 	if err != nil {
@@ -317,239 +332,20 @@ func go_init_module() {
 	}
 }
 
-// Authorize the user to access the given event destination.
-// (false, nil) means not found, while (true, nil) means they're allowed.
-// Any error means the user is not authorised.
-func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
-	if !helpers.Config.Extensions.Authz.Enabled {
-		return true, nil
+//export go_shutdown_module
+func go_shutdown_module() {
+	if helpers.NatServer != nil {
+		helpers.NatServer.Shutdown()
 	}
-
-	rm := auth.GetResourceManager(ctx, helpers.Js)
-	r, err := rm.DiscoverResource(ctx, ids.ParseStateId(ev.Destination), from, helpers.Logger, preventCreation)
-	if err != nil {
-		err = errors.Join(errors.New("user is not authorised"), err)
-		helpers.ThrowPHPException(err.Error())
-		return false, err
-	}
-	if r == nil {
-		return false, nil
-	}
-
-	if !r.WantTo(operation, ctx) {
-		err = errors.New("user is not authorised")
-		helpers.ThrowPHPException(err.Error())
-		return false, err
-	}
-
-	return true, nil
+	// remove nats state directory
+	os.RemoveAll(helpers.NatsState)
 }
 
-// export_php:method Worker::startEventLoop(): void
-func (w *Worker) startEventLoop(kindStr *C.zend_string) {
-	if w.started {
-		helpers.ThrowPHPException("Event loop already running")
-		return
-	}
+//export emit_event
+func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int64 {
 
-	ctx, done := context.WithCancel(helpers.Ctx)
+	userVal := frankenphp.GoArray(unsafe.Pointer(userContext))
 
-	c := &helpers.Consumer{
-		Context: ctx,
-		Done:    done,
-	}
-
-	stream, err := helpers.Js.Stream(ctx, helpers.Config.Stream)
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return
-	}
-
-	c.Msg = lib.StartConsumer(ctx, helpers.Config, stream, helpers.Logger, w.kind)
-	w.consumer = c
-}
-
-// export_php:method Worker::drainEventLoop(): void
-func (w *Worker) drainEventLoop() {
-	if !w.started {
-		return
-	}
-	w.consumer.Msg.Drain()
-	w.started = false
-}
-
-// export_php:method Worker::__destruct(): void
-func (w *Worker) __destruct() {
-	w.consumer.Msg.Stop()
-	w.consumer.Done()
-}
-
-// export_php:class Worker
-type Worker struct {
-	kind          ids.IdKind
-	started       bool
-	consumer      *helpers.Consumer
-	activeId      *ids.StateId
-	state         *glue.StateArray
-	pendingEvents []*frankenphp.Array
-	authContext   []byte
-	currentCtx    context.Context
-	currentMsg    jetstream.Msg
-}
-
-// export_php:method Worker::__construct(string $kind): void
-func (w *Worker) __construct(kindStr *C.zend_string) {
-	kind := ids.IdKind(frankenphp.GoString(unsafe.Pointer(kindStr)))
-
-	switch kind {
-	case ids.Activity:
-	case ids.Entity:
-	case ids.Orchestration:
-	default:
-		helpers.ThrowPHPException("Invalid event kind")
-		return
-	}
-	w.kind = kind
-}
-
-// export_php:method Worker::getNextEvent(): ?string
-func (w *Worker) getNextEvent() unsafe.Pointer {
-	c := w.consumer
-
-	ctx := c.Context
-	logger := helpers.Logger
-	js := helpers.Js
-
-	msg, err := c.Msg.Next()
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return frankenphp.PHPString("", false)
-	}
-
-	meta, _ := msg.Metadata()
-	headers := msg.Headers()
-
-	currentUser := &auth.User{}
-	b := msg.Headers().Get(string(glue.HeaderProvenance))
-	err = json.Unmarshal([]byte(b), currentUser)
-	if err != nil {
-		logger.Warn("Failed to unmarshal event provenance",
-			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
-			zap.Error(err),
-		)
-		currentUser = nil
-	} else {
-		ctx = auth.DecorateContextWithUser(ctx, currentUser)
-	}
-
-	if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
-		logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
-		schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
-		if err != nil {
-			helpers.ThrowPHPException(err.Error())
-			return frankenphp.PHPString("", false)
-		}
-
-		delay := time.Until(schedule)
-		if err := msg.NakWithDelay(delay); err != nil {
-			helpers.ThrowPHPException(err.Error())
-			return frankenphp.PHPString("", false)
-		}
-
-		return w.getNextEvent()
-	}
-
-	if strings.HasSuffix(msg.Subject(), ".delete") {
-		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
-		// todo: remove glue!
-		err := glue.DeleteState(ctx, js, logger, id)
-		if err != nil {
-			helpers.ThrowPHPException(err.Error())
-			return frankenphp.PHPString("", false)
-		}
-		return w.getNextEvent()
-	}
-
-	w.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
-
-	rm := auth.GetResourceManager(ctx, js)
-
-	w.authContext, w.activeId, w.state, err = lib.ProcessMessage(ctx, logger, msg, rm, helpers.Config, js)
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return frankenphp.PHPString("", false)
-	}
-
-	w.currentMsg = msg
-
-	return frankenphp.PHPString(string(msg.Data()), false)
-}
-
-// export_php:method Worker::queryState(string $stateId): array
-func (w *Worker) queryState(idStr unsafe.Pointer) unsafe.Pointer {
-	id := ids.ParseStateId(frankenphp.GoString(idStr))
-	state, err := glue.GetStateArray(id, helpers.Js, w.currentCtx, helpers.Logger)
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return nil
-	}
-	return frankenphp.PHPArray(state.Data.Array)
-}
-
-// export_php:method Worker::getUser(): ?array
-func (w *Worker) getUser() unsafe.Pointer {
-	if provenance, ok := w.currentCtx.Value(appcontext.CurrentUserKey).(*auth.User); ok {
-		ret := &glue.Array{}
-		ret.SetString("user", string(provenance.UserId))
-		roles := &frankenphp.Array{}
-		for _, r := range provenance.Roles {
-			roles.Append(string(r))
-		}
-		ret.SetString("roles", roles)
-
-		return frankenphp.PHPArray(ret.Array)
-	}
-
-	return nil
-}
-
-// export_php:method Worker::getSource(): string
-func (w *Worker) getSource() unsafe.Pointer {
-	sourceId := ids.ParseStateId(w.currentMsg.Headers().Get(string(glue.HeaderEmittedBy)))
-	return frankenphp.PHPString(sourceId.String(), false)
-}
-
-// export_php:method Worker::getCurrentId(): string
-func (w *Worker) getCurrentId() unsafe.Pointer {
-	return frankenphp.PHPString(w.activeId.String(), false)
-}
-
-// export_php:method Worker::getCorrelationId(): string
-func (w *Worker) getCorrelationId() unsafe.Pointer {
-	return frankenphp.PHPString(w.currentCtx.Value("cid").(string), false)
-}
-
-// export_php:method Worker::getState(): ?array
-func (w *Worker) getState() unsafe.Pointer {
-	return frankenphp.PHPArray(w.state.Data.Array)
-}
-
-// export_php:method Worker::updateState(array $state): void
-func (w *Worker) updateState(state unsafe.Pointer) {
-	arr := frankenphp.GoArray(state)
-	w.state.Data.Array = arr
-}
-
-// export_php:method Worker::emitEvent(array $eventDescription): void
-func (w *Worker) emitEvent(event unsafe.Pointer) {
-	arr := frankenphp.GoArray(event)
-	w.pendingEvents = append(w.pendingEvents, arr)
-}
-
-func (w *Worker) deleteState() {}
-
-// export_php:function emit_event(?array $userContext, array $event, string $from): int
-func emit_event(userVal *C.zval, event *C.zval, fromStr *C.zend_string) int64 {
 	var user *auth.User
 	ctx, cancel := context.WithCancel(helpers.Ctx)
 	defer cancel()
@@ -645,4 +441,345 @@ func emit_event(userVal *C.zval, event *C.zval, fromStr *C.zend_string) int64 {
 		return 0
 	}
 	return int64(ack.Sequence)
+
+}
+
+type Worker struct {
+	kind          ids.IdKind
+	started       bool
+	consumer      *helpers.Consumer
+	activeId      *ids.StateId
+	state         *glue.StateArray
+	pendingEvents []*frankenphp.Array
+	authContext   []byte
+	currentCtx    context.Context
+	currentMsg    jetstream.Msg
+}
+
+//export registerGoObject
+func registerGoObject(obj interface{}) C.uintptr_t {
+	handle := cgo.NewHandle(obj)
+	return C.uintptr_t(handle)
+}
+
+//export getGoObject
+func getGoObject(handle C.uintptr_t) interface{} {
+	h := cgo.Handle(handle)
+	return h.Value()
+}
+
+//export removeGoObject
+func removeGoObject(handle C.uintptr_t) {
+	h := cgo.Handle(handle)
+	h.Delete()
+}
+
+//export create_Worker_object
+func create_Worker_object() C.uintptr_t {
+	obj := &Worker{}
+	return registerGoObject(obj)
+}
+func (w *Worker) startEventLoop(kindStr *C.zend_string) {
+	kind := ids.IdKind(frankenphp.GoString(unsafe.Pointer(kindStr)))
+
+	switch kind {
+	case ids.Activity:
+	case ids.Entity:
+	case ids.Orchestration:
+	default:
+		helpers.ThrowPHPException("Invalid event kind")
+		return
+	}
+	w.kind = kind
+
+	if w.started {
+		helpers.ThrowPHPException("Event loop already running")
+		return
+	}
+
+	ctx, done := context.WithCancel(helpers.Ctx)
+
+	c := &helpers.Consumer{
+		Context: ctx,
+		Done:    done,
+	}
+
+	stream, err := helpers.Js.Stream(ctx, helpers.Config.Stream)
+	if err != nil {
+		helpers.ThrowPHPException(err.Error())
+		return
+	}
+
+	c.Msg = lib.StartConsumer(ctx, helpers.Config, stream, helpers.Logger, w.kind)
+	w.consumer = c
+}
+
+func (w *Worker) drainEventLoop() {
+	if !w.started {
+		return
+	}
+	w.consumer.Msg.Drain()
+	w.started = false
+}
+
+func (w *Worker) __destruct() {
+	w.consumer.Msg.Stop()
+	w.consumer.Done()
+}
+
+func (w *Worker) getNextEvent() unsafe.Pointer {
+	c := w.consumer
+
+	ctx := c.Context
+	logger := helpers.Logger
+	js := helpers.Js
+
+	msg, err := c.Msg.Next()
+	if err != nil {
+		helpers.ThrowPHPException(err.Error())
+		return frankenphp.PHPString("", false)
+	}
+
+	meta, _ := msg.Metadata()
+	headers := msg.Headers()
+
+	currentUser := &auth.User{}
+	b := msg.Headers().Get(string(glue.HeaderProvenance))
+	err = json.Unmarshal([]byte(b), currentUser)
+	if err != nil {
+		logger.Warn("Failed to unmarshal event provenance",
+			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
+			zap.Error(err),
+		)
+		currentUser = nil
+	} else {
+		ctx = auth.DecorateContextWithUser(ctx, currentUser)
+	}
+
+	if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
+		logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
+		schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
+		if err != nil {
+			helpers.ThrowPHPException(err.Error())
+			return frankenphp.PHPString("", false)
+		}
+
+		delay := time.Until(schedule)
+		if err := msg.NakWithDelay(delay); err != nil {
+			helpers.ThrowPHPException(err.Error())
+			return frankenphp.PHPString("", false)
+		}
+
+		return w.getNextEvent()
+	}
+
+	if strings.HasSuffix(msg.Subject(), ".delete") {
+		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+		// todo: remove glue!
+		err := glue.DeleteState(ctx, js, logger, id)
+		if err != nil {
+			helpers.ThrowPHPException(err.Error())
+			return frankenphp.PHPString("", false)
+		}
+		return w.getNextEvent()
+	}
+
+	w.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
+
+	rm := auth.GetResourceManager(ctx, js)
+
+	w.authContext, w.activeId, w.state, err = lib.ProcessMessage(ctx, logger, msg, rm, helpers.Config, js)
+	if err != nil {
+		helpers.ThrowPHPException(err.Error())
+		return frankenphp.PHPString("", false)
+	}
+
+	w.currentMsg = msg
+
+	return frankenphp.PHPString(string(msg.Data()), false)
+}
+
+func (w *Worker) queryState(idStr *C.zend_string) unsafe.Pointer {
+	id := ids.ParseStateId(frankenphp.GoString(unsafe.Pointer(idStr)))
+	state, err := glue.GetStateArray(id, helpers.Js, w.currentCtx, helpers.Logger)
+	if err != nil {
+		helpers.ThrowPHPException(err.Error())
+		return nil
+	}
+	return frankenphp.PHPArray(state.Data.Array)
+}
+
+func (w *Worker) getUser() unsafe.Pointer {
+	if provenance, ok := w.currentCtx.Value(appcontext.CurrentUserKey).(*auth.User); ok {
+		ret := &glue.Array{}
+		ret.SetString("user", string(provenance.UserId))
+		roles := &frankenphp.Array{}
+		for _, r := range provenance.Roles {
+			roles.Append(string(r))
+		}
+		ret.SetString("roles", roles)
+
+		return frankenphp.PHPArray(ret.Array)
+	}
+
+	return nil
+}
+
+func (w *Worker) getSource() unsafe.Pointer {
+	sourceId := ids.ParseStateId(w.currentMsg.Headers().Get(string(glue.HeaderEmittedBy)))
+	return frankenphp.PHPString(sourceId.String(), false)
+}
+
+func (w *Worker) getCurrentId() unsafe.Pointer {
+	return frankenphp.PHPString(w.activeId.String(), false)
+}
+
+func (w *Worker) getCorrelationId() unsafe.Pointer {
+	return frankenphp.PHPString(w.currentCtx.Value("cid").(string), false)
+}
+
+func (w *Worker) getState() unsafe.Pointer {
+	return frankenphp.PHPArray(w.state.Data.Array)
+}
+
+func (w *Worker) updateState(state *C.zval) {
+	arr := frankenphp.GoArray(unsafe.Pointer(state))
+	w.state.Data.Array = arr
+}
+
+func (w *Worker) emitEvent(event *C.zval) {
+	arr := frankenphp.GoArray(unsafe.Pointer(event))
+	w.pendingEvents = append(w.pendingEvents, arr)
+}
+
+func (w *Worker) delete() {}
+
+//export startEventLoop_wrapper
+func startEventLoop_wrapper(handle C.uintptr_t, kind *C.zend_string) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.startEventLoop(kind)
+}
+
+//export drainEventLoop_wrapper
+func drainEventLoop_wrapper(handle C.uintptr_t) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.drainEventLoop()
+}
+
+//export __destruct_wrapper
+func __destruct_wrapper(handle C.uintptr_t) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.__destruct()
+}
+
+//export getNextEvent_wrapper
+func getNextEvent_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getNextEvent()
+}
+
+//export queryState_wrapper
+func queryState_wrapper(handle C.uintptr_t, stateId *C.zend_string) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.queryState(stateId)
+}
+
+//export getUser_wrapper
+func getUser_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getUser()
+}
+
+//export getSource_wrapper
+func getSource_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getSource()
+}
+
+//export getCurrentId_wrapper
+func getCurrentId_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getCurrentId()
+}
+
+//export getCorrelationId_wrapper
+func getCorrelationId_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getCorrelationId()
+}
+
+//export getState_wrapper
+func getState_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getState()
+}
+
+//export updateState_wrapper
+func updateState_wrapper(handle C.uintptr_t, state *C.zval) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.updateState(state)
+}
+
+//export emitEvent_wrapper
+func emitEvent_wrapper(handle C.uintptr_t, eventDescription *C.zval) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.emitEvent(eventDescription)
+}
+
+//export delete_wrapper
+func delete_wrapper(handle C.uintptr_t) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.delete()
 }
