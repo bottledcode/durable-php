@@ -30,6 +30,9 @@ import "go.uber.org/zap"
 
 func init() {
 	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
+
+	// initialize the workers
+
 }
 
 func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
