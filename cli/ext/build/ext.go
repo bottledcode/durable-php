@@ -5,7 +5,9 @@ package build
 #include "ext.h"
 */
 import "C"
-import "runtime/cgo"
+import (
+	"runtime/cgo"
+)
 import "unsafe"
 import "github.com/dunglas/frankenphp"
 import "context"
@@ -28,11 +30,48 @@ import "github.com/nats-io/nats.go"
 import "github.com/nats-io/nats.go/jetstream"
 import "go.uber.org/zap"
 
+type worker struct {
+}
+
+func (w *worker) Name() string {
+	return "m#durable-php"
+}
+
+func (w *worker) FileName() string {
+	// check if target exists
+	if _, err := os.Stat("src/glue/worker.php"); !os.IsNotExist(err) {
+		return "src/glue/worker.php"
+	}
+
+	return "vendor/bottledcode/durable-php/src/glue/worker.php"
+}
+
+func (w *worker) Env() frankenphp.PreparedEnv {
+	return frankenphp.PreparedEnv{}
+}
+
+func (w *worker) GetMinThreads() int {
+	return 4
+}
+
+func (w *worker) ThreadActivatedNotification(threadId int) {
+}
+
+func (w *worker) ThreadDrainNotification(threadId int) {
+}
+
+func (w *worker) ThreadDeactivatedNotification(threadId int) {
+}
+
+func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
+	return nil
+}
+
 func init() {
 	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
 
 	// initialize the workers
-
+	frankenphp.RegisterExternalWorker(&worker{})
 }
 
 func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
