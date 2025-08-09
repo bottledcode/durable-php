@@ -12,7 +12,7 @@ endif
 
 LOCAL_MODULE := /home/withinboredom/code/durable-php/cli
 GEN_STUB := /home/withinboredom/code/php-src/build/gen_stub.php
-LOCAL_FRANKENPHP := /home/withinboredom/code/frankenphp/caddy
+LOCAL_FRANKENPHP := /home/withinboredom/code/frankenphp
 
 # Targets
 frankenphp: ext/build/ext.go ext/build/ext_arginfo.h
@@ -22,7 +22,7 @@ frankenphp: ext/build/ext.go ext/build/ext_arginfo.h
 	CGO_LDFLAGS="$(PHP_LDFLAGS) $(PHP_LIBS)" \
 	xcaddy build \
 		--output frankenphp \
-		--with github.com/dunglas/frankenphp/caddy=$(LOCAL_FRANKENPHP) \
+		--with github.com/dunglas/frankenphp=$(LOCAL_FRANKENPHP) \
 		--with github.com/bottledcode/durable-php/cli=$(LOCAL_MODULE)
 
 ext/build/ext_arginfo.h: ext/build/ext.stub.php
