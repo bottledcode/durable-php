@@ -57,6 +57,7 @@ void init_object_handlers() {
 }
 
 static zend_class_entry *Worker_ce = NULL;
+static ext_object *current_worker = NULL;
 
 PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, __construct) {
     ZEND_PARSE_PARAMETERS_NONE();
@@ -227,6 +228,16 @@ PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, delete) {
     delete_wrapper(intern->go_handle);
 }
 
+PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, GetCurrent) {
+    ZEND_PARSE_PARAMETERS_NONE();
+    
+    if (current_worker == NULL) {
+        RETURN_NULL();
+    }
+    
+    RETURN_OBJ_COPY(&current_worker->std);
+}
+
 void register_all_classes() {
     init_object_handlers();
     Worker_ce = register_class_Bottledcode_DurablePhp_Ext_Worker();
@@ -235,6 +246,33 @@ void register_all_classes() {
         return;
     }
     Worker_ce->create_object = ext_create_object;
+}
+
+/* Function to set the current worker from Go */
+void set_current_worker_handle(uintptr_t handle) {
+    if (current_worker != NULL) {
+        /* Release previous worker */
+        zend_object_release(&current_worker->std);
+        current_worker = NULL;
+    }
+    
+    if (handle != 0) {
+        /* Create a new Worker object and set its handle */
+        zend_object *obj = ext_create_object(Worker_ce);
+        current_worker = ext_object_from_obj(obj);
+        current_worker->go_handle = handle;
+        
+        /* Add ref to keep it alive */
+        GC_ADDREF(&current_worker->std);
+    }
+}
+
+/* Function to clear current worker */
+void clear_current_worker() {
+    if (current_worker != NULL) {
+        zend_object_release(&current_worker->std);
+        current_worker = NULL;
+    }
 }
 
 PHP_MINIT_FUNCTION(ext) {

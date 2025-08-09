@@ -10,6 +10,8 @@ class Worker {
 
     public function __construct() {}
 
+    public static function GetCurrent(): ?Worker {}
+
     public function startEventLoop(string $kind): void {}
 
     public function drainEventLoop(): void {}

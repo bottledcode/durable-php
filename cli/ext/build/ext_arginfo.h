@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 2033dbbdb5b447b9b6e5f1eb6f7b7758b95b40cc */
+ * Stub hash: 60118ea78de15908a849b87c3010bbd972e60e71 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_Bottledcode_DurablePhp_Ext_emit_event, 0, 3, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, userContext, IS_ARRAY, 1)
@@ -8,6 +8,9 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_Bottledcode_DurablePhp_Ext_emit_
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker___construct, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_GetCurrent, 0, 0, Bottledcode\\DurablePhp\\Ext\\Worker, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_startEventLoop, 0, 1, IS_VOID, 0)
@@ -50,6 +53,7 @@ ZEND_END_ARG_INFO()
 
 ZEND_FUNCTION(Bottledcode_DurablePhp_Ext_emit_event);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, __construct);
+ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, GetCurrent);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, startEventLoop);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, drainEventLoop);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, __destruct);
@@ -71,6 +75,7 @@ static const zend_function_entry ext_functions[] = {
 
 static const zend_function_entry class_Bottledcode_DurablePhp_Ext_Worker_methods[] = {
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, __construct, arginfo_class_Bottledcode_DurablePhp_Ext_Worker___construct, ZEND_ACC_PUBLIC)
+	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, GetCurrent, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_GetCurrent, ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, startEventLoop, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_startEventLoop, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, drainEventLoop, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_drainEventLoop, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, __destruct, arginfo_class_Bottledcode_DurablePhp_Ext_Worker___destruct, ZEND_ACC_PUBLIC)

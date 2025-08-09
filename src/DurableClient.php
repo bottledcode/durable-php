@@ -26,6 +26,7 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClientBuilder;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -43,7 +44,44 @@ final readonly class DurableClient implements DurableClientInterface
         private OrchestrationClientInterface $orchestrationClient,
     ) {}
 
-    public static function get(string $apiHost = 'http://localhost:8080'): self
+    public static function get(string $apiHost = 'http://localhost:8080', ?Provenance $userContext = null): self
+    {
+        if (function_exists('Bottledcode\DurablePhp\Ext\emit_event')) {
+            $entityClient = new LocalEntityClient();
+            $orchestrationClient = new LocalOrchestrationClient();
+
+            if ($userContext !== null) {
+                $entityClient->setUserContext($userContext);
+                $orchestrationClient->setUserContext($userContext);
+            }
+
+            return new self($entityClient, $orchestrationClient);
+        }
+
+        $builder = new HttpClientBuilder();
+        $builder->retry(3);
+
+        $httpClient = $builder->build();
+        $entityClient = new RemoteEntityClient($apiHost, $httpClient);
+        $orchestrationClient = new RemoteOrchestrationClient($apiHost, $httpClient);
+
+        return new self($entityClient, $orchestrationClient);
+    }
+
+    public static function local(?Provenance $userContext = null): self
+    {
+        $entityClient = new LocalEntityClient();
+        $orchestrationClient = new LocalOrchestrationClient();
+
+        if ($userContext !== null) {
+            $entityClient->setUserContext($userContext);
+            $orchestrationClient->setUserContext($userContext);
+        }
+
+        return new self($entityClient, $orchestrationClient);
+    }
+
+    public static function remote(string $apiHost = 'http://localhost:8080'): self
     {
         $builder = new HttpClientBuilder();
         $builder->retry(3);

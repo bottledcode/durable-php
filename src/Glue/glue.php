@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Ext\Worker;
 use Bottledcode\DurablePhp\SerializedArray;
 use Bottledcode\DurablePhp\State\ActivityHistory;
 use Bottledcode\DurablePhp\State\Attributes\AllowCreateAll;
@@ -80,50 +81,71 @@ class Glue
 
     private string $method;
 
-    private $streamHandle;
+    private ?Worker $worker = null;
 
-    private array $queries = [];
-
-    public function __construct(private DurableLogger $logger)
+    public function __construct(private DurableLogger $logger, ?Worker $worker = null)
     {
-        $this->target = StateId::fromString($_SERVER['STATE_ID']);
-        $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
-        $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
-        try {
-            $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? 'null', true, 32, JSON_THROW_ON_ERROR);
-            if (! $provenance || $provenance === ['userId' => '', 'roles' => null]) {
-                $this->provenance = null;
+        $this->worker = $worker;
+
+        // If we have a worker, we can get context from it directly
+        if ($this->worker) {
+            $this->target = StateId::fromString($this->worker->getCurrentId());
+            $this->source = StateId::fromString($this->worker->getSource());
+            $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?? null;
+            $this->method = $_SERVER['HTTP_DPHP_FUNCTION'] ?? 'processMsg';
+
+            // Get user context from worker
+            $user = $this->worker->getUser();
+            if ($user) {
+                $this->provenance = new Provenance($user['user'] ?? '', $user['roles'] ?? []);
             } else {
-                $provenance['roles'] ??= [];
-                $this->provenance = Serializer::deserialize($provenance, Provenance::class);
+                $this->provenance = null;
             }
-        } catch (JsonException $e) {
-            $this->logger->alert(
-                'Failed to capture provenance',
-                ['provenance' => $_SERVER['HTTP_DPHP_PROVENANCE'] ?? null],
-            );
-            $this->provenance = null;
-        }
-        $this->source = StateId::fromString($_SERVER['HTTP_DPHP_SOURCE']);
 
-        if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
-            throw new LogicException('Unable to load payload');
-        }
+            // Get payload from worker state if available
+            $state = $this->worker->getState();
+            $this->payload = $state ? $state : [];
+        } else {
+            // Fallback to old HTTP-based approach
+            $this->target = StateId::fromString($_SERVER['STATE_ID']);
+            $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
+            $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
+            try {
+                $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? 'null', true, 32, JSON_THROW_ON_ERROR);
+                if (! $provenance || $provenance === ['userId' => '', 'roles' => null]) {
+                    $this->provenance = null;
+                } else {
+                    $provenance['roles'] ??= [];
+                    $this->provenance = Serializer::deserialize($provenance, Provenance::class);
+                }
+            } catch (JsonException $e) {
+                $this->logger->alert(
+                    'Failed to capture provenance',
+                    ['provenance' => $_SERVER['HTTP_DPHP_PROVENANCE'] ?? null],
+                );
+                $this->provenance = null;
+            }
+            $this->source = StateId::fromString($_SERVER['HTTP_DPHP_SOURCE']);
 
-        $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'r+b'));
-        try {
-            $this->payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            $this->payload = [];
-        }
-        $this->logger->debug('Got payload', ['raw' => $payload, 'parsed' => $this->payload]);
+            if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
+                throw new LogicException('Unable to load payload');
+            }
 
-        $this->streamHandle = fopen('php://input', 'r+b');
+            $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'r+b'));
+            try {
+                $this->payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                $this->payload = [];
+            }
+            $this->logger->debug('Got payload', ['raw' => $payload, 'parsed' => $this->payload]);
+        }
     }
 
     public function __destruct()
     {
-        fclose($this->payloadHandle);
+        if ($this->payloadHandle) {
+            fclose($this->payloadHandle);
+        }
     }
 
     public function process(): void
@@ -133,6 +155,15 @@ class Glue
 
     public function queryState(StateId $id): ?StateInterface
     {
+        if ($this->worker) {
+            $state = $this->worker->queryState($id->id);
+            if (empty($state)) {
+                return null;
+            }
+            return Serializer::deserialize($state, StateInterface::class);
+        }
+
+        // Fallback to old string-based approach
         $this->queries[] = true;
         echo implode('~!~', ['QUERY', $id->id, $qid = count($this->queries)]);
 
@@ -176,7 +207,11 @@ class Glue
 
     public function outputDelete(): void
     {
-        echo 'DELETE~!~';
+        if ($this->worker) {
+            $this->worker->delete();
+        } else {
+            echo 'DELETE~!~';
+        }
     }
 
     private function entitySignal(): void
@@ -189,9 +224,13 @@ class Glue
 
     public function outputEvent(EventDescription $event): void
     {
-        // determine access level
-
-        echo 'EVENT~!~' . mb_trim($event->toStream()) . "\n";
+        if ($this->worker) {
+            // Use the worker's emitEvent method with the same array structure as toArray()
+            $this->worker->emitEvent($event->toArray());
+        } else {
+            // Fallback to old string-based approach
+            echo 'EVENT~!~' . mb_trim($event->toStream()) . "\n";
+        }
     }
 
     private function startOrchestration(): void

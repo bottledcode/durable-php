@@ -22,7 +22,6 @@
       <option name="MULTILINE_CHAINED_CALLS_FIRST_CALL_ON_NEW_LINE" value="true" />
       <option name="MULTILINE_CLOSURE_LAMBDA_ON_NEW_LINE" value="true" />
       <option name="HEREDOC_ON_SAME_LINE" value="true" />
-      <option name="ATTRIBUTES_WRAP" value="2" />
       <option name="PARAMETERS_ATTRIBUTES_WRAP" value="1" />
     </PHPCodeStyleSettings>
     <codeStyleSettings language="PHP">

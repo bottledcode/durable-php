@@ -643,3 +643,4 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	return nil
 }
+

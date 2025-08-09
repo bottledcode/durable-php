@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright ©2024 Robert Landers
+ * Copyright ©2025 Robert Landers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -22,29 +22,23 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// fast check for development
-use Bottledcode\DurablePhp\DurableLogger;
-use Monolog\Level;
+namespace Bottledcode\DurablePhp\Glue;
 
-if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
-    require_once __DIR__ . '/../../vendor/autoload.php';
-    goto verify_protocol;
-}
+use Bottledcode\DurablePhp\Ext\Worker;
 
-// fast check for standard installs
-if (file_exists(__DIR__ . '/../../../../autoload.php')) {
-    require_once __DIR__ . '/../../../../autoload.php';
-    goto verify_protocol;
-}
+require_once __DIR__ . '/autoload.php';
 
-echo "ERROR: FAILED TO LOCATE AUTOLOADER\n";
+$logger->info('Starting worker');
 
-return;
+frankenphp_handle_request(static function (): void {
+    global $logger;
 
-verify_protocol:
+    // Try to get the current worker from the extension
+    $worker = null;
+    if (class_exists(Worker::class) && method_exists(Worker::class, 'GetCurrent')) {
+        $worker = Worker::GetCurrent();
+    }
 
-$logger = new DurableLogger(level: match (getenv('LOG_LEVEL')) {
-    'DEBUG' => Level::Debug,
-    'INFO' => Level::Info,
-    default => Level::Error,
+    $glue = new Glue($logger, $worker);
+    $glue->process();
 });

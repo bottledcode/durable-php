@@ -3,6 +3,9 @@ package build
 /*
 #include <stdlib.h>
 #include "ext.h"
+
+void set_current_worker_handle(uintptr_t handle);
+void clear_current_worker(void);
 */
 import "C"
 import (
@@ -31,7 +34,10 @@ import "github.com/nats-io/nats.go/jetstream"
 import "go.uber.org/zap"
 
 type worker struct {
+	requestChan chan *frankenphp.WorkerRequest
 }
+
+var globalWorkerInstance *worker
 
 func (w *worker) Name() string {
 	return "m#durable-php"
@@ -39,11 +45,11 @@ func (w *worker) Name() string {
 
 func (w *worker) FileName() string {
 	// check if target exists
-	if _, err := os.Stat("src/glue/worker.php"); !os.IsNotExist(err) {
-		return "src/glue/worker.php"
+	if _, err := os.Stat("src/Glue/worker.php"); !os.IsNotExist(err) {
+		return "src/Glue/worker.php"
 	}
 
-	return "vendor/bottledcode/durable-php/src/glue/worker.php"
+	return "vendor/bottledcode/durable-php/src/Glue/worker.php"
 }
 
 func (w *worker) Env() frankenphp.PreparedEnv {
@@ -64,14 +70,18 @@ func (w *worker) ThreadDeactivatedNotification(threadId int) {
 }
 
 func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
-	return nil
+	req := <-w.requestChan
+	return req
 }
 
 func init() {
 	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
 
 	// initialize the workers
-	frankenphp.RegisterExternalWorker(&worker{})
+	globalWorkerInstance = &worker{
+		requestChan: make(chan *frankenphp.WorkerRequest, 100), // Buffer for 100 requests
+	}
+	frankenphp.RegisterExternalWorker(globalWorkerInstance)
 }
 
 func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
@@ -824,4 +834,42 @@ func delete_wrapper(handle C.uintptr_t) {
 	}
 	structObj := obj.(*Worker)
 	structObj.delete()
+}
+
+// SetCurrentWorker sets the current worker context for the PHP extension
+func SetCurrentWorker(worker *Worker) {
+	if worker == nil {
+		C.clear_current_worker()
+		return
+	}
+
+	handle := registerGoObject(worker)
+	C.set_current_worker_handle(C.uintptr_t(handle))
+}
+
+// ClearCurrentWorker clears the current worker context
+func ClearCurrentWorker() {
+	C.clear_current_worker()
+}
+
+// GetWorkerInstance returns the global worker instance for feeding requests
+func GetWorkerInstance() *worker {
+	return globalWorkerInstance
+}
+
+// InjectWorkerRequest sends a request to the worker for processing
+func InjectWorkerRequest(req *frankenphp.WorkerRequest) {
+	if globalWorkerInstance != nil {
+		globalWorkerInstance.requestChan <- req
+	}
+}
+
+// StartWorkerConsumer starts a NATS consumer that feeds requests to the worker channel
+func StartWorkerConsumer(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
+	// This will create NATS consumers and convert messages to HTTP requests for the worker
+	// Instead of using the old lib/consumer.go approach, we create consumers here
+	// and feed HTTP requests directly to the worker channel
+	
+	logger.Info("Starting worker-based consumer")
+	// TODO: Implement NATS consumer logic here
 }
