@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 60118ea78de15908a849b87c3010bbd972e60e71 */
+ * Stub hash: 2cbfd4f7ba4303080cd46416ca0c29baf5b625f2 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_Bottledcode_DurablePhp_Ext_emit_event, 0, 3, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, userContext, IS_ARRAY, 1)
@@ -21,9 +21,6 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_Bottledcode_DurablePhp_Ext_Worker___destruct arginfo_class_Bottledcode_DurablePhp_Ext_Worker___construct
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getNextEvent, 0, 0, IS_STRING, 1)
-ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_queryState, 0, 1, IS_ARRAY, 0)
 	ZEND_ARG_TYPE_INFO(0, stateId, IS_STRING, 0)
@@ -57,7 +54,6 @@ ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, GetCurrent);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, startEventLoop);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, drainEventLoop);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, __destruct);
-ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getNextEvent);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, queryState);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getUser);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getSource);
@@ -79,7 +75,6 @@ static const zend_function_entry class_Bottledcode_DurablePhp_Ext_Worker_methods
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, startEventLoop, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_startEventLoop, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, drainEventLoop, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_drainEventLoop, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, __destruct, arginfo_class_Bottledcode_DurablePhp_Ext_Worker___destruct, ZEND_ACC_PUBLIC)
-	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getNextEvent, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getNextEvent, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, queryState, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_queryState, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getUser, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getUser, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getSource, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getSource, ZEND_ACC_PUBLIC)

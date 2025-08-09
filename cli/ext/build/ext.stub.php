@@ -18,7 +18,6 @@ class Worker {
 
     public function __destruct() {}
 
-    public function getNextEvent(): ?string {}
 
     public function queryState(string $stateId): array {}
 

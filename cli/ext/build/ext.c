@@ -104,15 +104,6 @@ PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, __destruct) {
     __destruct_wrapper(intern->go_handle);
 }
 
-PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, getNextEvent) {
-    ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));
-    
-    VALIDATE_GO_HANDLE(intern);
-    ZEND_PARSE_PARAMETERS_NONE();
-    
-    zend_string* result = getNextEvent_wrapper(intern->go_handle);
-    RETURN_STR(result);
-}
 
 PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, queryState) {
     ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));

@@ -16,6 +16,7 @@ import "github.com/dunglas/frankenphp"
 import "context"
 import "encoding/json"
 import "errors"
+import "net/http"
 import "os"
 import "strings"
 import "sync"
@@ -34,7 +35,7 @@ import "github.com/nats-io/nats.go/jetstream"
 import "go.uber.org/zap"
 
 type worker struct {
-	requestChan chan *frankenphp.WorkerRequest
+	// No longer needs requestChan - pulls directly from NATS
 }
 
 var globalWorkerInstance *worker
@@ -70,7 +71,131 @@ func (w *worker) ThreadDeactivatedNotification(threadId int) {
 }
 
 func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
-	req := <-w.requestChan
+	// Get the next NATS message from the consumer
+	ctx := helpers.Ctx
+	logger := helpers.Logger
+	js := helpers.Js
+
+	// Find the next available message from any consumer
+	var msg jetstream.Msg
+	var err error
+	var worker *Worker
+
+	// Try to get a message from each consumer type
+	consumers := []ids.IdKind{ids.Activity, ids.Entity, ids.Orchestration}
+	
+	for _, kind := range consumers {
+		stream, err := js.Stream(ctx, helpers.Config.Stream)
+		if err != nil {
+			continue
+		}
+
+		consumer, err := stream.Consumer(ctx, helpers.Config.Stream+"-"+string(kind))
+		if err != nil {
+			continue
+		}
+
+		iter, err := consumer.Messages(jetstream.PullMaxMessages(1), jetstream.WithMessagesErrOnMissingHeartbeat(false))
+		if err != nil {
+			continue
+		}
+
+		msg, err = iter.Next()
+		if err == nil {
+			// Create worker context for this message
+			worker = &Worker{
+				kind: kind,
+				currentMsg: msg,
+			}
+			break
+		}
+	}
+
+	if msg == nil {
+		// No messages available, return nil
+		return nil
+	}
+
+	// Process the message using the logic from getNextEvent
+	meta, _ := msg.Metadata()
+	headers := msg.Headers()
+
+	currentUser := &auth.User{}
+	b := msg.Headers().Get(string(glue.HeaderProvenance))
+	err = json.Unmarshal([]byte(b), currentUser)
+	if err != nil {
+		logger.Warn("Failed to unmarshal event provenance",
+			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
+			zap.Error(err),
+		)
+		currentUser = nil
+	} else {
+		ctx = auth.DecorateContextWithUser(ctx, currentUser)
+	}
+
+	// Handle delayed messages
+	if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
+		logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
+		schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
+		if err != nil {
+			helpers.ThrowPHPException(err.Error())
+			return nil
+		}
+
+		delay := time.Until(schedule)
+		if err := msg.NakWithDelay(delay); err != nil {
+			helpers.ThrowPHPException(err.Error())
+			return nil
+		}
+
+		// Recursively get next message after handling delay
+		return w.ProvideRequest()
+	}
+
+	// Handle delete messages
+	if strings.HasSuffix(msg.Subject(), ".delete") {
+		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+		err := glue.DeleteState(ctx, js, logger, id)
+		if err != nil {
+			helpers.ThrowPHPException(err.Error())
+			return nil
+		}
+		// Recursively get next message after handling delete
+		return w.ProvideRequest()
+	}
+
+	worker.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
+	
+	rm := auth.GetResourceManager(ctx, js)
+
+	worker.authContext, worker.activeId, worker.state, err = lib.ProcessMessage(ctx, logger, msg, rm, helpers.Config, js)
+	if err != nil {
+		helpers.ThrowPHPException(err.Error())
+		return nil
+	}
+
+	// Set the current worker for PHP access
+	SetCurrentWorker(worker)
+
+	// Create an HTTP request from the message
+	httpReq, err := http.NewRequest("POST", "/worker", strings.NewReader(string(msg.Data())))
+	if err != nil {
+		helpers.ThrowPHPException(err.Error())
+		return nil
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Correlation-ID", worker.currentCtx.Value("cid").(string))
+	httpReq.Header.Set("X-State-ID", worker.activeId.String())
+	httpReq.Header.Set("X-Event-Type", msg.Headers().Get(string(glue.HeaderEventType)))
+	httpReq.Header.Set("X-Source-ID", msg.Headers().Get(string(glue.HeaderEmittedBy)))
+
+	req := &frankenphp.WorkerRequest{
+		Request:  httpReq,
+		Response: nil, // Response writer will be provided by FrankenPHP
+		Done:     make(chan struct{}),
+	}
+
 	return req
 }
 
@@ -78,9 +203,7 @@ func init() {
 	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
 
 	// initialize the workers
-	globalWorkerInstance = &worker{
-		requestChan: make(chan *frankenphp.WorkerRequest, 100), // Buffer for 100 requests
-	}
+	globalWorkerInstance = &worker{}
 	frankenphp.RegisterExternalWorker(globalWorkerInstance)
 }
 
@@ -579,77 +702,7 @@ func (w *Worker) __destruct() {
 	w.consumer.Done()
 }
 
-func (w *Worker) getNextEvent() unsafe.Pointer {
-	c := w.consumer
-
-	ctx := c.Context
-	logger := helpers.Logger
-	js := helpers.Js
-
-	msg, err := c.Msg.Next()
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return frankenphp.PHPString("", false)
-	}
-
-	meta, _ := msg.Metadata()
-	headers := msg.Headers()
-
-	currentUser := &auth.User{}
-	b := msg.Headers().Get(string(glue.HeaderProvenance))
-	err = json.Unmarshal([]byte(b), currentUser)
-	if err != nil {
-		logger.Warn("Failed to unmarshal event provenance",
-			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
-			zap.Error(err),
-		)
-		currentUser = nil
-	} else {
-		ctx = auth.DecorateContextWithUser(ctx, currentUser)
-	}
-
-	if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
-		logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
-		schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
-		if err != nil {
-			helpers.ThrowPHPException(err.Error())
-			return frankenphp.PHPString("", false)
-		}
-
-		delay := time.Until(schedule)
-		if err := msg.NakWithDelay(delay); err != nil {
-			helpers.ThrowPHPException(err.Error())
-			return frankenphp.PHPString("", false)
-		}
-
-		return w.getNextEvent()
-	}
-
-	if strings.HasSuffix(msg.Subject(), ".delete") {
-		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
-		// todo: remove glue!
-		err := glue.DeleteState(ctx, js, logger, id)
-		if err != nil {
-			helpers.ThrowPHPException(err.Error())
-			return frankenphp.PHPString("", false)
-		}
-		return w.getNextEvent()
-	}
-
-	w.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
-
-	rm := auth.GetResourceManager(ctx, js)
-
-	w.authContext, w.activeId, w.state, err = lib.ProcessMessage(ctx, logger, msg, rm, helpers.Config, js)
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return frankenphp.PHPString("", false)
-	}
-
-	w.currentMsg = msg
-
-	return frankenphp.PHPString(string(msg.Data()), false)
-}
+// getNextEvent removed - logic moved to ProvideRequest method
 
 func (w *Worker) queryState(idStr *C.zend_string) unsafe.Pointer {
 	id := ids.ParseStateId(frankenphp.GoString(unsafe.Pointer(idStr)))
@@ -736,15 +789,7 @@ func __destruct_wrapper(handle C.uintptr_t) {
 	structObj.__destruct()
 }
 
-//export getNextEvent_wrapper
-func getNextEvent_wrapper(handle C.uintptr_t) unsafe.Pointer {
-	obj := getGoObject(handle)
-	if obj == nil {
-		return nil
-	}
-	structObj := obj.(*Worker)
-	return structObj.getNextEvent()
-}
+// getNextEvent_wrapper removed - no longer needed
 
 //export queryState_wrapper
 func queryState_wrapper(handle C.uintptr_t, stateId *C.zend_string) unsafe.Pointer {
@@ -857,19 +902,6 @@ func GetWorkerInstance() *worker {
 	return globalWorkerInstance
 }
 
-// InjectWorkerRequest sends a request to the worker for processing
-func InjectWorkerRequest(req *frankenphp.WorkerRequest) {
-	if globalWorkerInstance != nil {
-		globalWorkerInstance.requestChan <- req
-	}
-}
+// InjectWorkerRequest removed - worker now pulls directly from NATS consumers
 
-// StartWorkerConsumer starts a NATS consumer that feeds requests to the worker channel
-func StartWorkerConsumer(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
-	// This will create NATS consumers and convert messages to HTTP requests for the worker
-	// Instead of using the old lib/consumer.go approach, we create consumers here
-	// and feed HTTP requests directly to the worker channel
-	
-	logger.Info("Starting worker-based consumer")
-	// TODO: Implement NATS consumer logic here
-}
+// StartWorkerConsumer removed - NATS consumer logic now integrated into ProvideRequest method
