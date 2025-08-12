@@ -34,8 +34,17 @@ import "github.com/nats-io/nats.go"
 import "github.com/nats-io/nats.go/jetstream"
 import "go.uber.org/zap"
 
+// LocalMessage represents a local synchronous request
+type LocalMessage struct {
+	Method     string                 // "getPermissions", etc.
+	StateId    string                 // The state ID for the request
+	Context    map[string]interface{} // Additional context data
+	ResponseCh chan interface{}       // Channel to send response back
+}
+
 type worker struct {
-	// No longer needs requestChan - pulls directly from NATS
+	requestChan      chan jetstream.Msg // Channel for NATS messages
+	localMessageChan chan *LocalMessage // Channel for local synchronous requests
 }
 
 var globalWorkerInstance *worker
@@ -71,50 +80,21 @@ func (w *worker) ThreadDeactivatedNotification(threadId int) {
 }
 
 func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
-	// Get the next NATS message from the consumer
+	// Select between NATS messages and local messages
+	select {
+	case msg := <-w.requestChan:
+		// Process NATS message
+		return processMessage(msg)
+	case localMsg := <-w.localMessageChan:
+		// Process local message
+		return processLocalMessage(localMsg)
+	}
+}
+
+func processMessage(msg jetstream.Msg) *frankenphp.WorkerRequest {
 	ctx := helpers.Ctx
 	logger := helpers.Logger
 	js := helpers.Js
-
-	// Find the next available message from any consumer
-	var msg jetstream.Msg
-	var err error
-	var worker *Worker
-
-	// Try to get a message from each consumer type
-	consumers := []ids.IdKind{ids.Activity, ids.Entity, ids.Orchestration}
-	
-	for _, kind := range consumers {
-		stream, err := js.Stream(ctx, helpers.Config.Stream)
-		if err != nil {
-			continue
-		}
-
-		consumer, err := stream.Consumer(ctx, helpers.Config.Stream+"-"+string(kind))
-		if err != nil {
-			continue
-		}
-
-		iter, err := consumer.Messages(jetstream.PullMaxMessages(1), jetstream.WithMessagesErrOnMissingHeartbeat(false))
-		if err != nil {
-			continue
-		}
-
-		msg, err = iter.Next()
-		if err == nil {
-			// Create worker context for this message
-			worker = &Worker{
-				kind: kind,
-				currentMsg: msg,
-			}
-			break
-		}
-	}
-
-	if msg == nil {
-		// No messages available, return nil
-		return nil
-	}
 
 	// Process the message using the logic from getNextEvent
 	meta, _ := msg.Metadata()
@@ -122,7 +102,7 @@ func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
 
 	currentUser := &auth.User{}
 	b := msg.Headers().Get(string(glue.HeaderProvenance))
-	err = json.Unmarshal([]byte(b), currentUser)
+	err := json.Unmarshal([]byte(b), currentUser)
 	if err != nil {
 		logger.Warn("Failed to unmarshal event provenance",
 			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
@@ -138,18 +118,19 @@ func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
 		logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
 		schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
 		if err != nil {
-			helpers.ThrowPHPException(err.Error())
+			helpers.LogError(err.Error())
 			return nil
 		}
 
 		delay := time.Until(schedule)
 		if err := msg.NakWithDelay(delay); err != nil {
-			helpers.ThrowPHPException(err.Error())
+			helpers.LogError(err.Error())
 			return nil
 		}
 
-		// Recursively get next message after handling delay
-		return w.ProvideRequest()
+		// Recursively handle delayed message by putting it back in channel
+		globalWorkerInstance.requestChan <- msg
+		return nil
 	}
 
 	// Handle delete messages
@@ -157,30 +138,48 @@ func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
 		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
 		err := glue.DeleteState(ctx, js, logger, id)
 		if err != nil {
-			helpers.ThrowPHPException(err.Error())
+			helpers.LogError(err.Error())
 			return nil
 		}
-		// Recursively get next message after handling delete
-		return w.ProvideRequest()
+		// Return nil to get next message
+		return nil
+	}
+
+	// Determine the kind from the message subject
+	var kind ids.IdKind
+	if strings.Contains(msg.Subject(), ".activity.") {
+		kind = ids.Activity
+	} else if strings.Contains(msg.Subject(), ".entity.") {
+		kind = ids.Entity
+	} else if strings.Contains(msg.Subject(), ".orchestration.") {
+		kind = ids.Orchestration
+	}
+
+	// Create worker context for this message
+	worker := &Worker{
+		kind:       kind,
+		currentMsg: msg,
 	}
 
 	worker.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
-	
+
+	// Set the current worker for PHP access BEFORE processing/authorization
+	helpers.Logger.Info("About to call SetCurrentWorker")
+	SetCurrentWorker(worker)
+	helpers.Logger.Info("SetCurrentWorker completed")
+
 	rm := auth.GetResourceManager(ctx, js)
 
 	worker.authContext, worker.activeId, worker.state, err = lib.ProcessMessage(ctx, logger, msg, rm, helpers.Config, js)
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return nil
 	}
-
-	// Set the current worker for PHP access
-	SetCurrentWorker(worker)
 
 	// Create an HTTP request from the message
 	httpReq, err := http.NewRequest("POST", "/worker", strings.NewReader(string(msg.Data())))
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return nil
 	}
 
@@ -199,12 +198,164 @@ func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
 	return req
 }
 
+func processLocalMessage(localMsg *LocalMessage) *frankenphp.WorkerRequest {
+	// Create a synthetic HTTP request for the local message
+	httpReq, err := http.NewRequest("POST", "/worker", strings.NewReader(""))
+	if err != nil {
+		helpers.LogError(err.Error())
+		return nil
+	}
+
+	// Set headers to indicate this is a local request
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("DPHP_FUNCTION", localMsg.Method)
+	httpReq.Header.Set("STATE_ID", localMsg.StateId)
+
+	// Add any additional context as headers
+	for key, value := range localMsg.Context {
+		if str, ok := value.(string); ok {
+			httpReq.Header.Set(strings.ToUpper(key), str)
+		}
+	}
+
+	doneCh := make(chan struct{})
+	responseWriter := &localResponseWriter{
+		responseCh: localMsg.ResponseCh,
+		doneCh:     doneCh,
+		buffer:     make([]byte, 0),
+	}
+
+	req := &frankenphp.WorkerRequest{
+		Request:  httpReq,
+		Response: responseWriter,
+		Done:     doneCh,
+	}
+
+	return req
+}
+
+// localResponseWriter implements http.ResponseWriter and sends response to the channel
+type localResponseWriter struct {
+	responseCh chan interface{}
+	doneCh     chan struct{}
+	buffer     []byte
+	sent       bool
+}
+
+func (w *localResponseWriter) Header() http.Header {
+	return make(http.Header)
+}
+
+func (w *localResponseWriter) Write(data []byte) (int, error) {
+	// Accumulate response data in buffer
+	w.buffer = append(w.buffer, data...)
+
+	// Start a goroutine to wait for completion if not already done
+	if !w.sent {
+		w.sent = true
+		go w.waitForCompletion()
+	}
+
+	return len(data), nil
+}
+
+func (w *localResponseWriter) WriteHeader(statusCode int) {
+	// For local requests, we don't need to handle status codes
+}
+
+func (w *localResponseWriter) waitForCompletion() {
+	// Wait for the request to complete
+	<-w.doneCh
+
+	// Send the complete response
+	w.responseCh <- string(w.buffer)
+	close(w.responseCh)
+}
+
 func init() {
 	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
 
 	// initialize the workers
-	globalWorkerInstance = &worker{}
+	globalWorkerInstance = &worker{
+		requestChan:      make(chan jetstream.Msg, 100), // Buffer for 100 messages
+		localMessageChan: make(chan *LocalMessage, 10),  // Buffer for 10 local messages
+	}
 	frankenphp.RegisterExternalWorker(globalWorkerInstance)
+
+	// Set the local message sender for the auth package
+	auth.SendLocalMessage = SendLocalMessage
+}
+
+// SendLocalMessage sends a local synchronous request and waits for response
+func SendLocalMessage(method, stateId string, context map[string]interface{}) (interface{}, error) {
+	responseCh := make(chan interface{}, 1)
+
+	localMsg := &LocalMessage{
+		Method:     method,
+		StateId:    stateId,
+		Context:    context,
+		ResponseCh: responseCh,
+	}
+
+	// Send the local message
+	select {
+	case globalWorkerInstance.localMessageChan <- localMsg:
+		// Wait for response
+		response := <-responseCh
+		return response, nil
+	default:
+		return nil, errors.New("local message channel is full")
+	}
+}
+
+// StartNATSMessageFeeder starts goroutines that feed NATS messages to the worker channel
+func StartNATSMessageFeeder(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
+	js := helpers.Js
+
+	consumers := []ids.IdKind{ids.Activity, ids.Entity, ids.Orchestration}
+
+	for _, kind := range consumers {
+		go func(kind ids.IdKind) {
+			for {
+				stream, err := js.Stream(ctx, cfg.Stream)
+				if err != nil {
+					logger.Error("Failed to get stream", zap.Error(err))
+					time.Sleep(time.Second)
+					continue
+				}
+
+				consumer, err := stream.Consumer(ctx, cfg.Stream+"-"+string(kind))
+				if err != nil {
+					logger.Error("Failed to get consumer", zap.String("kind", string(kind)), zap.Error(err))
+					time.Sleep(time.Second)
+					continue
+				}
+
+				iter, err := consumer.Messages(jetstream.PullMaxMessages(1), jetstream.WithMessagesErrOnMissingHeartbeat(false))
+				if err != nil {
+					logger.Error("Failed to create message iterator", zap.String("kind", string(kind)), zap.Error(err))
+					time.Sleep(time.Second)
+					continue
+				}
+
+				for {
+					msg, err := iter.Next()
+					if err != nil {
+						logger.Debug("Error getting next message", zap.String("kind", string(kind)), zap.Error(err))
+						break // Break inner loop to recreate consumer
+					}
+
+					// Send message to worker channel
+					select {
+					case globalWorkerInstance.requestChan <- msg:
+						// Message sent successfully
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}(kind)
+	}
 }
 
 func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
@@ -215,8 +366,11 @@ func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, pr
 	rm := auth.GetResourceManager(ctx, helpers.Js)
 	r, err := rm.DiscoverResource(ctx, ids.ParseStateId(ev.Destination), from, helpers.Logger, preventCreation)
 	if err != nil {
-		err = errors.Join(errors.New("user is not authorised"), err)
-		helpers.ThrowPHPException(err.Error())
+		helpers.Logger.Error("AUTHORIZATION FAILURE: Request blocked during resource discovery", 
+			zap.String("error", err.Error()),
+			zap.String("destination", ev.Destination),
+			zap.String("phase", "resource-discovery"),
+			zap.String("action", "request-rejected"))
 		return false, err
 	}
 	if r == nil {
@@ -224,9 +378,12 @@ func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, pr
 	}
 
 	if !r.WantTo(operation, ctx) {
-		err = errors.New("user is not authorised")
-		helpers.ThrowPHPException(err.Error())
-		return false, err
+		helpers.Logger.Error("AUTHORIZATION FAILURE: Operation not permitted", 
+			zap.String("operation", string(operation)),
+			zap.String("destination", ev.Destination),
+			zap.String("phase", "operation-check"),
+			zap.String("action", "request-rejected"))
+		return false, errors.New("user is not authorised")
 	}
 
 	return true, nil
@@ -505,6 +662,9 @@ func go_init_module() {
 			panic(err)
 		}
 	}
+
+	// Start NATS message feeder for worker
+	StartNATSMessageFeeder(ctx, cfg, logger)
 }
 
 //export go_shutdown_module
@@ -526,10 +686,9 @@ func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int6
 	defer cancel()
 
 	if userVal != nil {
-		userArr := frankenphp.GoArray(unsafe.Pointer(userVal))
-		user = helpers.GetUserContext(userArr)
+		user = helpers.GetUserContext(userVal)
 		if user.UserId == "" || len(user.Roles) == 0 {
-			helpers.ThrowPHPException("User context is missing userId or roles")
+			helpers.LogError("User context is missing userId or roles")
 			return 0
 		}
 		ctx = auth.DecorateContextWithUser(ctx, user)
@@ -540,32 +699,10 @@ func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int6
 	eventArr := frankenphp.GoArray(unsafe.Pointer(event))
 	ev, err := helpers.ParseEvent(eventArr)
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return 0
 	}
 
-	operation := auth.Operation(ev.TargetOps)
-	preventCreation := true
-	switch operation {
-	case auth.Lock:
-		fallthrough
-	case auth.Call:
-		fallthrough
-	case auth.Signal:
-		fallthrough
-	case auth.Output:
-		preventCreation = false
-	}
-
-	authd, err := Authorize(ctx, ev, from, preventCreation, operation)
-	if err != nil {
-		helpers.ThrowPHPException(err.Error())
-		return 0
-	}
-	if !authd {
-		helpers.ThrowPHPException("Resource not found")
-		return 0
-	}
 	replyTo := ""
 	if ev.ReplyTo != "" {
 		replyTo = ids.ParseStateId(ev.ReplyTo).ToSubject().String()
@@ -578,13 +715,13 @@ func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int6
 
 	now, err := time.Now().MarshalText()
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return 0
 	}
 
 	userJson, err := json.Marshal(user)
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return 0
 	}
 
@@ -600,7 +737,7 @@ func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int6
 	header.Add(string(glue.HeaderEmittedBy), from.String())
 
 	msg := &nats.Msg{
-		Subject: destinationId.ToSubject().String(),
+		Subject: helpers.Config.Stream + "." + destinationId.ToSubject().String(),
 		Reply:   replyTo,
 		Header:  header,
 		Data:    []byte(ev.Event),
@@ -612,7 +749,7 @@ func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int6
 
 	ack, err := helpers.Js.PublishMsg(ctx, msg)
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return 0
 	}
 	return int64(ack.Sequence)
@@ -662,13 +799,13 @@ func (w *Worker) startEventLoop(kindStr *C.zend_string) {
 	case ids.Entity:
 	case ids.Orchestration:
 	default:
-		helpers.ThrowPHPException("Invalid event kind")
+		helpers.LogError("Invalid event kind")
 		return
 	}
 	w.kind = kind
 
 	if w.started {
-		helpers.ThrowPHPException("Event loop already running")
+		helpers.LogError("Event loop already running")
 		return
 	}
 
@@ -681,7 +818,7 @@ func (w *Worker) startEventLoop(kindStr *C.zend_string) {
 
 	stream, err := helpers.Js.Stream(ctx, helpers.Config.Stream)
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return
 	}
 
@@ -708,7 +845,7 @@ func (w *Worker) queryState(idStr *C.zend_string) unsafe.Pointer {
 	id := ids.ParseStateId(frankenphp.GoString(unsafe.Pointer(idStr)))
 	state, err := glue.GetStateArray(id, helpers.Js, w.currentCtx, helpers.Logger)
 	if err != nil {
-		helpers.ThrowPHPException(err.Error())
+		helpers.LogError(err.Error())
 		return nil
 	}
 	return frankenphp.PHPArray(state.Data.Array)

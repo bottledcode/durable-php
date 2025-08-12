@@ -55,15 +55,12 @@ use DI\Definition\Helper\CreateDefinitionHelper;
 use DI\Definition\InstanceDefinition;
 use DI\Definition\ObjectDefinition;
 use JsonException;
-use LogicException;
 use Ramsey\Uuid\Uuid;
 use ReflectionClass;
 use ReflectionFunction;
 use Withinboredom\Time\Unit;
 
 use function Bottledcode\DurablePhp\OrchestrationInstance;
-
-require_once __DIR__ . '/autoload.php';
 
 class Glue
 {
@@ -73,8 +70,6 @@ class Glue
 
     public StateId $source;
 
-    public $payloadHandle;
-
     public array $payload = [];
 
     public ?Provenance $provenance;
@@ -83,14 +78,19 @@ class Glue
 
     private ?Worker $worker = null;
 
-    public function __construct(private DurableLogger $logger, ?Worker $worker = null)
+    public function __construct(private DurableLogger $logger)
     {
-        $this->worker = $worker;
+        // Try to get the current worker from the extension
+        if (class_exists(Worker::class)) {
+            $this->worker = Worker::GetCurrent();
+        }
 
         // If we have a worker, we can get context from it directly
         if ($this->worker) {
             $this->target = StateId::fromString($this->worker->getCurrentId());
             $this->source = StateId::fromString($this->worker->getSource());
+
+            // Get bootstrap from HTTP headers (set by Go runtime)
             $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?? null;
             $this->method = $_SERVER['HTTP_DPHP_FUNCTION'] ?? 'processMsg';
 
@@ -102,49 +102,19 @@ class Glue
                 $this->provenance = null;
             }
 
-            // Get payload from worker state if available
-            $state = $this->worker->getState();
-            $this->payload = $state ? $state : [];
-        } else {
-            // Fallback to old HTTP-based approach
-            $this->target = StateId::fromString($_SERVER['STATE_ID']);
-            $this->bootstrap = $_SERVER['HTTP_DPHP_BOOTSTRAP'] ?: null;
-            $this->method = $_SERVER['HTTP_DPHP_FUNCTION'];
-            try {
-                $provenance = json_decode($_SERVER['HTTP_DPHP_PROVENANCE'] ?? 'null', true, 32, JSON_THROW_ON_ERROR);
-                if (! $provenance || $provenance === ['userId' => '', 'roles' => null]) {
-                    $this->provenance = null;
-                } else {
-                    $provenance['roles'] ??= [];
-                    $this->provenance = Serializer::deserialize($provenance, Provenance::class);
+            // Get event payload from HTTP request body (sent by ProvideRequest)
+            $eventData = file_get_contents('php://input');
+            if ($eventData) {
+                try {
+                    $this->payload = json_decode($eventData, true, 512, JSON_THROW_ON_ERROR);
+                } catch (JsonException) {
+                    $this->payload = [];
                 }
-            } catch (JsonException $e) {
-                $this->logger->alert(
-                    'Failed to capture provenance',
-                    ['provenance' => $_SERVER['HTTP_DPHP_PROVENANCE'] ?? null],
-                );
-                $this->provenance = null;
-            }
-            $this->source = StateId::fromString($_SERVER['HTTP_DPHP_SOURCE']);
-
-            if (! file_exists($_SERVER['HTTP_DPHP_PAYLOAD'])) {
-                throw new LogicException('Unable to load payload');
-            }
-
-            $payload = stream_get_contents($this->payloadHandle = fopen($_SERVER['HTTP_DPHP_PAYLOAD'], 'r+b'));
-            try {
-                $this->payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
+            } else {
                 $this->payload = [];
             }
-            $this->logger->debug('Got payload', ['raw' => $payload, 'parsed' => $this->payload]);
-        }
-    }
 
-    public function __destruct()
-    {
-        if ($this->payloadHandle) {
-            fclose($this->payloadHandle);
+            $this->logger->debug('Got payload from worker', ['parsed' => $this->payload]);
         }
     }
 
@@ -155,38 +125,12 @@ class Glue
 
     public function queryState(StateId $id): ?StateInterface
     {
-        if ($this->worker) {
-            $state = $this->worker->queryState($id->id);
-            if (empty($state)) {
-                return null;
-            }
-            return Serializer::deserialize($state, StateInterface::class);
-        }
-
-        // Fallback to old string-based approach
-        $this->queries[] = true;
-        echo implode('~!~', ['QUERY', $id->id, $qid = count($this->queries)]);
-
-        while (true) {
-            $result = fgets($this->streamHandle);
-            if (str_starts_with($result, "{$qid}://")) {
-                $file = explode('//', $result)[1];
-
-                return $this->readStateFile($file);
-            }
-        }
-    }
-
-    private function readStateFile($resource): ?StateInterface
-    {
-        $payload = stream_get_contents($resource);
-        try {
-            $payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
+        $state = $this->worker->queryState($id->id);
+        if (empty($state)) {
             return null;
         }
 
-        return Serializer::deserialize($payload, StateInterface::class);
+        return Serializer::deserialize($state, StateInterface::class);
     }
 
     public function processMsg(): void
@@ -207,11 +151,7 @@ class Glue
 
     public function outputDelete(): void
     {
-        if ($this->worker) {
-            $this->worker->delete();
-        } else {
-            echo 'DELETE~!~';
-        }
+        $this->worker->delete();
     }
 
     private function entitySignal(): void
@@ -224,13 +164,7 @@ class Glue
 
     public function outputEvent(EventDescription $event): void
     {
-        if ($this->worker) {
-            // Use the worker's emitEvent method with the same array structure as toArray()
-            $this->worker->emitEvent($event->toArray());
-        } else {
-            // Fallback to old string-based approach
-            echo 'EVENT~!~' . mb_trim($event->toStream()) . "\n";
-        }
+        $this->worker->emitEvent($event->toArray());
     }
 
     private function startOrchestration(): void
@@ -252,18 +186,6 @@ class Glue
 
         $actualId = $this->target->toOrchestrationInstance();
 
-        $this->writePayload(json_encode([
-            'id' => $this->target->id,
-            'execution' => $actualId->executionId,
-            'instance' => $actualId->instanceId,
-        ], JSON_THROW_ON_ERROR));
-    }
-
-    private function writePayload(string $payload): void
-    {
-        fseek($this->payloadHandle, 0);
-        ftruncate($this->payloadHandle, 0);
-        fwrite($this->payloadHandle, $payload);
     }
 
     private function orchestrationSignal(): void
@@ -272,27 +194,18 @@ class Glue
         $signal = $_SERVER['HTTP_SIGNAL'];
         $event = WithOrchestration::forInstance($this->target, RaiseEvent::forCustom($signal, $this->payload));
         $this->outputEvent(new EventDescription($event));
-        $this->writePayload('');
     }
 
     private function entityDecoder(): void
     {
-        $state = file_get_contents($_SERVER['HTTP_ENTITY_STATE']);
+        $state = $this->worker->getState();
         if (empty($state)) {
-            fwrite($this->payloadHandle, 'null');
-
             return;
         }
-        $state = json_decode($state, true, 512, JSON_THROW_ON_ERROR);
         $state = Serializer::deserialize($state, EntityHistory::class);
         if ($state->getState() !== null) {
             $state = Serializer::serialize($state->getState(), ['API']);
-        } else {
-            $this->writePayload('null');
-
-            return;
         }
-        $this->writePayload(json_encode($state, JSON_THROW_ON_ERROR));
     }
 
     private function getPermissions(): void
@@ -400,9 +313,3 @@ class Glue
         return null;
     }
 }
-
-header('Content-type: application/dphp');
-
-(new Glue($logger))->process();
-
-exit();

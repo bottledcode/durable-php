@@ -1,20 +1,10 @@
 package helpers
 
-/*
-#include <php.h>
-#include <zend_exceptions.h>
-
-static inline void throw_exception(const char* msg) {
-    zend_throw_exception(zend_ce_exception, msg, 0);
-}
-*/
-import "C"
 import (
 	"context"
 	"errors"
 	"os"
 	"time"
-	"unsafe"
 
 	"github.com/bottledcode/durable-php/cli/auth"
 	"github.com/bottledcode/durable-php/cli/config"
@@ -26,10 +16,24 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func ThrowPHPException(msg string) {
-	cstr := C.CString(msg)
-	defer C.free(unsafe.Pointer(cstr))
-	C.throw_exception(cstr)
+import "C"
+
+// HandleError handles errors conditionally based on execution context
+// In PHP context: throws PHP exception
+// Outside PHP context: logs error with ERROR level
+func HandleError(err error) {
+	// Comprehensive logging for authorization failures
+	logger := GetLogger(zapcore.ErrorLevel)
+	logger.Error("AUTHORIZATION FAILURE: Request blocked during worker initialization",
+		zap.String("error", err.Error()),
+		zap.String("phase", "pre-php-initialization"),
+		zap.String("action", "logged-instead-of-exception"),
+		zap.String("impact", "request-will-be-rejected"),
+		zap.String("troubleshooting", "check user permissions and resource access rules"))
+}
+
+func LogError(msg string) {
+	Logger.Error("Extension error", zap.String("error", msg))
 }
 
 func GetLogger(level zapcore.Level) *zap.Logger {
@@ -61,7 +65,7 @@ func ParseStateId(arr *frankenphp.Array) (id string, err error) {
 		return
 	}
 	Logger.Warn("Failed to parse state id", zap.Any("id", idx))
-	ThrowPHPException("Failed to parse state id")
+	LogError("Failed to parse state id")
 	return "", errors.New("Failed to parse state id")
 }
 
@@ -71,7 +75,7 @@ func ParseEvent(arr *frankenphp.Array) (ev *glue.EventMessage, err error) {
 	for i := uint32(0); i < arr.Len(); i++ {
 		k, v := arr.At(i)
 		if k.Type == frankenphp.PHPIntKey {
-			ThrowPHPException("Event cannot contain integer keys")
+			LogError("Event cannot contain integer keys")
 		}
 		switch k.Str {
 		case "eventId":
@@ -97,7 +101,7 @@ func ParseEvent(arr *frankenphp.Array) (ev *glue.EventMessage, err error) {
 				ev.ScheduleAt, err = time.Parse(time.RFC3339, str)
 			}
 		default:
-			ThrowPHPException("Unknown event key: " + k.Str)
+			LogError("Unknown event key: " + k.Str)
 			return nil, errors.New("Unknown event key: " + k.Str)
 		}
 	}

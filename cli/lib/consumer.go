@@ -152,7 +152,7 @@ func ProcessMessage(
 	logger.Debug("Processing message", zap.Any("msg", msg))
 
 	id := getStateId(msg)
-	unlocker, err := lockStateId(ctx, id, nil, logger)
+	unlocker, err := lockStateId(ctx, id, js, logger)
 	if err != nil {
 		return []byte{}, nil, nil, err
 	}
@@ -643,4 +643,3 @@ func processMsg(ctx context.Context, logger *zap.Logger, msg jetstream.Msg, js j
 
 	return nil
 }
-
