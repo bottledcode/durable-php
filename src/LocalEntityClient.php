@@ -115,9 +115,9 @@ class LocalEntityClient implements EntityClientInterface
     }
 
     #[Override]
-    public function withAuth(string $token): void
+    public function withAuth(Provenance|string|null $token): void
     {
-        throw new Exception('withAuth not implemented for LocalEntityClient - set user context directly using setUserContext');
+        $this->setUserContext($token);
     }
 
     public function setUserContext(?Provenance $userContext): void

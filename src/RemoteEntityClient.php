@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\SpyException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
@@ -146,7 +147,7 @@ class RemoteEntityClient implements EntityClientInterface
     }
 
     #[Override]
-    public function withAuth(string $token): void
+    public function withAuth(Provenance|string|null $token): void
     {
         $this->userToken = $token;
     }

@@ -171,7 +171,7 @@ final readonly class DurableClient implements DurableClientInterface
     }
 
     #[Override]
-    public function withAuth(string $token): void
+    public function withAuth(Provenance|string|null $token): void
     {
         $this->orchestrationClient->withAuth($token);
         $this->entityClient->withAuth($token);
