@@ -26,7 +26,9 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClientBuilder;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Ext\Worker;
 use Bottledcode\DurablePhp\Glue\Provenance;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -44,41 +46,21 @@ final readonly class DurableClient implements DurableClientInterface
         private OrchestrationClientInterface $orchestrationClient,
     ) {}
 
-    public static function get(string $apiHost = 'http://localhost:8080', ?Provenance $userContext = null): self
+    public static function local(?Provenance $userContext = null): self
     {
-        if (function_exists('Bottledcode\DurablePhp\Ext\emit_event')) {
-            $entityClient = new LocalEntityClient();
-            $orchestrationClient = new LocalOrchestrationClient();
-
-            if ($userContext !== null) {
-                $entityClient->setUserContext($userContext);
-                $orchestrationClient->setUserContext($userContext);
-            }
-
-            return new self($entityClient, $orchestrationClient);
-        }
-
-        $builder = new HttpClientBuilder();
-        $builder->retry(3);
-
-        $httpClient = $builder->build();
-        $entityClient = new RemoteEntityClient($apiHost, $httpClient);
-        $orchestrationClient = new RemoteOrchestrationClient($apiHost, $httpClient);
+        $entityClient = new LocalEntityClient(new SpyProxy(), new Worker());
+        $orchestrationClient = new LocalOrchestrationClient(new SpyProxy(), new Worker());
+        $entityClient->withAuth($userContext);
+        $orchestrationClient->withAuth($userContext);
 
         return new self($entityClient, $orchestrationClient);
     }
 
-    public static function local(?Provenance $userContext = null): self
+    #[Override]
+    public function withAuth(Provenance|string|null $token): void
     {
-        $entityClient = new LocalEntityClient();
-        $orchestrationClient = new LocalOrchestrationClient();
-
-        if ($userContext !== null) {
-            $entityClient->setUserContext($userContext);
-            $orchestrationClient->setUserContext($userContext);
-        }
-
-        return new self($entityClient, $orchestrationClient);
+        $this->orchestrationClient->withAuth($token);
+        $this->entityClient->withAuth($token);
     }
 
     public static function remote(string $apiHost = 'http://localhost:8080'): self
@@ -168,13 +150,6 @@ final readonly class DurableClient implements DurableClientInterface
     public function signal(EntityId|string $entityId, Closure $signal): void
     {
         $this->entityClient->signal($entityId, $signal);
-    }
-
-    #[Override]
-    public function withAuth(Provenance|string|null $token): void
-    {
-        $this->orchestrationClient->withAuth($token);
-        $this->entityClient->withAuth($token);
     }
 
     public function deleteEntity(EntityId $entityId): void
