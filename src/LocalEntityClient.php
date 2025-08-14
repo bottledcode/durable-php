@@ -129,7 +129,7 @@ class LocalEntityClient implements EntityClientInterface
     #[Override]
     public function withAuth(Provenance|string|null $token): void
     {
-        $this->worker->setUser($token instanceof Provenance ? $token : null);
+        $this->worker->setUser($token instanceof Provenance ? Serializer::serialize($token) : null);
     }
 
     #[Override]
