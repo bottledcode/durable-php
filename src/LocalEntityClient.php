@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
 use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\SpyException;
@@ -99,8 +100,12 @@ class LocalEntityClient implements EntityClientInterface
     ): void {
         $event = WithEntity::forInstance(
             StateId::fromEntityId($entityId),
-            RaiseEvent::forSignal($operationName, SerializedArray::fromArray($input), $scheduledTime),
+            RaiseEvent::forOperation($operationName, $input),
         );
+
+        if ($scheduledTime) {
+            $event = WithDelay::forEvent($scheduledTime, $event);
+        }
 
         $eventDescription = new EventDescription($event);
         $userArray = $this->userContext ? Serializer::serialize($this->userContext) : null;
@@ -117,7 +122,7 @@ class LocalEntityClient implements EntityClientInterface
     #[Override]
     public function withAuth(Provenance|string|null $token): void
     {
-        $this->setUserContext($token);
+        $this->setUserContext($token instanceof Provenance ? $token : null);
     }
 
     public function setUserContext(?Provenance $userContext): void

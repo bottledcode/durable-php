@@ -110,29 +110,6 @@ PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, __construct) {
     fflush(stderr);
 }
 
-
-PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, startEventLoop) {
-    ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));
-    
-    VALIDATE_GO_HANDLE(intern);
-    zend_string *kind = NULL;
-    
-    ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_STR(kind)
-        ZEND_PARSE_PARAMETERS_END();
-    
-    startEventLoop_wrapper(intern->go_handle, kind);
-}
-
-PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, drainEventLoop) {
-    ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));
-    
-    VALIDATE_GO_HANDLE(intern);
-    ZEND_PARSE_PARAMETERS_NONE();
-    
-    drainEventLoop_wrapper(intern->go_handle);
-}
-
 PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, __destruct) {
     ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));
     

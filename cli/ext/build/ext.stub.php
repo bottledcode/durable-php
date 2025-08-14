@@ -12,12 +12,7 @@ class Worker {
 
     public static function GetCurrent(): ?Worker {}
 
-    public function startEventLoop(string $kind): void {}
-
-    public function drainEventLoop(): void {}
-
     public function __destruct() {}
-
 
     public function queryState(string $stateId): array {}
 

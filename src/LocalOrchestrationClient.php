@@ -27,6 +27,7 @@ namespace Bottledcode\DurablePhp;
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
 use Bottledcode\DurablePhp\Glue\Provenance;
@@ -97,12 +98,12 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
     #[Override]
     public function startNew(string $name, array $args = [], ?string $id = null): OrchestrationInstance
     {
-        $orchestrationId = OrchestrationId($name, $id ?? Uuid::uuid4()->toString());
-        $stateId = StateId::fromOrchestrationId($orchestrationId);
+        $orchestrationId = \Bottledcode\DurablePhp\OrchestrationInstance($name, $id ?? Uuid::uuid4()->toString());
+        $stateId = StateId::fromInstance($orchestrationId);
 
         $event = WithOrchestration::forInstance(
             $stateId,
-            StartOrchestration::fromArray(SerializedArray::fromArray($args)),
+            StartOrchestration::forInstance($orchestrationId),
         );
 
         $eventDescription = new EventDescription($event);
@@ -110,7 +111,11 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
 
         $sequence = emit_event($userArray, $eventDescription->toArray(), $stateId->id);
 
-        return $orchestrationId->toOrchestrationInstance();
+        $event = WithOrchestration::forInstance($stateId, StartExecution::asParent($args, []));
+        $eventDescription = new EventDescription($event);
+        emit_event($userArray, $eventDescription->toArray(), $sequence);
+
+        return $orchestrationId;
     }
 
     #[Override]
@@ -134,7 +139,7 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
     #[Override]
     public function withAuth(Provenance|string|null $token): void
     {
-        $this->setUserContext($token);
+        $this->setUserContext($token instanceof Provenance ? $token : null);
     }
 
     public function setUserContext(?Provenance $userContext): void

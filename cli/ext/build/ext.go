@@ -45,6 +45,7 @@ type LocalMessage struct {
 type worker struct {
 	requestChan      chan jetstream.Msg // Channel for NATS messages
 	localMessageChan chan *LocalMessage // Channel for local synchronous requests
+	running          bool
 }
 
 var globalWorkerInstance *worker
@@ -366,7 +367,7 @@ func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, pr
 	rm := auth.GetResourceManager(ctx, helpers.Js)
 	r, err := rm.DiscoverResource(ctx, ids.ParseStateId(ev.Destination), from, helpers.Logger, preventCreation)
 	if err != nil {
-		helpers.Logger.Error("AUTHORIZATION FAILURE: Request blocked during resource discovery", 
+		helpers.Logger.Error("AUTHORIZATION FAILURE: Request blocked during resource discovery",
 			zap.String("error", err.Error()),
 			zap.String("destination", ev.Destination),
 			zap.String("phase", "resource-discovery"),
@@ -378,7 +379,7 @@ func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, pr
 	}
 
 	if !r.WantTo(operation, ctx) {
-		helpers.Logger.Error("AUTHORIZATION FAILURE: Operation not permitted", 
+		helpers.Logger.Error("AUTHORIZATION FAILURE: Operation not permitted",
 			zap.String("operation", string(operation)),
 			zap.String("destination", ev.Destination),
 			zap.String("phase", "operation-check"),
@@ -895,26 +896,6 @@ func (w *Worker) emitEvent(event *C.zval) {
 }
 
 func (w *Worker) delete() {}
-
-//export startEventLoop_wrapper
-func startEventLoop_wrapper(handle C.uintptr_t, kind *C.zend_string) {
-	obj := getGoObject(handle)
-	if obj == nil {
-		return
-	}
-	structObj := obj.(*Worker)
-	structObj.startEventLoop(kind)
-}
-
-//export drainEventLoop_wrapper
-func drainEventLoop_wrapper(handle C.uintptr_t) {
-	obj := getGoObject(handle)
-	if obj == nil {
-		return
-	}
-	structObj := obj.(*Worker)
-	structObj.drainEventLoop()
-}
 
 //export __destruct_wrapper
 func __destruct_wrapper(handle C.uintptr_t) {
