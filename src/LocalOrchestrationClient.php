@@ -141,7 +141,7 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
     #[Override]
     public function withAuth(Provenance|string|null $token): void
     {
-        $this->worker->setUser($token instanceof Provenance ? $token : null);
+        $this->worker->setUser($token instanceof Provenance ? Serializer::serialize($token) : null);
     }
 
     public function shareOrchestrationOwnership(OrchestrationInstance $id, string $with): void

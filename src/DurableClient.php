@@ -48,8 +48,9 @@ final readonly class DurableClient implements DurableClientInterface
 
     public static function local(?Provenance $userContext = null): self
     {
-        $entityClient = new LocalEntityClient(new SpyProxy(), new Worker());
-        $orchestrationClient = new LocalOrchestrationClient(new SpyProxy(), new Worker());
+        $worker = new Worker();
+        $entityClient = new LocalEntityClient(new SpyProxy(), $worker);
+        $orchestrationClient = new LocalOrchestrationClient(new SpyProxy(), $worker);
         $entityClient->withAuth($userContext);
         $orchestrationClient->withAuth($userContext);
 

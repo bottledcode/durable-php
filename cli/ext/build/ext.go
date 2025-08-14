@@ -758,7 +758,17 @@ func removeGoObject(handle C.uintptr_t) {
 
 //export create_Worker_object
 func create_Worker_object() C.uintptr_t {
-	obj := &Worker{}
+	obj := &Worker{
+		kind:          "api",
+		started:       false,
+		consumer:      nil,
+		activeId:      nil,
+		state:         nil,
+		pendingEvents: nil,
+		authContext:   nil,
+		currentCtx:    context.Background(),
+		currentMsg:    nil,
+	}
 	return registerGoObject(obj)
 }
 
