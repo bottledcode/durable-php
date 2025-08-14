@@ -2,7 +2,7 @@ package lib
 
 import (
 	"context"
-	"durable_php/config"
+	"github.com/bottledcode/durable-php/cli/config"
 	"github.com/typesense/typesense-go/typesense"
 	"github.com/typesense/typesense-go/typesense/api"
 	"github.com/typesense/typesense-go/typesense/api/pointer"

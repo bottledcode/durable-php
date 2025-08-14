@@ -2,8 +2,8 @@ package lib
 
 import (
 	"context"
-	"durable_php/ids"
 	"errors"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 	"time"

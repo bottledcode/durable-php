@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"durable_php/appcontext"
+	"github.com/bottledcode/durable-php/cli/appcontext"
 	"slices"
 )
 

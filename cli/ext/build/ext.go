@@ -1,0 +1,969 @@
+package build
+
+/*
+#include <stdlib.h>
+#include "ext.h"
+
+void set_current_worker_handle(uintptr_t handle);
+void clear_current_worker(void);
+*/
+import "C"
+import (
+	"runtime/cgo"
+)
+import "unsafe"
+import "github.com/dunglas/frankenphp"
+import "context"
+import "encoding/json"
+import "errors"
+import "net/http"
+import "os"
+import "strings"
+import "sync"
+import "time"
+import "github.com/bottledcode/durable-php/cli/appcontext"
+import "github.com/bottledcode/durable-php/cli/auth"
+import "github.com/bottledcode/durable-php/cli/config"
+import "github.com/bottledcode/durable-php/cli/ext/helpers"
+import "github.com/bottledcode/durable-php/cli/glue"
+import "github.com/bottledcode/durable-php/cli/ids"
+import "github.com/bottledcode/durable-php/cli/lib"
+import "github.com/nats-io/nats-server/v2/server"
+import "github.com/nats-io/nats-server/v2/test"
+import "github.com/nats-io/nats.go"
+import "github.com/nats-io/nats.go/jetstream"
+import "go.uber.org/zap"
+
+// LocalMessage represents a local synchronous request
+type LocalMessage struct {
+	Method     string                 // "getPermissions", etc.
+	StateId    string                 // The state ID for the request
+	Context    map[string]interface{} // Additional context data
+	ResponseCh chan interface{}       // Channel to send response back
+}
+
+type frankenphpWorker struct {
+	requestChan      chan jetstream.Msg // Channel for NATS messages
+	localMessageChan chan *LocalMessage // Channel for local synchronous requests
+	running          bool
+}
+
+var globalWorkerInstance *frankenphpWorker
+
+func (w *frankenphpWorker) Name() string {
+	return "m#durable-php"
+}
+
+func (w *frankenphpWorker) FileName() string {
+	// check if target exists
+	if _, err := os.Stat("src/Glue/frankenphpWorker.php"); !os.IsNotExist(err) {
+		return "src/Glue/frankenphpWorker.php"
+	}
+
+	return "vendor/bottledcode/durable-php/src/Glue/frankenphpWorker.php"
+}
+
+func (w *frankenphpWorker) Env() frankenphp.PreparedEnv {
+	return frankenphp.PreparedEnv{}
+}
+
+func (w *frankenphpWorker) GetMinThreads() int {
+	return 4
+}
+
+func (w *frankenphpWorker) ThreadActivatedNotification(threadId int) {
+}
+
+func (w *frankenphpWorker) ThreadDrainNotification(threadId int) {
+}
+
+func (w *frankenphpWorker) ThreadDeactivatedNotification(threadId int) {
+}
+
+func (w *frankenphpWorker) ProvideRequest() *frankenphp.WorkerRequest {
+	// Select between NATS messages and local messages
+	select {
+	case msg := <-w.requestChan:
+		// Process NATS message
+		return processMessage(msg)
+	case localMsg := <-w.localMessageChan:
+		// Process local message
+		return processLocalMessage(localMsg)
+	}
+}
+
+func processMessage(msg jetstream.Msg) *frankenphp.WorkerRequest {
+	ctx := helpers.Ctx
+	logger := helpers.Logger
+	js := helpers.Js
+
+	// Process the message using the logic from getNextEvent
+	meta, _ := msg.Metadata()
+	headers := msg.Headers()
+
+	currentUser := &auth.User{}
+	b := msg.Headers().Get(string(glue.HeaderProvenance))
+	err := json.Unmarshal([]byte(b), currentUser)
+	if err != nil {
+		logger.Warn("Failed to unmarshal event provenance",
+			zap.Any("Provenance", msg.Headers().Get(string(glue.HeaderProvenance))),
+			zap.Error(err),
+		)
+		currentUser = nil
+	} else {
+		ctx = auth.DecorateContextWithUser(ctx, currentUser)
+	}
+
+	// Handle delayed messages
+	if headers.Get(string(glue.HeaderDelay)) != "" && meta.NumDelivered == 1 {
+		logger.Debug("Delaying message", zap.String("delay", msg.Headers().Get("Delay")), zap.Any("Headers", meta))
+		schedule, err := time.Parse(time.RFC3339, msg.Headers().Get("Delay"))
+		if err != nil {
+			helpers.LogError(err.Error())
+			return nil
+		}
+
+		delay := time.Until(schedule)
+		if err := msg.NakWithDelay(delay); err != nil {
+			helpers.LogError(err.Error())
+			return nil
+		}
+
+		// Recursively handle delayed message by putting it back in channel
+		globalWorkerInstance.requestChan <- msg
+		return nil
+	}
+
+	// Handle delete messages
+	if strings.HasSuffix(msg.Subject(), ".delete") {
+		id := ids.ParseStateId(msg.Headers().Get(string(glue.HeaderStateId)))
+		err := glue.DeleteState(ctx, js, logger, id)
+		if err != nil {
+			helpers.LogError(err.Error())
+			return nil
+		}
+		// Return nil to get next message
+		return nil
+	}
+
+	// Determine the kind from the message subject
+	var kind ids.IdKind
+	if strings.Contains(msg.Subject(), ".activity.") {
+		kind = ids.Activity
+	} else if strings.Contains(msg.Subject(), ".entity.") {
+		kind = ids.Entity
+	} else if strings.Contains(msg.Subject(), ".orchestration.") {
+		kind = ids.Orchestration
+	}
+
+	// Create frankenphpWorker context for this message
+	worker := &Worker{
+		kind:       kind,
+		currentMsg: msg,
+	}
+
+	worker.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
+
+	// Set the current frankenphpWorker for PHP access BEFORE processing/authorization
+	helpers.Logger.Info("About to call SetCurrentWorker")
+	SetCurrentWorker(worker)
+	helpers.Logger.Info("SetCurrentWorker completed")
+
+	rm := auth.GetResourceManager(ctx, js)
+
+	worker.authContext, worker.activeId, worker.state, err = lib.ProcessMessage(ctx, logger, msg, rm, helpers.Config, js)
+	if err != nil {
+		helpers.LogError(err.Error())
+		return nil
+	}
+
+	// Create an HTTP request from the message
+	httpReq, err := http.NewRequest("POST", "/worker", strings.NewReader(string(msg.Data())))
+	if err != nil {
+		helpers.LogError(err.Error())
+		return nil
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Correlation-ID", worker.currentCtx.Value("cid").(string))
+	httpReq.Header.Set("X-State-ID", worker.activeId.String())
+	httpReq.Header.Set("X-Event-Type", msg.Headers().Get(string(glue.HeaderEventType)))
+	httpReq.Header.Set("X-Source-ID", msg.Headers().Get(string(glue.HeaderEmittedBy)))
+
+	req := &frankenphp.WorkerRequest{
+		Request:  httpReq,
+		Response: nil, // Response writer will be provided by FrankenPHP
+		Done:     make(chan struct{}),
+	}
+
+	return req
+}
+
+func processLocalMessage(localMsg *LocalMessage) *frankenphp.WorkerRequest {
+	// Create a synthetic HTTP request for the local message
+	httpReq, err := http.NewRequest("POST", "/worker", strings.NewReader(""))
+	if err != nil {
+		helpers.LogError(err.Error())
+		return nil
+	}
+
+	// Set headers to indicate this is a local request
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("DPHP_FUNCTION", localMsg.Method)
+	httpReq.Header.Set("STATE_ID", localMsg.StateId)
+
+	// Add any additional context as headers
+	for key, value := range localMsg.Context {
+		if str, ok := value.(string); ok {
+			httpReq.Header.Set(strings.ToUpper(key), str)
+		}
+	}
+
+	doneCh := make(chan struct{})
+	responseWriter := &localResponseWriter{
+		responseCh: localMsg.ResponseCh,
+		doneCh:     doneCh,
+		buffer:     make([]byte, 0),
+	}
+
+	req := &frankenphp.WorkerRequest{
+		Request:  httpReq,
+		Response: responseWriter,
+		Done:     doneCh,
+	}
+
+	return req
+}
+
+// localResponseWriter implements http.ResponseWriter and sends response to the channel
+type localResponseWriter struct {
+	responseCh chan interface{}
+	doneCh     chan struct{}
+	buffer     []byte
+	sent       bool
+}
+
+func (w *localResponseWriter) Header() http.Header {
+	return make(http.Header)
+}
+
+func (w *localResponseWriter) Write(data []byte) (int, error) {
+	// Accumulate response data in buffer
+	w.buffer = append(w.buffer, data...)
+
+	// Start a goroutine to wait for completion if not already done
+	if !w.sent {
+		w.sent = true
+		go w.waitForCompletion()
+	}
+
+	return len(data), nil
+}
+
+func (w *localResponseWriter) WriteHeader(statusCode int) {
+	// For local requests, we don't need to handle status codes
+}
+
+func (w *localResponseWriter) waitForCompletion() {
+	// Wait for the request to complete
+	<-w.doneCh
+
+	// Send the complete response
+	w.responseCh <- string(w.buffer)
+	close(w.responseCh)
+}
+
+func init() {
+	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
+
+	// initialize the workers
+	globalWorkerInstance = &frankenphpWorker{
+		requestChan:      make(chan jetstream.Msg, 100), // Buffer for 100 messages
+		localMessageChan: make(chan *LocalMessage, 10),  // Buffer for 10 local messages
+	}
+	frankenphp.RegisterExternalWorker(globalWorkerInstance)
+
+	// Set the local message sender for the auth package
+	auth.SendLocalMessage = SendLocalMessage
+}
+
+// SendLocalMessage sends a local synchronous request and waits for response
+func SendLocalMessage(method, stateId string, context map[string]interface{}) (interface{}, error) {
+	responseCh := make(chan interface{}, 1)
+
+	localMsg := &LocalMessage{
+		Method:     method,
+		StateId:    stateId,
+		Context:    context,
+		ResponseCh: responseCh,
+	}
+
+	// Send the local message
+	select {
+	case globalWorkerInstance.localMessageChan <- localMsg:
+		// Wait for response
+		response := <-responseCh
+		return response, nil
+	default:
+		return nil, errors.New("local message channel is full")
+	}
+}
+
+// StartNATSMessageFeeder starts goroutines that feed NATS messages to the frankenphpWorker channel
+func StartNATSMessageFeeder(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
+	js := helpers.Js
+
+	consumers := []ids.IdKind{ids.Activity, ids.Entity, ids.Orchestration}
+
+	for _, kind := range consumers {
+		go func(kind ids.IdKind) {
+			for {
+				stream, err := js.Stream(ctx, cfg.Stream)
+				if err != nil {
+					logger.Error("Failed to get stream", zap.Error(err))
+					time.Sleep(time.Second)
+					continue
+				}
+
+				consumer, err := stream.Consumer(ctx, cfg.Stream+"-"+string(kind))
+				if err != nil {
+					logger.Error("Failed to get consumer", zap.String("kind", string(kind)), zap.Error(err))
+					time.Sleep(time.Second)
+					continue
+				}
+
+				iter, err := consumer.Messages(jetstream.PullMaxMessages(1), jetstream.WithMessagesErrOnMissingHeartbeat(false))
+				if err != nil {
+					logger.Error("Failed to create message iterator", zap.String("kind", string(kind)), zap.Error(err))
+					time.Sleep(time.Second)
+					continue
+				}
+
+				for {
+					msg, err := iter.Next()
+					if err != nil {
+						logger.Debug("Error getting next message", zap.String("kind", string(kind)), zap.Error(err))
+						break // Break inner loop to recreate consumer
+					}
+
+					// Send message to frankenphpWorker channel
+					select {
+					case globalWorkerInstance.requestChan <- msg:
+						// Message sent successfully
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}(kind)
+	}
+}
+
+//export go_init_module
+func go_init_module() {
+	cfg, err := config.GetProjectConfig()
+	if err != nil {
+		panic(err)
+	}
+	helpers.Config = cfg
+
+	helpers.Logger = helpers.GetLogger(zap.DebugLevel)
+	logger := helpers.Logger
+
+	logger.Info("Starting Durable PHP")
+
+	helpers.Ctx = context.WithValue(context.Background(), "bootstrap", cfg.Bootstrap)
+
+	boostrapNats := cfg.Nat.Bootstrap
+	if cfg.Nat.Internal {
+		logger.Warn("Running in dev mode, all data will be deleted at the end of this")
+		helpers.NatsState, err = os.MkdirTemp("", "nats-state-*")
+		if err != nil {
+			panic(err)
+		}
+
+		helpers.NatServer = test.RunServer(&server.Options{
+			Host:           "localhost",
+			Port:           4222,
+			NoLog:          true,
+			NoSigs:         true,
+			JetStream:      true,
+			MaxControlLine: 2048,
+			StoreDir:       helpers.NatsState,
+			HTTPPort:       8222,
+		})
+		boostrapNats = true
+	}
+
+	nopts := []nats.Option{
+		nats.Compression(true),
+		nats.RetryOnFailedConnect(true),
+	}
+
+	if cfg.Nat.Jwt != "" && cfg.Nat.Nkey != "" {
+		nopts = append(nopts, nats.UserCredentials(cfg.Nat.Jwt, cfg.Nat.Nkey))
+	}
+
+	if cfg.Nat.Tls.Ca != "" {
+		nopts = append(nopts, nats.RootCAs(strings.Split(cfg.Nat.Tls.Ca, ",")...))
+	}
+
+	if cfg.Nat.Tls.KeyFile != "" {
+		nopts = append(nopts, nats.ClientCert(cfg.Nat.Tls.ClientCert, cfg.Nat.Tls.KeyFile))
+	}
+
+	ns, err := nats.Connect(cfg.Nat.Url, nopts...)
+	if err != nil {
+		panic(err)
+	}
+	helpers.Js, err = jetstream.New(ns)
+	if err != nil {
+		panic(err)
+	}
+	ctx := context.WithValue(context.Background(), "bootstrap", cfg.Bootstrap)
+
+	if boostrapNats {
+		stream, _ := helpers.Js.CreateStream(ctx, jetstream.StreamConfig{
+			Name:        cfg.Stream,
+			Description: "Handles durable-php events",
+			Subjects:    []string{cfg.Stream + ".>"},
+			Retention:   jetstream.WorkQueuePolicy,
+			Storage:     jetstream.FileStorage,
+			AllowRollup: false,
+			DenyDelete:  true,
+			DenyPurge:   true,
+		})
+		_, _ = helpers.Js.CreateStream(ctx, jetstream.StreamConfig{
+			Name:        cfg.Stream + "_history",
+			Description: "The history of the stream",
+			Mirror: &jetstream.StreamSource{
+				Name: cfg.Stream,
+			},
+			Retention:   jetstream.LimitsPolicy,
+			AllowRollup: true,
+			MaxAge:      7 * 24 * time.Hour,
+			Discard:     jetstream.DiscardOld,
+		})
+
+		consumers := []string{
+			string(ids.Activity),
+			string(ids.Entity),
+			string(ids.Orchestration),
+		}
+
+		for _, kind := range consumers {
+			_, _ = stream.CreateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable:       cfg.Stream + "-" + kind,
+				FilterSubject: cfg.Stream + "." + kind + ".>",
+				AckPolicy:     jetstream.AckExplicitPolicy,
+				AckWait:       5 * time.Minute,
+			})
+		}
+	}
+
+	if len(cfg.Extensions.Search.Collections) > 0 {
+		for _, collection := range cfg.Extensions.Search.Collections {
+			switch collection {
+			case "entities":
+				err := lib.IndexerListen(ctx, cfg, ids.Entity, helpers.Js, logger)
+				if err != nil {
+					cfg.Extensions.Search.Collections = []string{}
+					logger.Warn("Disabling search extension due to failing to connect to typesense")
+				}
+			case "orchestrations":
+				err := lib.IndexerListen(ctx, cfg, ids.Orchestration, helpers.Js, logger)
+				if err != nil {
+					cfg.Extensions.Search.Collections = []string{}
+					logger.Warn("Disabling search extension due to failing to connect to typesense")
+				}
+			}
+		}
+	}
+
+	if cfg.Extensions.Billing.Enabled {
+		if cfg.Extensions.Billing.Listen {
+
+			billings := sync.Map{}
+			billings.Store("e", 0)
+			billings.Store("o", 0)
+			billings.Store("a", 0*time.Minute)
+			billings.Store("ac", 0)
+
+			var incrementInt func(key string, amount int)
+			incrementInt = func(key string, amount int) {
+				var old interface{}
+				old, _ = billings.Load(key)
+				if !billings.CompareAndSwap(key, old, old.(int)+1) {
+					incrementInt(key, amount)
+				}
+			}
+
+			var incrementDur func(key string, amount time.Duration)
+			incrementDur = func(key string, amount time.Duration) {
+				var old interface{}
+				old, _ = billings.Load(key)
+				if !billings.CompareAndSwap(key, old, old.(time.Duration)+amount) {
+					incrementDur(key, amount)
+				}
+			}
+
+			/*
+				outputBillingStatus := func() {
+					costC := func(num interface{}, basis int) float64 {
+						return float64(num.(int)) * float64(basis) / 10_000_000
+					}
+
+					costA := func(dur interface{}, basis int) float64 {
+						duration := dur.(time.Duration)
+						seconds := duration.Seconds()
+						return float64(basis) * seconds / 100_000
+					}
+
+					avg := func(dur interface{}, count interface{}) time.Duration {
+						seconds := dur.(time.Duration).Seconds()
+						return time.Duration(seconds/float64(count.(int))) * time.Second
+					}
+
+					e, _ := billings.Load("e")
+					o, _ := billings.Load("o")
+					ac, _ := billings.Load("ac")
+					a, _ := billings.Load("a")
+
+					ecost := costC(e, cfg.Extensions.Billing.Costs.Entities.Cost)
+					ocost := costC(o, cfg.Extensions.Billing.Costs.Orchestrations.Cost)
+					acost := costA(a, cfg.Extensions.Billing.Costs.Activities.Cost)
+
+					logger.Warn("Billing estimate",
+						zap.Any("launched entities", e),
+						zap.String("entity cost", fmt.Sprintf("$%.2f", ecost)),
+						zap.Any("launched orchestrations", o),
+						zap.String("orchestration cost", fmt.Sprintf("$%.2f", ocost)),
+						zap.Any("activity time", a),
+						zap.Any("activities launced", ac),
+						zap.Any("average activity time", avg(a, ac)),
+						zap.String("activity cost", fmt.Sprintf("$%.2f", acost)),
+						zap.String("total estimate", fmt.Sprintf("$%.2f", ecost+ocost+acost)),
+					)
+				}
+
+				go func() {
+					ticker := time.NewTicker(3 * time.Second)
+					for range ticker.C {
+						outputBillingStatus()
+					}
+				}()
+			*/
+
+			billingStream, err := helpers.Js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+				Name: "billing",
+				Subjects: []string{
+					"billing." + cfg.Stream + ".>",
+				},
+				Storage:   jetstream.FileStorage,
+				Retention: jetstream.LimitsPolicy,
+				MaxAge:    7 * 24 * time.Hour,
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			entityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable: "entityAggregator",
+				FilterSubjects: []string{
+					"billing." + cfg.Stream + ".entities.>",
+				},
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = entityConsumer.Consume(func(msg jetstream.Msg) {
+				incrementInt("e", 1)
+				msg.Ack()
+			})
+			if err != nil {
+				panic(err)
+			}
+			//defer consume.Drain()
+
+			orchestrationConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable:       "orchestrationAggregator",
+				FilterSubject: "billing." + cfg.Stream + ".orchestrations.>",
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = orchestrationConsumer.Consume(func(msg jetstream.Msg) {
+				incrementInt("o", 1)
+				msg.Ack()
+			})
+			if err != nil {
+				panic(err)
+			}
+			//defer consume.Drain()
+
+			activityConsumer, err := billingStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+				Durable:       "activityAggregator",
+				FilterSubject: "billing." + cfg.Stream + ".activities.>",
+			})
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = activityConsumer.Consume(func(msg jetstream.Msg) {
+				incrementInt("ac", 1)
+				var ev lib.BillingEvent
+				err := json.Unmarshal(msg.Data(), &ev)
+				if err != nil {
+					panic(err)
+				}
+				incrementDur("a", ev.Duration)
+				msg.Ack()
+			})
+			if err != nil {
+				panic(err)
+			}
+			//defer consume.Drain()
+		}
+
+		err := lib.StartBillingProcessor(ctx, cfg, helpers.Js, logger)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// Start NATS message feeder for frankenphpWorker
+	StartNATSMessageFeeder(ctx, cfg, logger)
+}
+
+//export go_shutdown_module
+func go_shutdown_module() {
+	if helpers.NatServer != nil {
+		helpers.NatServer.Shutdown()
+	}
+	// remove nats state directory
+	os.RemoveAll(helpers.NatsState)
+}
+
+//export emit_event
+func emit_event(userContext *C.zval, event *C.zval, fromStr *C.zend_string) int64 {
+
+	userVal := frankenphp.GoArray(unsafe.Pointer(userContext))
+
+	var user *auth.User
+	ctx, cancel := context.WithCancel(helpers.Ctx)
+	defer cancel()
+
+	if userVal != nil {
+		user = helpers.GetUserContext(userVal)
+		if user.UserId == "" || len(user.Roles) == 0 {
+			helpers.LogError("User context is missing userId or roles")
+			return 0
+		}
+		ctx = auth.DecorateContextWithUser(ctx, user)
+	}
+
+	from := ids.ParseStateId(frankenphp.GoString(unsafe.Pointer(fromStr)))
+
+	eventArr := frankenphp.GoArray(unsafe.Pointer(event))
+	ev, err := helpers.ParseEvent(eventArr)
+	if err != nil {
+		helpers.LogError(err.Error())
+		return 0
+	}
+
+	replyTo := ""
+	if ev.ReplyTo != "" {
+		replyTo = ids.ParseStateId(ev.ReplyTo).ToSubject().String()
+	}
+
+	splitType := strings.Split(ev.EventType, "\\")
+	eventType := splitType[len(splitType)-1]
+
+	destinationId := ids.ParseStateId(ev.Destination)
+
+	now, err := time.Now().MarshalText()
+	if err != nil {
+		helpers.LogError(err.Error())
+		return 0
+	}
+
+	userJson, err := json.Marshal(user)
+	if err != nil {
+		helpers.LogError(err.Error())
+		return 0
+	}
+
+	header := make(nats.Header)
+	header.Add(string(glue.HeaderStateId), destinationId.String())
+	header.Add(string(glue.HeaderEventType), eventType)
+	header.Add(string(glue.HeaderTargetType), ev.TargetType)
+	header.Add(string(glue.HeaderEmittedAt), string(now))
+	header.Add(string(glue.HeaderProvenance), string(userJson))
+	header.Add(string(glue.HeaderTargetOps), ev.TargetOps)
+	header.Add(string(glue.HeaderSourceOps), ev.SourceOps)
+	header.Add(string(glue.HeaderMeta), ev.Meta)
+	header.Add(string(glue.HeaderEmittedBy), from.String())
+
+	msg := &nats.Msg{
+		Subject: helpers.Config.Stream + "." + destinationId.ToSubject().String(),
+		Reply:   replyTo,
+		Header:  header,
+		Data:    []byte(ev.Event),
+	}
+
+	if ev.ScheduleAt.After(time.Now()) {
+		msg.Header.Add(string(glue.HeaderDelay), ev.ScheduleAt.Format(time.RFC3339))
+	}
+
+	ack, err := helpers.Js.PublishMsg(ctx, msg)
+	if err != nil {
+		helpers.LogError(err.Error())
+		return 0
+	}
+	return int64(ack.Sequence)
+
+}
+
+type Worker struct {
+	kind          ids.IdKind
+	started       bool
+	consumer      *helpers.Consumer
+	activeId      *ids.StateId
+	state         *glue.StateArray
+	pendingEvents []*frankenphp.Array
+	authContext   []byte
+	currentCtx    context.Context
+	currentMsg    jetstream.Msg
+}
+
+//export registerGoObject
+func registerGoObject(obj interface{}) C.uintptr_t {
+	handle := cgo.NewHandle(obj)
+	return C.uintptr_t(handle)
+}
+
+//export getGoObject
+func getGoObject(handle C.uintptr_t) interface{} {
+	h := cgo.Handle(handle)
+	return h.Value()
+}
+
+//export removeGoObject
+func removeGoObject(handle C.uintptr_t) {
+	h := cgo.Handle(handle)
+	h.Delete()
+}
+
+//export create_Worker_object
+func create_Worker_object() C.uintptr_t {
+	obj := &Worker{
+		kind:          "api",
+		started:       false,
+		consumer:      nil,
+		activeId:      nil,
+		state:         nil,
+		pendingEvents: nil,
+		authContext:   nil,
+		currentCtx:    context.Background(),
+		currentMsg:    nil,
+	}
+	return registerGoObject(obj)
+}
+
+func (w *Worker) __destruct() {
+	w.consumer.Msg.Stop()
+	w.consumer.Done()
+}
+
+// getNextEvent removed - logic moved to ProvideRequest method
+
+func (w *Worker) queryState(idStr *C.zend_string) unsafe.Pointer {
+	id := ids.ParseStateId(frankenphp.GoString(unsafe.Pointer(idStr)))
+	state, err := glue.GetStateArray(id, helpers.Js, w.currentCtx, helpers.Logger)
+	if err != nil {
+		helpers.LogError(err.Error())
+		return nil
+	}
+	return frankenphp.PHPArray(state.Data.Array)
+}
+
+func (w *Worker) getUser() unsafe.Pointer {
+	if provenance, ok := w.currentCtx.Value(appcontext.CurrentUserKey).(*auth.User); ok {
+		ret := &glue.Array{}
+		ret.SetString("user", string(provenance.UserId))
+		roles := &frankenphp.Array{}
+		for _, r := range provenance.Roles {
+			roles.Append(string(r))
+		}
+		ret.SetString("roles", roles)
+
+		return frankenphp.PHPArray(ret.Array)
+	}
+
+	return nil
+}
+
+func (w *Worker) setUser(userArr *C.zval) {
+	if userArr == nil {
+		w.currentCtx = context.WithValue(w.currentCtx, appcontext.CurrentUserKey, nil)
+	}
+
+	arrVal := frankenphp.GoArray(unsafe.Pointer(userArr))
+	user := helpers.GetUserContext(arrVal)
+	w.currentCtx = context.WithValue(w.currentCtx, appcontext.CurrentUserKey, user)
+}
+
+func (w *Worker) getSource() unsafe.Pointer {
+	sourceId := ids.ParseStateId(w.currentMsg.Headers().Get(string(glue.HeaderEmittedBy)))
+	return frankenphp.PHPString(sourceId.String(), false)
+}
+
+func (w *Worker) getCurrentId() unsafe.Pointer {
+	return frankenphp.PHPString(w.activeId.String(), false)
+}
+
+func (w *Worker) getCorrelationId() unsafe.Pointer {
+	return frankenphp.PHPString(w.currentCtx.Value("cid").(string), false)
+}
+
+func (w *Worker) getState() unsafe.Pointer {
+	return frankenphp.PHPArray(w.state.Data.Array)
+}
+
+func (w *Worker) updateState(state *C.zval) {
+	arr := frankenphp.GoArray(unsafe.Pointer(state))
+	w.state.Data.Array = arr
+}
+
+func (w *Worker) emitEvent(event *C.zval) {
+	arr := frankenphp.GoArray(unsafe.Pointer(event))
+	w.pendingEvents = append(w.pendingEvents, arr)
+}
+
+func (w *Worker) delete() {}
+
+//export __destruct_wrapper
+func __destruct_wrapper(handle C.uintptr_t) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.__destruct()
+}
+
+// getNextEvent_wrapper removed - no longer needed
+
+//export queryState_wrapper
+func queryState_wrapper(handle C.uintptr_t, stateId *C.zend_string) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.queryState(stateId)
+}
+
+//export getUser_wrapper
+func getUser_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getUser()
+}
+
+//export getSource_wrapper
+func getSource_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getSource()
+}
+
+//export getCurrentId_wrapper
+func getCurrentId_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getCurrentId()
+}
+
+//export getCorrelationId_wrapper
+func getCorrelationId_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getCorrelationId()
+}
+
+//export getState_wrapper
+func getState_wrapper(handle C.uintptr_t) unsafe.Pointer {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return nil
+	}
+	structObj := obj.(*Worker)
+	return structObj.getState()
+}
+
+//export updateState_wrapper
+func updateState_wrapper(handle C.uintptr_t, state *C.zval) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.updateState(state)
+}
+
+//export emitEvent_wrapper
+func emitEvent_wrapper(handle C.uintptr_t, eventDescription *C.zval) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.emitEvent(eventDescription)
+}
+
+//export delete_wrapper
+func delete_wrapper(handle C.uintptr_t) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+	structObj := obj.(*Worker)
+	structObj.delete()
+}
+
+//export setUser_wrapper
+func setUser_wrapper(handle C.uintptr_t, user *C.zval) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+
+	structObj := obj.(*Worker)
+	structObj.setUser(user)
+}
+
+// SetCurrentWorker sets the current frankenphpWorker context for the PHP extension
+func SetCurrentWorker(worker *Worker) {
+	if worker == nil {
+		C.clear_current_worker()
+		return
+	}
+
+	handle := registerGoObject(worker)
+	C.set_current_worker_handle(C.uintptr_t(handle))
+}

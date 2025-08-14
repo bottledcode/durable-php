@@ -25,6 +25,7 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -34,7 +35,7 @@ use Generator;
 
 interface EntityClientInterface
 {
-    public function withAuth(string $token): void;
+    public function withAuth(Provenance|string|null $token): void;
 
     /**
      * Removes empty entities and releases orphaned locks

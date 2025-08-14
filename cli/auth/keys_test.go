@@ -2,8 +2,8 @@ package auth
 
 import (
 	"context"
-	"durable_php/appcontext"
-	"durable_php/config"
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/config"
 	"testing"
 )
 

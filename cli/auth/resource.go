@@ -2,20 +2,27 @@ package auth
 
 import (
 	"context"
-	"durable_php/appcontext"
-	"durable_php/glue"
-	"durable_php/ids"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nats-io/nats.go/jetstream"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/glue"
+	"github.com/bottledcode/durable-php/cli/ids"
+	"github.com/nats-io/nats.go/jetstream"
+	"go.uber.org/zap"
 )
+
+// LocalMessageSender is a function type for sending local messages
+type LocalMessageSender func(method, stateId string, context map[string]interface{}) (interface{}, error)
+
+// SendLocalMessage is a global function pointer that gets set by the build package
+var SendLocalMessage LocalMessageSender
 
 // Resource represents a resource with owners, shares, mode, expiration, and revision.
 // It allows operations such as updating, sharing ownership, applying permissions,
@@ -139,19 +146,41 @@ func (r *Resource) getOrCreatePermissions(id *ids.StateId, ctx context.Context, 
 	if cached, found := cache.Load(id.Name()); found {
 		perms = cached.(CreatePermissions)
 	} else {
-		result, err := os.CreateTemp("", "")
-		if err != nil {
-			return perms, err
-		}
-		defer os.Remove(result.Name())
-		result.Close()
+		if SendLocalMessage != nil {
+			// Use the new local message system
+			contextData := map[string]interface{}{
+				"bootstrap": ctx.Value("bootstrap"),
+			}
 
-		glu := glue.NewGlue(ctx.Value("bootstrap").(string), glue.GetPermissions, make([]any, 0), result.Name())
-		env := map[string]string{"STATE_ID": id.String()}
-		_, headers, _, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id, ids.SystemSource)
-		data := headers.Get("Permissions")
-		if err = json.Unmarshal([]byte(data), &perms); err != nil {
-			return perms, err
+			response, err := SendLocalMessage("getPermissions", id.String(), contextData)
+			if err != nil {
+				return perms, err
+			}
+
+			// The response should be JSON string
+			if responseStr, ok := response.(string); ok {
+				if err = json.Unmarshal([]byte(responseStr), &perms); err != nil {
+					return perms, err
+				}
+			} else {
+				return perms, errors.New("invalid response format from local message")
+			}
+		} else {
+			// Fallback to old glue system
+			result, err := os.CreateTemp("", "")
+			if err != nil {
+				return perms, err
+			}
+			defer os.Remove(result.Name())
+			result.Close()
+
+			glu := glue.NewGlue(ctx.Value("bootstrap").(string), glue.GetPermissions, make([]any, 0), result.Name())
+			env := map[string]string{"STATE_ID": id.String()}
+			_, headers, _, _ := glu.Execute(ctx, make(http.Header), logger, env, nil, id, ids.SystemSource)
+			data := headers.Get("Permissions")
+			if err = json.Unmarshal([]byte(data), &perms); err != nil {
+				return perms, err
+			}
 		}
 		cache.Store(id.Name(), perms)
 	}

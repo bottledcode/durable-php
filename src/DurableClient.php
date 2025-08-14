@@ -26,6 +26,9 @@ namespace Bottledcode\DurablePhp;
 
 use Amp\Http\Client\HttpClientBuilder;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Ext\Worker;
+use Bottledcode\DurablePhp\Glue\Provenance;
+use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\Search\EntityFilter;
 use Bottledcode\DurablePhp\State\EntityId;
 use Bottledcode\DurablePhp\State\EntityState;
@@ -43,7 +46,25 @@ final readonly class DurableClient implements DurableClientInterface
         private OrchestrationClientInterface $orchestrationClient,
     ) {}
 
-    public static function get(string $apiHost = 'http://localhost:8080'): self
+    public static function local(?Provenance $userContext = null): self
+    {
+        $worker = new Worker();
+        $entityClient = new LocalEntityClient(new SpyProxy(), $worker);
+        $orchestrationClient = new LocalOrchestrationClient(new SpyProxy(), $worker);
+        $entityClient->withAuth($userContext);
+        $orchestrationClient->withAuth($userContext);
+
+        return new self($entityClient, $orchestrationClient);
+    }
+
+    #[Override]
+    public function withAuth(Provenance|string|null $token): void
+    {
+        $this->orchestrationClient->withAuth($token);
+        $this->entityClient->withAuth($token);
+    }
+
+    public static function remote(string $apiHost = 'http://localhost:8080'): self
     {
         $builder = new HttpClientBuilder();
         $builder->retry(3);
@@ -130,13 +151,6 @@ final readonly class DurableClient implements DurableClientInterface
     public function signal(EntityId|string $entityId, Closure $signal): void
     {
         $this->entityClient->signal($entityId, $signal);
-    }
-
-    #[Override]
-    public function withAuth(string $token): void
-    {
-        $this->orchestrationClient->withAuth($token);
-        $this->entityClient->withAuth($token);
     }
 
     public function deleteEntity(EntityId $entityId): void

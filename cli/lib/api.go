@@ -2,12 +2,12 @@ package lib
 
 import (
 	"context"
-	"durable_php/auth"
-	"durable_php/config"
-	"durable_php/glue"
-	"durable_php/ids"
 	"encoding/json"
 	"fmt"
+	"github.com/bottledcode/durable-php/cli/auth"
+	"github.com/bottledcode/durable-php/cli/config"
+	"github.com/bottledcode/durable-php/cli/glue"
+	"github.com/bottledcode/durable-php/cli/ids"
 	"github.com/dunglas/frankenphp"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -36,7 +36,7 @@ func generateCorrelationId() string {
 	return string(bytes)
 }
 
-func getCorrelationId(ctx context.Context, hHeaders *http.Header, nHeaders *nats.Header) context.Context {
+func GetCorrelationId(ctx context.Context, hHeaders *http.Header, nHeaders *nats.Header) context.Context {
 	if ctx.Value("cid") != nil {
 		return ctx
 	}
@@ -97,7 +97,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 		}
 		request.Header.Add("DPHP_BOOTSTRAP", config.Bootstrap)
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		request, err := frankenphp.NewRequestWithContext(request, frankenphp.WithRequestEnv(map[string]string{
@@ -134,7 +134,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		store, err := glue.GetObjectStore("activities", js, context.Background())
@@ -161,7 +161,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -198,7 +198,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			http.Error(writer, "Page should be integer", http.StatusBadRequest)
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		if len(config.Extensions.Search.Collections) == 0 {
@@ -338,7 +338,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -392,7 +392,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -470,7 +470,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -531,7 +531,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			Id:   strings.TrimSpace(vars["id"]),
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		if request.Method == "GET" {
@@ -611,7 +611,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -630,7 +630,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -666,7 +666,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -720,7 +720,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -798,7 +798,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -854,7 +854,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 		vars := mux.Vars(request)
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		id := &ids.OrchestrationId{
@@ -984,7 +984,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 			return
 		}
 
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 
 		vars := mux.Vars(request)
@@ -1007,7 +1007,7 @@ func Startup(ctx context.Context, js jetstream.JetStream, logger *zap.Logger, po
 
 	r.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		logger.Warn("Unknown endpoint")
-		ctx := getCorrelationId(ctx, &request.Header, nil)
+		ctx := GetCorrelationId(ctx, &request.Header, nil)
 		logRequest(logger, request, ctx)
 	})
 

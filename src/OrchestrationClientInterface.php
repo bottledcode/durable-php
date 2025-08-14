@@ -25,13 +25,14 @@
 namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
 use Bottledcode\DurablePhp\State\Status;
 use Generator;
 
 interface OrchestrationClientInterface
 {
-    public function withAuth(string $token): void;
+    public function withAuth(Provenance|string|null $token): void;
 
     public function getStatus(OrchestrationInstance $instance): Status;
 

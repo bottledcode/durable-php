@@ -28,6 +28,7 @@ use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\SocketException;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
 use Bottledcode\DurablePhp\State\OrchestrationInstance;
@@ -195,7 +196,7 @@ final class RemoteOrchestrationClient implements OrchestrationClientInterface
     }
 
     #[Override]
-    public function withAuth(string $token): void
+    public function withAuth(Provenance|string|null $token): void
     {
         $this->userToken = $token;
     }

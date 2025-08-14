@@ -40,7 +40,8 @@
     "ramsey/uuid": "^4.9.0",
     "webonyx/graphql-php": "^15.22.0",
     "withinboredom/records": "^0.1.3",
-    "withinboredom/time": "^6.0.0"
+    "withinboredom/time": "^6.0.0",
+    "ext-frankenphp": "*"
   },
   "require-dev": {
     "laravel/pint": "^1.24.0",

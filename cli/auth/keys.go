@@ -2,11 +2,11 @@ package auth
 
 import (
 	"context"
-	"durable_php/appcontext"
-	"durable_php/config"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/bottledcode/durable-php/cli/appcontext"
+	"github.com/bottledcode/durable-php/cli/config"
 	"github.com/golang-jwt/jwt/v4"
 	"net/http"
 	"strings"
