@@ -18,6 +18,8 @@ class Worker {
 
     public function getUser(): ?array {}
 
+    public function setUser(?array $providence): void {}
+
     public function getSource(): string {}
 
     public function getCurrentId(): string {}
@@ -31,7 +33,6 @@ class Worker {
     public function emitEvent(array $eventDescription): void {}
 
     public function delete(): void {}
-
 }
 
 

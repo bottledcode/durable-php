@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: ad9b266d342856e3f582dcae9b4f25192cc52140 */
+ * Stub hash: ff58ba2098701d5fc5835c5c1f31dfc4bc91ea91 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_Bottledcode_DurablePhp_Ext_emit_event, 0, 3, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, userContext, IS_ARRAY, 1)
@@ -20,6 +20,10 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getUser, 0, 0, IS_ARRAY, 1)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_setUser, 0, 1, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, providence, IS_ARRAY, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getSource, 0, 0, IS_STRING, 0)
@@ -48,6 +52,7 @@ ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, GetCurrent);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, __destruct);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, queryState);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getUser);
+ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, setUser);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getSource);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getCurrentId);
 ZEND_METHOD(Bottledcode_DurablePhp_Ext_Worker, getCorrelationId);
@@ -67,6 +72,7 @@ static const zend_function_entry class_Bottledcode_DurablePhp_Ext_Worker_methods
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, __destruct, arginfo_class_Bottledcode_DurablePhp_Ext_Worker___destruct, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, queryState, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_queryState, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getUser, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getUser, ZEND_ACC_PUBLIC)
+	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, setUser, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_setUser, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getSource, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getSource, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getCurrentId, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getCurrentId, ZEND_ACC_PUBLIC)
 	ZEND_ME(Bottledcode_DurablePhp_Ext_Worker, getCorrelationId, arginfo_class_Bottledcode_DurablePhp_Ext_Worker_getCorrelationId, ZEND_ACC_PUBLIC)

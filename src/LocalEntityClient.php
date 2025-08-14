@@ -26,9 +26,15 @@ namespace Bottledcode\DurablePhp;
 
 use Bottledcode\DurablePhp\Events\EventDescription;
 use Bottledcode\DurablePhp\Events\RaiseEvent;
+use Bottledcode\DurablePhp\Events\RevokeRole;
+use Bottledcode\DurablePhp\Events\RevokeUser;
+use Bottledcode\DurablePhp\Events\ShareOwnership;
 use Bottledcode\DurablePhp\Events\Shares\Operation;
+use Bottledcode\DurablePhp\Events\ShareWithRole;
+use Bottledcode\DurablePhp\Events\ShareWithUser;
 use Bottledcode\DurablePhp\Events\WithDelay;
 use Bottledcode\DurablePhp\Events\WithEntity;
+use Bottledcode\DurablePhp\Ext\Worker;
 use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\SpyException;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
@@ -44,14 +50,13 @@ use Generator;
 use Override;
 use ReflectionFunction;
 
-use function Bottledcode\DurablePhp\Ext\emit_event;
-
 class LocalEntityClient implements EntityClientInterface
 {
     private ?Provenance $userContext = null;
 
     public function __construct(
-        private SpyProxy $spyProxy = new SpyProxy(),
+        private SpyProxy $spyProxy,
+        private Worker $worker,
     ) {}
 
     #[Override]
@@ -67,8 +72,8 @@ class LocalEntityClient implements EntityClientInterface
     public function signal(EntityId|string $entityId, Closure $signal): void
     {
         $interfaceReflector = new ReflectionFunction($signal);
-        $interfaceName = $interfaceReflector->getParameters()[0]->getType()?->getName();
-        if (interface_exists($interfaceName) === false) {
+        $interfaceName = $interfaceReflector->getParameters()[0]?->getType()?->getName();
+        if ($interfaceName === null || interface_exists($interfaceName) === false) {
             throw new Exception("Interface {$interfaceName} does not exist");
         }
         $spy = $this->spyProxy->define($interfaceName);
@@ -107,57 +112,96 @@ class LocalEntityClient implements EntityClientInterface
             $event = WithDelay::forEvent($scheduledTime, $event);
         }
 
-        $eventDescription = new EventDescription($event);
-        $userArray = $this->userContext ? Serializer::serialize($this->userContext) : null;
-
-        emit_event($userArray, $eventDescription->toArray(), StateId::fromEntityId($entityId)->id);
+        $this->worker->emitEvent(new EventDescription($event)->toArray());
     }
 
     #[Override]
     public function getEntitySnapshot(EntityId $entityId): ?EntityState
     {
-        throw new Exception('getEntitySnapshot not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $state = $this->worker->queryState(StateId::fromEntityId($entityId));
+        if (empty($state)) {
+            return null;
+        }
+
+        return Serializer::deserialize($state, EntityState::class);
     }
 
     #[Override]
     public function withAuth(Provenance|string|null $token): void
     {
-        $this->setUserContext($token instanceof Provenance ? $token : null);
-    }
-
-    public function setUserContext(?Provenance $userContext): void
-    {
-        $this->userContext = $userContext;
+        $this->worker->setUser($token instanceof Provenance ? $token : null);
     }
 
     #[Override]
     public function deleteEntity(EntityId $entityId): void
     {
-        throw new Exception('deleteEntity not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $this->worker->emitEvent(
+            new EventDescription(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($entityId),
+                    RaiseEvent::forOperation('delete', []),
+                ),
+            )->toArray(),
+        );
     }
 
     public function shareEntityOwnership(EntityId $id, string $with): void
     {
-        throw new Exception('shareEntityOwnership not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $this->worker->emitEvent(
+            new EventDescription(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($id),
+                    ShareOwnership::withUser($with),
+                ),
+            )->toArray(),
+        );
     }
 
     public function grantEntityAccessToUser(EntityId $id, string $user, Operation $operation): void
     {
-        throw new Exception('grantEntityAccessToUser not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $this->worker->emitEvent(
+            new EventDescription(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($id),
+                    ShareWithUser::For($user, $operation),
+                ),
+            )->toArray(),
+        );
     }
 
     public function grantEntityAccessToRole(EntityId $id, string $role, Operation $operation): void
     {
-        throw new Exception('grantEntityAccessToRole not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $this->worker->emitEvent(
+            new EventDescription(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($id),
+                    ShareWithRole::For($role, $operation),
+                ),
+            )->toArray(),
+        );
     }
 
     public function revokeEntityAccessToUser(EntityId $id, string $user): void
     {
-        throw new Exception('revokeEntityAccessToUser not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $this->worker->emitEvent(
+            new EventDescription(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($id),
+                    RevokeUser::completely($user),
+                ),
+            )->toArray(),
+        );
     }
 
     public function revokeEntityAccessToRole(EntityId $id, string $role): void
     {
-        throw new Exception('revokeEntityAccessToRole not supported in LocalEntityClient - use RemoteEntityClient for this operation');
+        $this->worker->emitEvent(
+            new EventDescription(
+                WithEntity::forInstance(
+                    StateId::fromEntityId($id),
+                    RevokeRole::completely($role),
+                ),
+            )->toArray(),
+        );
     }
 }

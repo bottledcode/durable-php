@@ -42,45 +42,45 @@ type LocalMessage struct {
 	ResponseCh chan interface{}       // Channel to send response back
 }
 
-type worker struct {
+type frankenphpWorker struct {
 	requestChan      chan jetstream.Msg // Channel for NATS messages
 	localMessageChan chan *LocalMessage // Channel for local synchronous requests
 	running          bool
 }
 
-var globalWorkerInstance *worker
+var globalWorkerInstance *frankenphpWorker
 
-func (w *worker) Name() string {
+func (w *frankenphpWorker) Name() string {
 	return "m#durable-php"
 }
 
-func (w *worker) FileName() string {
+func (w *frankenphpWorker) FileName() string {
 	// check if target exists
-	if _, err := os.Stat("src/Glue/worker.php"); !os.IsNotExist(err) {
-		return "src/Glue/worker.php"
+	if _, err := os.Stat("src/Glue/frankenphpWorker.php"); !os.IsNotExist(err) {
+		return "src/Glue/frankenphpWorker.php"
 	}
 
-	return "vendor/bottledcode/durable-php/src/Glue/worker.php"
+	return "vendor/bottledcode/durable-php/src/Glue/frankenphpWorker.php"
 }
 
-func (w *worker) Env() frankenphp.PreparedEnv {
+func (w *frankenphpWorker) Env() frankenphp.PreparedEnv {
 	return frankenphp.PreparedEnv{}
 }
 
-func (w *worker) GetMinThreads() int {
+func (w *frankenphpWorker) GetMinThreads() int {
 	return 4
 }
 
-func (w *worker) ThreadActivatedNotification(threadId int) {
+func (w *frankenphpWorker) ThreadActivatedNotification(threadId int) {
 }
 
-func (w *worker) ThreadDrainNotification(threadId int) {
+func (w *frankenphpWorker) ThreadDrainNotification(threadId int) {
 }
 
-func (w *worker) ThreadDeactivatedNotification(threadId int) {
+func (w *frankenphpWorker) ThreadDeactivatedNotification(threadId int) {
 }
 
-func (w *worker) ProvideRequest() *frankenphp.WorkerRequest {
+func (w *frankenphpWorker) ProvideRequest() *frankenphp.WorkerRequest {
 	// Select between NATS messages and local messages
 	select {
 	case msg := <-w.requestChan:
@@ -156,7 +156,7 @@ func processMessage(msg jetstream.Msg) *frankenphp.WorkerRequest {
 		kind = ids.Orchestration
 	}
 
-	// Create worker context for this message
+	// Create frankenphpWorker context for this message
 	worker := &Worker{
 		kind:       kind,
 		currentMsg: msg,
@@ -164,7 +164,7 @@ func processMessage(msg jetstream.Msg) *frankenphp.WorkerRequest {
 
 	worker.currentCtx = lib.GetCorrelationId(ctx, nil, &headers)
 
-	// Set the current worker for PHP access BEFORE processing/authorization
+	// Set the current frankenphpWorker for PHP access BEFORE processing/authorization
 	helpers.Logger.Info("About to call SetCurrentWorker")
 	SetCurrentWorker(worker)
 	helpers.Logger.Info("SetCurrentWorker completed")
@@ -277,7 +277,7 @@ func init() {
 	frankenphp.RegisterExtension(unsafe.Pointer(&C.ext_module_entry))
 
 	// initialize the workers
-	globalWorkerInstance = &worker{
+	globalWorkerInstance = &frankenphpWorker{
 		requestChan:      make(chan jetstream.Msg, 100), // Buffer for 100 messages
 		localMessageChan: make(chan *LocalMessage, 10),  // Buffer for 10 local messages
 	}
@@ -309,7 +309,7 @@ func SendLocalMessage(method, stateId string, context map[string]interface{}) (i
 	}
 }
 
-// StartNATSMessageFeeder starts goroutines that feed NATS messages to the worker channel
+// StartNATSMessageFeeder starts goroutines that feed NATS messages to the frankenphpWorker channel
 func StartNATSMessageFeeder(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
 	js := helpers.Js
 
@@ -346,7 +346,7 @@ func StartNATSMessageFeeder(ctx context.Context, cfg *config.Config, logger *zap
 						break // Break inner loop to recreate consumer
 					}
 
-					// Send message to worker channel
+					// Send message to frankenphpWorker channel
 					select {
 					case globalWorkerInstance.requestChan <- msg:
 						// Message sent successfully
@@ -357,37 +357,6 @@ func StartNATSMessageFeeder(ctx context.Context, cfg *config.Config, logger *zap
 			}
 		}(kind)
 	}
-}
-
-func Authorize(ctx context.Context, ev *glue.EventMessage, from *ids.StateId, preventCreation bool, operation auth.Operation) (bool, error) {
-	if !helpers.Config.Extensions.Authz.Enabled {
-		return true, nil
-	}
-
-	rm := auth.GetResourceManager(ctx, helpers.Js)
-	r, err := rm.DiscoverResource(ctx, ids.ParseStateId(ev.Destination), from, helpers.Logger, preventCreation)
-	if err != nil {
-		helpers.Logger.Error("AUTHORIZATION FAILURE: Request blocked during resource discovery",
-			zap.String("error", err.Error()),
-			zap.String("destination", ev.Destination),
-			zap.String("phase", "resource-discovery"),
-			zap.String("action", "request-rejected"))
-		return false, err
-	}
-	if r == nil {
-		return false, nil
-	}
-
-	if !r.WantTo(operation, ctx) {
-		helpers.Logger.Error("AUTHORIZATION FAILURE: Operation not permitted",
-			zap.String("operation", string(operation)),
-			zap.String("destination", ev.Destination),
-			zap.String("phase", "operation-check"),
-			zap.String("action", "request-rejected"))
-		return false, errors.New("user is not authorised")
-	}
-
-	return true, nil
 }
 
 //export go_init_module
@@ -664,7 +633,7 @@ func go_init_module() {
 		}
 	}
 
-	// Start NATS message feeder for worker
+	// Start NATS message feeder for frankenphpWorker
 	StartNATSMessageFeeder(ctx, cfg, logger)
 }
 
@@ -792,48 +761,6 @@ func create_Worker_object() C.uintptr_t {
 	obj := &Worker{}
 	return registerGoObject(obj)
 }
-func (w *Worker) startEventLoop(kindStr *C.zend_string) {
-	kind := ids.IdKind(frankenphp.GoString(unsafe.Pointer(kindStr)))
-
-	switch kind {
-	case ids.Activity:
-	case ids.Entity:
-	case ids.Orchestration:
-	default:
-		helpers.LogError("Invalid event kind")
-		return
-	}
-	w.kind = kind
-
-	if w.started {
-		helpers.LogError("Event loop already running")
-		return
-	}
-
-	ctx, done := context.WithCancel(helpers.Ctx)
-
-	c := &helpers.Consumer{
-		Context: ctx,
-		Done:    done,
-	}
-
-	stream, err := helpers.Js.Stream(ctx, helpers.Config.Stream)
-	if err != nil {
-		helpers.LogError(err.Error())
-		return
-	}
-
-	c.Msg = lib.StartConsumer(ctx, helpers.Config, stream, helpers.Logger, w.kind)
-	w.consumer = c
-}
-
-func (w *Worker) drainEventLoop() {
-	if !w.started {
-		return
-	}
-	w.consumer.Msg.Drain()
-	w.started = false
-}
 
 func (w *Worker) __destruct() {
 	w.consumer.Msg.Stop()
@@ -866,6 +793,16 @@ func (w *Worker) getUser() unsafe.Pointer {
 	}
 
 	return nil
+}
+
+func (w *Worker) setUser(userArr *C.zval) {
+	if userArr == nil {
+		w.currentCtx = context.WithValue(w.currentCtx, appcontext.CurrentUserKey, nil)
+	}
+
+	arrVal := frankenphp.GoArray(unsafe.Pointer(userArr))
+	user := helpers.GetUserContext(arrVal)
+	w.currentCtx = context.WithValue(w.currentCtx, appcontext.CurrentUserKey, user)
 }
 
 func (w *Worker) getSource() unsafe.Pointer {
@@ -999,7 +936,18 @@ func delete_wrapper(handle C.uintptr_t) {
 	structObj.delete()
 }
 
-// SetCurrentWorker sets the current worker context for the PHP extension
+//export setUser_wrapper
+func setUser_wrapper(handle C.uintptr_t, user *C.zval) {
+	obj := getGoObject(handle)
+	if obj == nil {
+		return
+	}
+
+	structObj := obj.(*Worker)
+	structObj.setUser(user)
+}
+
+// SetCurrentWorker sets the current frankenphpWorker context for the PHP extension
 func SetCurrentWorker(worker *Worker) {
 	if worker == nil {
 		C.clear_current_worker()
@@ -1009,17 +957,3 @@ func SetCurrentWorker(worker *Worker) {
 	handle := registerGoObject(worker)
 	C.set_current_worker_handle(C.uintptr_t(handle))
 }
-
-// ClearCurrentWorker clears the current worker context
-func ClearCurrentWorker() {
-	C.clear_current_worker()
-}
-
-// GetWorkerInstance returns the global worker instance for feeding requests
-func GetWorkerInstance() *worker {
-	return globalWorkerInstance
-}
-
-// InjectWorkerRequest removed - worker now pulls directly from NATS consumers
-
-// StartWorkerConsumer removed - NATS consumer logic now integrated into ProvideRequest method

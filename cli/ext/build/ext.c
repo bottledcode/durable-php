@@ -154,6 +154,19 @@ PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, getUser) {
     }
 }
 
+PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, setUser) {
+    ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));
+
+    zval *ht;
+
+    VALIDATE_GO_HANDLE(intern);
+    ZEND_PARSE_PARAMETERS_START(1, 1)
+        Z_PARAM_ARRAY_OR_NULL(ht)
+        ZEND_PARSE_PARAMETERS_END();
+
+    setUser_wrapper(intern->go_handle, ht);
+}
+
 PHP_METHOD(Bottledcode_DurablePhp_Ext_Worker, getSource) {
     ext_object *intern = ext_object_from_obj(Z_OBJ_P(ZEND_THIS));
     

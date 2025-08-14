@@ -30,6 +30,7 @@ use Bottledcode\DurablePhp\Events\Shares\Operation;
 use Bottledcode\DurablePhp\Events\StartExecution;
 use Bottledcode\DurablePhp\Events\StartOrchestration;
 use Bottledcode\DurablePhp\Events\WithOrchestration;
+use Bottledcode\DurablePhp\Ext\Worker;
 use Bottledcode\DurablePhp\Glue\Provenance;
 use Bottledcode\DurablePhp\Proxy\SpyProxy;
 use Bottledcode\DurablePhp\State\Ids\StateId;
@@ -48,7 +49,8 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
     private ?Provenance $userContext = null;
 
     public function __construct(
-        private SpyProxy $spyProxy = new SpyProxy(),
+        private SpyProxy $spyProxy,
+        private Worker $worker,
     ) {}
 
     #[Override]
@@ -66,33 +68,33 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
     #[Override]
     public function getStatus(OrchestrationInstance $instance): Status
     {
-        throw new Exception('getStatus not supported in LocalOrchestrationClient - use RemoteOrchestrationClient for this operation');
+        $result = $this->worker->queryState(StateId::fromInstance($instance));
+
+        return Serializer::deserialize($result, Status::class);
     }
 
     #[Override]
     public function raiseEvent(OrchestrationInstance $instance, string $eventName, array $eventData): void
     {
         $event = WithOrchestration::forInstance(
-            StateId::fromOrchestrationInstance($instance),
-            RaiseEvent::forSignal($eventName, SerializedArray::fromArray($eventData)),
+            StateId::fromInstance($instance),
+            RaiseEvent::forOperation($eventName, $eventData),
         );
 
         $eventDescription = new EventDescription($event);
-        $userArray = $this->userContext ? Serializer::serialize($this->userContext) : null;
-
-        emit_event($userArray, $eventDescription->toArray(), StateId::fromOrchestrationInstance($instance)->id);
+        $this->worker->emitEvent($eventDescription->toArray());
     }
 
     #[Override]
     public function restart(OrchestrationInstance $instance): void
     {
-        throw new Exception('restart not implemented in LocalOrchestrationClient');
+        throw new Exception('not implemented');
     }
 
     #[Override]
     public function resume(OrchestrationInstance $instance, string $reason): void
     {
-        throw new Exception('resume not implemented in LocalOrchestrationClient');
+        throw new Exception('not implemented');
     }
 
     #[Override]
@@ -139,12 +141,7 @@ final class LocalOrchestrationClient implements OrchestrationClientInterface
     #[Override]
     public function withAuth(Provenance|string|null $token): void
     {
-        $this->setUserContext($token instanceof Provenance ? $token : null);
-    }
-
-    public function setUserContext(?Provenance $userContext): void
-    {
-        $this->userContext = $userContext;
+        $this->worker->setUser($token instanceof Provenance ? $token : null);
     }
 
     public function shareOrchestrationOwnership(OrchestrationInstance $id, string $with): void
