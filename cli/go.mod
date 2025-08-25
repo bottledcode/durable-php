@@ -21,7 +21,7 @@ require github.com/golang-jwt/jwt/v4 v4.5.2
 require (
 	github.com/google/uuid v1.6.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 )
 
 require (
