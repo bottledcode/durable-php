@@ -4,9 +4,9 @@ go 1.24.5
 
 require github.com/dunglas/frankenphp v1.9.0
 
-require github.com/nats-io/nats.go v1.44.0
+require github.com/nats-io/nats.go v1.45.0
 
-require github.com/nats-io/nats-server/v2 v2.11.7
+require github.com/nats-io/nats-server/v2 v2.12.0
 
 require github.com/teris-io/cli v1.0.1
 
@@ -25,6 +25,7 @@ require (
 )
 
 require (
+	github.com/antithesishq/antithesis-sdk-go v0.4.3-default-no-op // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -36,7 +37,7 @@ require (
 	github.com/maypok86/otter v1.2.4 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/jwt/v2 v2.7.4 // indirect
+	github.com/nats-io/jwt/v2 v2.8.0 // indirect
 	github.com/nats-io/nkeys v0.4.11 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
@@ -47,9 +48,9 @@ require (
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/crypto v0.42.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/time v0.13.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
