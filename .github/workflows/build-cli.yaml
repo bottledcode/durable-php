@@ -109,7 +109,7 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body-includes: Performance Metrics
-      - uses: peter-evans/create-or-update-comment@v4
+      - uses: peter-evans/create-or-update-comment@v5
         continue-on-error: true
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
